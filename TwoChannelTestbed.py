@@ -12,9 +12,14 @@ import pyaudio
 import math
 from aubio import pitch
 import numpy as np
-import matplotlib.pyplot as plt
 from PyQt5 import QtCore
-from PyQt5.QtWidgets import QApplication, QMainWindow, QMenu, QHBoxLayout, QVBoxLayout, QSizePolicy, QMessageBox, QWidget, QLabel, QSlider, QCheckBox, QPushButton, QLCDNumber
+from PyQt5 import QtGui as qg
+from PyQt5.QtWidgets import QApplication, QMainWindow, QMenu, QHBoxLayout
+from PyQt5.QtWidgets import QVBoxLayout, QSizePolicy, QMessageBox, QWidget
+from PyQt5.QtWidgets import QLabel, QSlider, QCheckBox, QPushButton, QLCDNumber
+import matplotlib
+matplotlib.use('Qt5Agg')
+import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 
@@ -27,10 +32,10 @@ from mpl_toolkits.axisartist.grid_finder import (FixedLocator, MaxNLocator, Dict
 #import matplotlib.pyplot as plt
 from matplotlib.patches import Wedge
 
-FFTSIZE=2048
+FFTSIZE=2048*2
 RATE= 16384
 #RATE= 48000
-DEVICENO=2
+DEVICENO=7
 
 #pitch logs
 global pitchlog1, pitchlog2
@@ -98,6 +103,50 @@ class MplFigure(object):
         self.canvas = FigureCanvas(self.figure)
         self.toolbar = NavigationToolbar(self.canvas, parent)
 
+
+class GaugeWidget(QWidget):
+    def __init__(self, *args, **kwargs):
+        '''
+        '''
+        QWidget.__init__(self, *args, **kwargs)
+        hbox_fixedGain = QVBoxLayout()
+        fixedGain = QLabel('Gauge')
+        hbox_fixedGain.addWidget(fixedGain)
+        self.setLayout(hbox_fixedGain)
+        self.clip = None
+        self.rectf = QtCore.QRectF(10., 10., 100., 100.)
+        self.color = qg.QColor(0, 0, 0)
+        self.clip_color = qg.QColor(255, 0, 0)
+
+    def set_clip(self, clip_value):
+        ''' Set a clip value'''
+        self.clip = clip_value
+
+    def paintEvent(self, e):
+        ''' This is executed when self.repaint() is called'''
+        painter = qg.QPainter(self)
+        if self._val<self.clip and self.clip:
+            color = self.color
+        else:
+            color = self.clip_color
+        pen = qg.QPen(color, 20, QtCore.Qt.SolidLine)
+        painter.setPen(pen)
+        painter.drawArc(self.rectf, 2880., self._val)
+        #painter.drawPie(self.rectf, 2880., self._val)
+
+    def update_value(self, val):
+        '''
+        Call this method to update the arc
+        '''
+        if self.clip:
+            self._val = min(math.log(val)/math.log(self.clip)*2880., 2880)  # 2880=16*180 (half circle)
+        else:
+            self._val = math.log(val) * 100
+        self.repaint()
+
+    def sizeHint(self):
+        return QtCore.QSize(200, 200)
+
 class LiveFFTWidget(QWidget):
     def __init__(self):
         QWidget.__init__(self)
@@ -140,6 +189,9 @@ class LiveFFTWidget(QWidget):
 
         # mpl figure
         self.main_figure = MplFigure(self)
+        self.live_gauge = GaugeWidget(self)
+        #self.live_gauge.set_clip(500)
+        vbox.addWidget(self.live_gauge)
         vbox.addWidget(self.main_figure.toolbar)
         vbox.addWidget(self.main_figure.canvas)
 
@@ -277,10 +329,10 @@ class LiveFFTWidget(QWidget):
         self.gauge1_ax1.axis["top"].label.set_axis_direction("top")
     
         #ax1.axis["left"].label.set_text(r"cz [km$^{-1}$]")
-        self.gauge1_ax1.axis["left"].label.set_text(r"")
-        self.gauge1_ax1.axis["right"].label.set_text(r"")
+        #self.gauge1_ax1.axis["left"].label.set_text(r"")
+        #self.gauge1_ax1.axis["right"].label.set_text(r"")
         self.gauge1_ax1.axis["top"].label.set_text(pllabel)
-        self.gauge1_ax1.axis["bottom"].label.set_text(" ")
+        #self.gauge1_ax1.axis["bottom"].label.set_text(" ")
     
         # create a parasite axes whose transData in RA, cz
         self.gauge1_aux_ax = self.gauge1_ax1.get_aux_axes(tr)
@@ -297,6 +349,8 @@ class LiveFFTWidget(QWidget):
         #here I create the wedge to start
         self.gauge1_ax1.gauge1_wedge=Wedge((0,0),0.99,1,120,width=0.38,facecolor='#FF0000')
         self.gauge1_ax1.add_patch(self.gauge1_ax1.gauge1_wedge)
+        for an in [100.,200,300,400,500,700,800,900,1000,1100]:
+            self.gauge1_aux_ax.plot([an*180/1200, an*180/1200], [0.5,1.], color='black',lw=1,ls='dotted')
         
         # End gauge 1 -----------------------------------------------------------------------------------------------
         
@@ -348,6 +402,7 @@ class LiveFFTWidget(QWidget):
         frames = self.mic.get_frames()
 
         if len(frames) > 0:
+            t1 = time.time()
             # keeps only the last frame (which contains two interleaved channels)
             t0g = time.time()
             buffer = frames[-1]
@@ -421,15 +476,17 @@ class LiveFFTWidget(QWidget):
             new_pitch2Cent = 1200* math.log((new_pitch2+.1)/120.,2)
                 
             ivCents=abs(new_pitch2Cent-new_pitch1Cent)
-            
-            if 0< ivCents <= 1200:
-                self.gauge1_ax1.axis["top"].label.set_text(str(int(ivCents)))
-                self.gauge1_ax1.gauge1_wedge.set_theta2(180.)
-                self.gauge1_ax1.gauge1_wedge.set_theta1((1200 - ivCents)*180/1200)
-                self.gauge1_ax1.add_patch(self.gauge1_ax1.gauge1_wedge)
-                for an in [100.,200,300,400,500,700,800,900,1000,1100]:
-                    self.gauge1_aux_ax.plot([an*180/1200, an*180/1200], [0.5,1.], color='black',lw=1,ls='dotted')
-            
+            #t1 = time.time()
+            self.live_gauge.update_value(ivCents)
+            #t2 = time.time()
+
+            #if 0< ivCents <= 1200:
+            #    self.gauge1_ax1.axis["top"].label.set_text(str(int(ivCents)))
+            #    self.gauge1_ax1.gauge1_wedge.set_theta2(180.)
+            #    self.gauge1_ax1.gauge1_wedge.set_theta1((1200 - ivCents)*180/1200)
+            #    self.gauge1_ax1.add_patch(self.gauge1_ax1.gauge1_wedge)
+            #t3 = time.time()
+            #print 'time spent on drawing: qt, mpl [s]', t2-t1, t3-t2
 
             update_pitch_log1(abs(new_pitch1Cent-new_pitch2Cent))
             self.ch1_pitchlog.set_data(self.pitchlog_vect1, pitchlog1)
@@ -439,7 +496,7 @@ class LiveFFTWidget(QWidget):
         
             # refreshes the plots
             self.main_figure.canvas.draw()
-
+            print 'total time', time.time()-t1
 
 
 
