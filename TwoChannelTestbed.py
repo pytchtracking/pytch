@@ -103,6 +103,33 @@ class MplFigure(object):
         self.canvas = FigureCanvas(self.figure)
         self.toolbar = NavigationToolbar(self.canvas, parent)
 
+class TraceWidget(QWidget):
+    def __init__(self, *args, **kwargs):
+        QWidget.__init__(self, *args, **kwargs)
+        hbox_fixedGain = QVBoxLayout()
+        fixedGain = QLabel('Trace 1')
+        hbox_fixedGain.addWidget(fixedGain)
+        self.setLayout(hbox_fixedGain)
+        self.clip = None
+        self.rectf = QtCore.QRectF(10., 10., 100., 100.)
+        self.color = qg.QColor(0, 0, 0)
+        self.clip_color = qg.QColor(255, 0, 0)
+
+    def paintEvent(self, e):
+        ''' This is executed e.g. when self.repaint() is called'''
+        painter = qg.QPainter(self)
+        pen = qg.QPen(color, 20, QtCore.Qt.SolidLine)
+        painter.setPen(pen)
+        painter.Line(self.rectf, 2880., self._xvisible, self._yvisible)
+
+    def update(self, xdata, ydata):
+        '''
+        Call this method to update the arc
+        '''
+        self._yvisible = ydata
+        self._xvisible = xdata
+        self.repaint()
+
 
 class GaugeWidget(QWidget):
     def __init__(self, *args, **kwargs):
@@ -187,11 +214,15 @@ class LiveFFTWidget(QWidget):
         vbox.addLayout(hbox_gain)
         vbox.addLayout(hbox_fixedGain)
 
+        self.trace_channel_1 = TraceWidget()
+        self.trace_channel_2 = TraceWidget()
+
         # mpl figure
         self.main_figure = MplFigure(self)
         self.live_gauge = GaugeWidget(self)
-        #self.live_gauge.set_clip(500)
         vbox.addWidget(self.live_gauge)
+        vbox.addWidget(self.trace_channel_1)
+        vbox.addWidget(self.trace_channel_2)
         vbox.addWidget(self.main_figure.toolbar)
         vbox.addWidget(self.main_figure.canvas)
 
@@ -305,7 +336,6 @@ class LiveFFTWidget(QWidget):
                                                                      tick_formatter1=tick_formatter1,
                                                                      tick_formatter2=tick_formatter2
                                                                      )
-        
         
         #self.gauge1 = self.main_figure.figure.add_subplot(514)
         # self.gauge1_ax1 used to be called ax1
@@ -496,7 +526,7 @@ class LiveFFTWidget(QWidget):
         
             # refreshes the plots
             self.main_figure.canvas.draw()
-            print 'total time', time.time()-t1
+            print('total time', time.time()-t1)
 
 
 
