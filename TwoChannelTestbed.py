@@ -12,7 +12,7 @@ import pyaudio
 import math
 from aubio import pitch
 import numpy as np
-from PyQt5 import QtCore
+from PyQt5 import QtCore as qc
 from PyQt5 import QtGui as qg
 from PyQt5.QtWidgets import QApplication, QMainWindow, QMenu, QHBoxLayout
 from PyQt5.QtWidgets import QVBoxLayout, QSizePolicy, QMessageBox, QWidget
@@ -102,6 +102,22 @@ class MplFigure(object):
         self.figure = plt.figure(facecolor='white')
         self.canvas = FigureCanvas(self.figure)
         self.toolbar = NavigationToolbar(self.canvas, parent)
+
+def make_QPolygonF(xdata, ydata):
+    ''' as in pyrocko.gui_util'''
+    assert len(xdata) == len(ydata)
+    qpoints = qg.QPolygonF(len(ydata))
+    vptr = qpoints.data()
+    vptr.setsize(len(ydata)*8*2)
+    aa = np.ndarray(
+        shape=(len(ydata), 2),
+        dtype=np.float64,
+        buffer=buffer(vptr))
+    aa.setflags(write=True)
+    aa[:, 0] = xdata
+    aa[:, 1] = ydata
+    return qpoints
+
 
 class TraceWidget(QWidget):
     def __init__(self, *args, **kwargs):
@@ -203,7 +219,7 @@ class LiveFFTWidget(QWidget):
 
         hbox_fixedGain = QHBoxLayout()
         fixedGain = QLabel('Fixed gain level')
-        fixedGainSlider = QSlider(QtCore.Qt.Horizontal)
+        fixedGainSlider = QSlider(qc.Qt.Horizontal)
         hbox_fixedGain.addWidget(fixedGain)
         hbox_fixedGain.addWidget(fixedGainSlider)
 
@@ -233,7 +249,7 @@ class LiveFFTWidget(QWidget):
         self.show()
         # timer for calls, taken from:
         # http://ralsina.me/weblog/posts/BB974.html
-        timer = QtCore.QTimer()
+        timer = qc.QTimer()
         timer.timeout.connect(self.handleNewData)
         #timer.start(100)
         timer.start(1)
@@ -440,7 +456,7 @@ class LiveFFTWidget(QWidget):
             self.line_ch1_time.set_data(self.time_vect1, current_frame1)
             # computes and plots the fft signal
             fft_frame = np.fft.rfft(current_frame1)
-            if self.autoGainCheckBox.checkState() == QtCore.Qt.Checked:
+            if self.autoGainCheckBox.checkState() == qc.Qt.Checked:
                 fft_frame /= np.abs(fft_frame).max()
             else:
                 fft_frame *= (1 + self.fixedGainSlider.value()) / 5000000.
@@ -468,11 +484,12 @@ class LiveFFTWidget(QWidget):
 
             # channel 2
             # plots the time signal 2
-            self.line_ch2_time.set_data(self.time_vect2, current_frame2)
+            #self.line_ch2_time.set_data(self.time_vect2, current_frame2)
+            self.trace_channel_1.draw_trace(self.time_vect2, current_frame2)
 
             # computes and plots the fft signal
             fft_frame = np.fft.rfft(current_frame2)
-            if self.autoGainCheckBox.checkState() == QtCore.Qt.Checked:
+            if self.autoGainCheckBox.checkState() == qc.Qt.Checked:
                 fft_frame /= np.abs(fft_frame).max()
             else:
                 fft_frame *= (1 + self.fixedGainSlider.value()) / 5000000.
