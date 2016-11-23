@@ -119,32 +119,6 @@ def make_QPolygonF(xdata, ydata):
     return qpoints
 
 
-class TraceWidget(QWidget):
-    def __init__(self, *args, **kwargs):
-        QWidget.__init__(self, *args, **kwargs)
-        hbox_fixedGain = QVBoxLayout()
-        fixedGain = QLabel('Trace 1')
-        hbox_fixedGain.addWidget(fixedGain)
-        self.setLayout(hbox_fixedGain)
-        self.clip = None
-        self.rectf = QtCore.QRectF(10., 10., 100., 100.)
-        self.color = qg.QColor(0, 0, 0)
-        self.clip_color = qg.QColor(255, 0, 0)
-
-    def paintEvent(self, e):
-        ''' This is executed e.g. when self.repaint() is called'''
-        painter = qg.QPainter(self)
-        pen = qg.QPen(color, 20, QtCore.Qt.SolidLine)
-        painter.setPen(pen)
-        painter.Line(self.rectf, 2880., self._xvisible, self._yvisible)
-
-    def update(self, xdata, ydata):
-        '''
-        Call this method to update the arc
-        '''
-        self._yvisible = ydata
-        self._xvisible = xdata
-        self.repaint()
 
 
 class GaugeWidget(QWidget):
@@ -157,9 +131,10 @@ class GaugeWidget(QWidget):
         hbox_fixedGain.addWidget(fixedGain)
         self.setLayout(hbox_fixedGain)
         self.clip = None
-        self.rectf = QtCore.QRectF(10., 10., 100., 100.)
+        self.rectf = qc.QRectF(10., 10., 100., 100.)
         self.color = qg.QColor(0, 0, 0)
         self.clip_color = qg.QColor(255, 0, 0)
+        self._val = 0
 
     def set_clip(self, clip_value):
         ''' Set a clip value'''
@@ -172,7 +147,7 @@ class GaugeWidget(QWidget):
             color = self.color
         else:
             color = self.clip_color
-        pen = qg.QPen(color, 20, QtCore.Qt.SolidLine)
+        pen = qg.QPen(color, 20, qc.Qt.SolidLine)
         painter.setPen(pen)
         painter.drawArc(self.rectf, 2880., self._val)
         #painter.drawPie(self.rectf, 2880., self._val)
@@ -188,7 +163,7 @@ class GaugeWidget(QWidget):
         self.repaint()
 
     def sizeHint(self):
-        return QtCore.QSize(200, 200)
+        return qc.QSize(200, 200)
 
 class LiveFFTWidget(QWidget):
     def __init__(self):
@@ -453,7 +428,7 @@ class LiveFFTWidget(QWidget):
             #print("{}".format(time_str))
             # channel 1
             # plots the time signal 1
-            self.line_ch1_time.set_data(self.time_vect1, current_frame1)
+            #self.line_ch1_time.set_data(self.time_vect1, current_frame1)
             # computes and plots the fft signal
             fft_frame = np.fft.rfft(current_frame1)
             if self.autoGainCheckBox.checkState() == qc.Qt.Checked:
@@ -463,7 +438,7 @@ class LiveFFTWidget(QWidget):
                 #print(np.abs(fft_frame).max())
 
             #print("{} {}".format(min(np.log(np.abs(fft_frame))),max(np.log(np.abs(fft_frame)))))
-            self.line_ch1_spec.set_data(self.freq_vect1, np.log(np.abs(fft_frame)))
+            #self.line_ch1_spec.set_data(self.freq_vect1, np.log(np.abs(fft_frame)))
 
             #time_str = "Time to plot channel1 in ms: %f" % ((time.time()-t0g)*1000)
             #print("{}".format(time_str))
@@ -485,7 +460,8 @@ class LiveFFTWidget(QWidget):
             # channel 2
             # plots the time signal 2
             #self.line_ch2_time.set_data(self.time_vect2, current_frame2)
-            self.trace_channel_1.draw_trace(self.time_vect2, current_frame2)
+            self.trace_channel_1.draw_trace(self.time_vect1, current_frame1)
+            self.trace_channel_2.draw_trace(self.time_vect2, current_frame2)
 
             # computes and plots the fft signal
             fft_frame = np.fft.rfft(current_frame2)
@@ -495,7 +471,8 @@ class LiveFFTWidget(QWidget):
                 fft_frame *= (1 + self.fixedGainSlider.value()) / 5000000.
                 #print(np.abs(fft_frame).max())
 
-            #self.line_ch2_spec.set_data(self.freq_vect2, np.abs(fft_frame))
+            # freqs:
+            self.line_ch2_spec.set_data(self.freq_vect2, np.abs(fft_frame))
             self.line_ch2_spec.set_data(self.freq_vect1, np.log(np.abs(fft_frame)))
             #  pitch tracking algorithm
             #new_pitch2 = compute_pitch_hps(current_frame2, self.mic.rate,dF=1)
