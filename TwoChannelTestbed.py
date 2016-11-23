@@ -31,6 +31,7 @@ from matplotlib.projections import PolarAxes
 from mpl_toolkits.axisartist.grid_finder import (FixedLocator, MaxNLocator, DictFormatter)
 #import matplotlib.pyplot as plt
 from matplotlib.patches import Wedge
+from gui import GaugeWidget
 
 FFTSIZE=2048*2
 RATE= 16384
@@ -103,67 +104,6 @@ class MplFigure(object):
         self.canvas = FigureCanvas(self.figure)
         self.toolbar = NavigationToolbar(self.canvas, parent)
 
-def make_QPolygonF(xdata, ydata):
-    ''' as in pyrocko.gui_util'''
-    assert len(xdata) == len(ydata)
-    qpoints = qg.QPolygonF(len(ydata))
-    vptr = qpoints.data()
-    vptr.setsize(len(ydata)*8*2)
-    aa = np.ndarray(
-        shape=(len(ydata), 2),
-        dtype=np.float64,
-        buffer=buffer(vptr))
-    aa.setflags(write=True)
-    aa[:, 0] = xdata
-    aa[:, 1] = ydata
-    return qpoints
-
-
-
-
-class GaugeWidget(QWidget):
-    def __init__(self, *args, **kwargs):
-        '''
-        '''
-        QWidget.__init__(self, *args, **kwargs)
-        hbox_fixedGain = QVBoxLayout()
-        fixedGain = QLabel('Gauge')
-        hbox_fixedGain.addWidget(fixedGain)
-        self.setLayout(hbox_fixedGain)
-        self.clip = None
-        self.rectf = qc.QRectF(10., 10., 100., 100.)
-        self.color = qg.QColor(0, 0, 0)
-        self.clip_color = qg.QColor(255, 0, 0)
-        self._val = 0
-
-    def set_clip(self, clip_value):
-        ''' Set a clip value'''
-        self.clip = clip_value
-
-    def paintEvent(self, e):
-        ''' This is executed when self.repaint() is called'''
-        painter = qg.QPainter(self)
-        if self._val<self.clip and self.clip:
-            color = self.color
-        else:
-            color = self.clip_color
-        pen = qg.QPen(color, 20, qc.Qt.SolidLine)
-        painter.setPen(pen)
-        painter.drawArc(self.rectf, 2880., self._val)
-        #painter.drawPie(self.rectf, 2880., self._val)
-
-    def update_value(self, val):
-        '''
-        Call this method to update the arc
-        '''
-        if self.clip:
-            self._val = min(math.log(val)/math.log(self.clip)*2880., 2880)  # 2880=16*180 (half circle)
-        else:
-            self._val = math.log(val) * 100
-        self.repaint()
-
-    def sizeHint(self):
-        return qc.QSize(200, 200)
 
 class LiveFFTWidget(QWidget):
     def __init__(self):
@@ -205,15 +145,15 @@ class LiveFFTWidget(QWidget):
         vbox.addLayout(hbox_gain)
         vbox.addLayout(hbox_fixedGain)
 
-        self.trace_channel_1 = TraceWidget()
-        self.trace_channel_2 = TraceWidget()
+        #self.trace_channel_1 = TraceWidget()
+        #self.trace_channel_2 = TraceWidget()
 
         # mpl figure
         self.main_figure = MplFigure(self)
         self.live_gauge = GaugeWidget(self)
         vbox.addWidget(self.live_gauge)
-        vbox.addWidget(self.trace_channel_1)
-        vbox.addWidget(self.trace_channel_2)
+        #vbox.addWidget(self.trace_channel_1)
+        #vbox.addWidget(self.trace_channel_2)
         vbox.addWidget(self.main_figure.toolbar)
         vbox.addWidget(self.main_figure.canvas)
 
@@ -227,7 +167,7 @@ class LiveFFTWidget(QWidget):
         timer = qc.QTimer()
         timer.timeout.connect(self.handleNewData)
         #timer.start(100)
-        timer.start(1)
+        timer.start(1000)
         # keep reference to timer
         self.timer = timer
 
@@ -424,6 +364,8 @@ class LiveFFTWidget(QWidget):
             result = np.reshape(buffer, (FFTSIZE, 2))
             current_frame1 = result[:, 0]
             current_frame2 = result[:, 1]
+
+
             time_str = "Time to load frame1 and frame2 in ms: %f" % ((time.time()-t0g)*1000)
             #print("{}".format(time_str))
             # channel 1
