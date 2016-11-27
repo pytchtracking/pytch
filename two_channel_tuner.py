@@ -31,9 +31,9 @@ from matplotlib.projections import PolarAxes
 from mpl_toolkits.axisartist.grid_finder import (FixedLocator, MaxNLocator, DictFormatter)
 #import matplotlib.pyplot as plt
 from matplotlib.patches import Wedge
-from gui import GaugeWidget
+#from gui import GaugeWidget
 
-FFTSIZE=2048*2
+FFTSIZE=2048
 RATE= 16384
 #RATE= 48000
 DEVICENO=7
@@ -116,10 +116,15 @@ class LiveFFTWidget(QWidget):
         self.initData()
 
         # connect slots
-        self.connectSlots()
+        #self.connectSlots()
 
         # init MPL widget
         self.initMplWidget()
+
+        #self.thread = qc.QThread()
+
+        #self.worker = Worker()
+        #self.worker.moveToThread(self.thread)
 
     def initUI(self):
 
@@ -150,8 +155,8 @@ class LiveFFTWidget(QWidget):
 
         # mpl figure
         self.main_figure = MplFigure(self)
-        self.live_gauge = GaugeWidget(self)
-        vbox.addWidget(self.live_gauge)
+        #self.live_gauge = GaugeWidget(self)
+        #vbox.addWidget(self.live_gauge)
         #vbox.addWidget(self.trace_channel_1)
         #vbox.addWidget(self.trace_channel_2)
         vbox.addWidget(self.main_figure.toolbar)
@@ -164,12 +169,6 @@ class LiveFFTWidget(QWidget):
         self.show()
         # timer for calls, taken from:
         # http://ralsina.me/weblog/posts/BB974.html
-        timer = qc.QTimer()
-        timer.timeout.connect(self.handleNewData)
-        #timer.start(100)
-        timer.start(1000)
-        # keep reference to timer
-        self.timer = timer
 
 
     def initData(self):
@@ -193,6 +192,7 @@ class LiveFFTWidget(QWidget):
         self.pitchlog_vect2 = np.arange(PITCHLOGLEN, dtype=np.float32)
 
     def connectSlots(self):
+        # wozu?
         pass
 
     def initMplWidget(self):
@@ -354,17 +354,169 @@ class LiveFFTWidget(QWidget):
     def handleNewData(self):
         """ handles the asynchroneously collected sound chunks """
         # gets the latest frames
+        print 'asdf'
         frames = self.mic.get_frames()
+        #print frames
+        #print 'start'
+        self.worker.work(frames)
 
+        if not self.worker.ready:
+            return
+        else:
+            print 'finished'
+
+        #if len(frames) > 0:
+        #    t1 = time.time()
+        #    # keeps only the last frame (which contains two interleaved channels)
+        #    t0g = time.time()
+        #    buffer = frames[-1]
+        #    result = np.reshape(buffer, (FFTSIZE, 2))
+        #    current_frame1 = result[:, 0]
+        #    current_frame2 = result[:, 1]
+
+
+        #    time_str = "Time to load frame1 and frame2 in ms: %f" % ((time.time()-t0g)*1000)
+        #    #print("{}".format(time_str))
+        #    # channel 1
+        #    # plots the time signal 1
+        #    #self.line_ch1_time.set_data(self.time_vect1, current_frame1)
+        #    # computes and plots the fft signal
+        #    fft_frame = np.fft.rfft(current_frame1)
+        #    if self.autoGainCheckBox.checkState() == qc.Qt.Checked:
+        #        fft_frame /= np.abs(fft_frame).max()
+        #    else:
+        #        fft_frame *= (1 + self.fixedGainSlider.value()) / 5000000.
+        #        #print(np.abs(fft_frame).max())
+
+        #    #print("{} {}".format(min(np.log(np.abs(fft_frame))),max(np.log(np.abs(fft_frame)))))
+        #    #self.line_ch1_spec.set_data(self.freq_vect1, np.log(np.abs(fft_frame)))
+
+        #    #time_str = "Time to plot channel1 in ms: %f" % ((time.time()-t0g)*1000)
+        #    #print("{}".format(time_str))
+        #    #  pitch tracking algorithm
+
+        #    t0g = time.time()
+        #    #new_pitch1 = compute_pitch_hps(current_frame1, self.mic.rate,dF=1)
+        #    #precise_pitch1 = compute_pitch_hps(current_frame1, self.mic.rate, dF=0.05, Fmin=new_pitch1 * 0.8, Fmax = new_pitch1 * 1.2)
+        #    signal1float=current_frame1.astype(np.float32)
+        #    new_pitch1=precise_pitch1=pitch_o(signal1float)[0]
+        #    #pitch_confidence1 = pitch_o.get_confidence()
+        #    #time_str = "Time to pitch track channel1 in ms: %f" % ((time.time()-t0g)*1000)
+        #    #print("{}".format(time_str))
+
+        #self.ax_ch1_spec.set_title("pitch = {:.2f} Hz".format(self.worker.precise_pitch1))
+        self.ch1_pitch_line.set_data((self.worker.new_pitch1, self.worker.new_pitch1),
+                                 self.ax_ch1_spec.get_ylim())
+
+        ##   # channel 2
+        #    # plots the time signal 2
+        #    #self.line_ch2_time.set_data(self.time_vect2, current_frame2)
+        #    #self.trace_channel_1.draw_trace(self.time_vect1, current_frame1)
+        #    #self.trace_channel_2.draw_trace(self.time_vect2, current_frame2)
+
+        #    # computes and plots the fft signal
+        #    fft_frame = np.fft.rfft(worker.current_frame2)
+        #    if self.autoGainCheckBox.checkState() == qc.Qt.Checked:
+        #        fft_frame /= np.abs(fft_frame).max()
+        #    else:
+        #        fft_frame *= (1 + self.fixedGainSlider.value()) / 5000000.
+        #        #print(np.abs(fft_frame).max())
+
+        #    # freqs:
+        self.line_ch2_spec.set_data(
+            self.freq_vect2, np.abs(self.worker.fft_frame1))
+        self.line_ch2_spec.set_data(
+            self.freq_vect1, np.log(np.abs(self.worker.fft_frame1)))
+        #  pitch tracking algorithm
+            #new_pitch2 = compute_pitch_hps(current_frame2, self.mic.rate,dF=1)
+            #precise_pitch2 = compute_pitch_hps(current_frame2, self.mic.rate,dF=0.05, Fmin=new_pitch2 * 0.8, Fmax = new_pitch2 * 1.2)
+
+        #    t0g = time.time()
+        #    signal2float=current_frame2.astype(np.float32)
+        #    new_pitch2 = precise_pitch2 = pitch_o(signal2float)[0]
+        #    pitch_confidence2 = pitch_o.get_confidence()
+        #    #time_str = "Time to aubio pitch track channel2 in ms: %f" % ((time.time()-t0g)*1000)
+        #    #print("{}".format(time_str))
+
+        #self.ax_ch2_spec.set_title("pitch = {:.2f} Hz".format(self.worker.precise_pitch2))
+        self.ch2_pitch_line.set_data((self.worker.new_pitch2, self.worker.new_pitch2),self.ax_ch2_spec.get_ylim())
+
+        ##
+        #    new_pitch1Cent = 1200* math.log((new_pitch1+.1)/120.,2)
+        #    new_pitch2Cent = 1200* math.log((new_pitch2+.1)/120.,2)
+
+        #    ivCents=abs(new_pitch2Cent-new_pitch1Cent)
+        #    #t1 = time.time()
+        #    #self.live_gauge.update_value(ivCents)
+        #    #t2 = time.time()
+
+        #    #if 0< ivCents <= 1200:
+        #    #    self.gauge1_ax1.axis["top"].label.set_text(str(int(ivCents)))
+        #    #    self.gauge1_ax1.gauge1_wedge.set_theta2(180.)
+        #    #    self.gauge1_ax1.gauge1_wedge.set_theta1((1200 - ivCents)*180/1200)
+        #    #    self.gauge1_ax1.add_patch(self.gauge1_ax1.gauge1_wedge)
+        #    #t3 = time.time()
+        #    #print 'time spent on drawing: qt, mpl [s]', t2-t1, t3-t2
+
+        update_pitch_log1(abs(self.worker.new_pitch1Cent - self.worker.new_pitch2Cent))
+        self.ch1_pitchlog.set_data(self.pitchlog_vect1, pitchlog1)
+
+        update_pitch_log2(abs(self.worker.new_pitch2Cent - self.worker.new_pitch1Cent))
+        self.ch2_pitchlog.set_data(self.pitchlog_vect2, pitchlog2)
+
+        # refreshes the plots
+        self.main_figure.canvas.draw()
+        #print('total time', time.time()-t1)
+
+
+class Worker(qc.QObject):
+    ''' Grabbing data, working on it and saving the results'''
+
+    signalReady = qc.pyqtSignal()
+
+    def __init__(self, gain=4999999, *args, **kwargs):
+
+        qc.QObject.__init__(self, *args, **kwargs)
+        self.mic = MicrophoneRecorder()
+
+        self.autogain_checkbox = False
+        self.new_pitch1 = None
+        self.new_pitch2 = None
+
+        nfft = (self.mic.chunksize, 1./self.mic.rate)
+        self.freq_vect1 = self.freq_vect2 = np.fft.rfftfreq(*nfft)
+        self.fft_frame1 = None
+        self.fft_frame2 = None
+        self.ivCents = None
+        self.new_pitch1Cent = None
+        self.new_pitch2Cent = None
+        self.gain = gain
+        self.mic.start()
+
+        # keeps reference to mic
+
+    def start(self):
+
+        ''' Start a loop '''
+        self.timer = qc.QTimer()
+        print 'try'
+        self.timer.timeout.connect(self.work)
+        self.timer.start(100)
+
+    def work(self):
+        ''' Do the work'''
+        t1 = time.time()
+        frames = self.mic.get_frames()
+        self.ready = False
         if len(frames) > 0:
-            t1 = time.time()
             # keeps only the last frame (which contains two interleaved channels)
             t0g = time.time()
             buffer = frames[-1]
+            print buffer.shape
             result = np.reshape(buffer, (FFTSIZE, 2))
             current_frame1 = result[:, 0]
             current_frame2 = result[:, 1]
-
+            print result
 
             time_str = "Time to load frame1 and frame2 in ms: %f" % ((time.time()-t0g)*1000)
             #print("{}".format(time_str))
@@ -372,71 +524,67 @@ class LiveFFTWidget(QWidget):
             # plots the time signal 1
             #self.line_ch1_time.set_data(self.time_vect1, current_frame1)
             # computes and plots the fft signal
-            fft_frame = np.fft.rfft(current_frame1)
-            if self.autoGainCheckBox.checkState() == qc.Qt.Checked:
-                fft_frame /= np.abs(fft_frame).max()
-            else:
-                fft_frame *= (1 + self.fixedGainSlider.value()) / 5000000.
-                #print(np.abs(fft_frame).max())
+            fft_frame1 = np.fft.rfft(current_frame1)
+            fft_frame1 *= (1. + self.gain / 5000000.)
+                #print(np.abs(fft_frame1).max())
 
-            #print("{} {}".format(min(np.log(np.abs(fft_frame))),max(np.log(np.abs(fft_frame)))))
-            #self.line_ch1_spec.set_data(self.freq_vect1, np.log(np.abs(fft_frame)))
+            #print("{}
+            #{}".format(min(np.log(np.abs(fft_frame1))),max(np.log(np.abs(fft_frame1)))))
+            #self.line_ch1_spec.set_data(self.freq_vect1, np.log(np.abs(fft_frame1)))
 
             #time_str = "Time to plot channel1 in ms: %f" % ((time.time()-t0g)*1000)
             #print("{}".format(time_str))
             #  pitch tracking algorithm
 
-            t0g = time.time()
+            #t0g = time.time()
             #new_pitch1 = compute_pitch_hps(current_frame1, self.mic.rate,dF=1)
             #precise_pitch1 = compute_pitch_hps(current_frame1, self.mic.rate, dF=0.05, Fmin=new_pitch1 * 0.8, Fmax = new_pitch1 * 1.2)
-            signal1float=current_frame1.astype(np.float32)
-            new_pitch1=precise_pitch1=pitch_o(signal1float)[0]
-            pitch_confidence1 = pitch_o.get_confidence()
+            signal1float = current_frame1.astype(np.float32)
+            self.new_pitch1 = precise_pitch1=pitch_o(signal1float)[0]
+            #pitch_confidence1 = pitch_o.get_confidence()
             #time_str = "Time to pitch track channel1 in ms: %f" % ((time.time()-t0g)*1000)
             #print("{}".format(time_str))
 
-            self.ax_ch1_spec.set_title("pitch = {:.2f} Hz".format(precise_pitch1))
-            self.ch1_pitch_line.set_data((new_pitch1, new_pitch1),
-                                     self.ax_ch1_spec.get_ylim())
+            #self.ax_ch1_spec.set_title("pitch = {:.2f} Hz".format(precise_pitch1))
+            # PLOT
+            #self.ch1_pitch_line.set_data((self.new_pitch1, self.new_pitch1),
+            #                         self.ax_ch1_spec.get_ylim())
 
             # channel 2
             # plots the time signal 2
             #self.line_ch2_time.set_data(self.time_vect2, current_frame2)
-            self.trace_channel_1.draw_trace(self.time_vect1, current_frame1)
-            self.trace_channel_2.draw_trace(self.time_vect2, current_frame2)
+            #self.trace_channel_1.draw_trace(self.time_vect1, current_frame1)
+            #self.trace_channel_2.draw_trace(self.time_vect2, current_frame2)
 
             # computes and plots the fft signal
-            fft_frame = np.fft.rfft(current_frame2)
-            if self.autoGainCheckBox.checkState() == qc.Qt.Checked:
-                fft_frame /= np.abs(fft_frame).max()
-            else:
-                fft_frame *= (1 + self.fixedGainSlider.value()) / 5000000.
+            self.fft_frame1 = np.fft.rfft(current_frame2)
+            self.fft_frame1 *= (1. + self.gain) / 5000000.
                 #print(np.abs(fft_frame).max())
 
             # freqs:
-            self.line_ch2_spec.set_data(self.freq_vect2, np.abs(fft_frame))
-            self.line_ch2_spec.set_data(self.freq_vect1, np.log(np.abs(fft_frame)))
+            #self.line_ch2_spec.set_data(self.freq_vect2, np.abs(fft_frame))
+            #self.line_ch2_spec.set_data(self.freq_vect1, np.log(np.abs(fft_frame)))
             #  pitch tracking algorithm
             #new_pitch2 = compute_pitch_hps(current_frame2, self.mic.rate,dF=1)
             #precise_pitch2 = compute_pitch_hps(current_frame2, self.mic.rate,dF=0.05, Fmin=new_pitch2 * 0.8, Fmax = new_pitch2 * 1.2)
 
             t0g = time.time()
             signal2float=current_frame2.astype(np.float32)
-            new_pitch2=precise_pitch2=pitch_o(signal2float)[0]
+            self.new_pitch2 = precise_pitch2 = pitch_o(signal2float)[0]
             pitch_confidence2 = pitch_o.get_confidence()
             #time_str = "Time to aubio pitch track channel2 in ms: %f" % ((time.time()-t0g)*1000)
             #print("{}".format(time_str))
 
-            self.ax_ch2_spec.set_title("pitch = {:.2f} Hz".format(precise_pitch2))
-            self.ch2_pitch_line.set_data((new_pitch2, new_pitch2),self.ax_ch2_spec.get_ylim())
+            #self.ax_ch2_spec.set_title("pitch = {:.2f} Hz".format(precise_pitch2))
+            #self.ch2_pitch_line.set_data((new_pitch2, new_pitch2),self.ax_ch2_spec.get_ylim())
 
 
-            new_pitch1Cent = 1200* math.log((new_pitch1+.1)/120.,2)
-            new_pitch2Cent = 1200* math.log((new_pitch2+.1)/120.,2)
+            self.new_pitch1Cent = 1200* math.log((self.new_pitch1+.1)/120.,2)
+            self.new_pitch2Cent = 1200* math.log((self.new_pitch2+.1)/120.,2)
 
-            ivCents=abs(new_pitch2Cent-new_pitch1Cent)
+            self.ivCents = abs(self.new_pitch2Cent - self.new_pitch1Cent)
             #t1 = time.time()
-            self.live_gauge.update_value(ivCents)
+            #self.live_gauge.update_value(ivCents)
             #t2 = time.time()
 
             #if 0< ivCents <= 1200:
@@ -447,17 +595,19 @@ class LiveFFTWidget(QWidget):
             #t3 = time.time()
             #print 'time spent on drawing: qt, mpl [s]', t2-t1, t3-t2
 
-            update_pitch_log1(abs(new_pitch1Cent-new_pitch2Cent))
-            self.ch1_pitchlog.set_data(self.pitchlog_vect1, pitchlog1)
+            #update_pitch_log1(abs(self.new_pitch1Cent-self.new_pitch2Cent))
+            #self.ch1_pitchlog.set_data(self.pitchlog_vect1, pitchlog1)
 
-            update_pitch_log2(abs(new_pitch2Cent-new_pitch1Cent))
-            self.ch2_pitchlog.set_data(self.pitchlog_vect2, pitchlog2)
+            #update_pitch_log2(abs(self.new_pitch2Cent-self.new_pitch1Cent))
+            #self.ch2_pitchlog.set_data(self.pitchlog_vect2, pitchlog2)
 
             # refreshes the plots
-            self.main_figure.canvas.draw()
+            #self.main_figure.canvas.draw()
             print('total time', time.time()-t1)
+            #self.emit(qc.SIGNAL('finished()'))
 
-
+            #self.ready = True
+            self.signalReady.emit()
 
 def update_pitch_log1(pitch):
     global pitchlog1

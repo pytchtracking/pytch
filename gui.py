@@ -4,13 +4,14 @@ import numpy as num
 from PyQt5 import QtCore as qc
 from PyQt5 import QtGui as qg
 from PyQt5.QtWidgets import QApplication, QWidget, QHBoxLayout, QLabel
-from PyQt5.QtWidgets import QMainWindow
+from PyQt5.QtWidgets import QMainWindow, QVBoxLayout
 
 import time
 import logging
 
-logger = logging.getLogger(__name__)
+from two_channel_tuner import LiveFFTWidget, Worker
 
+logger = logging.getLogger(__name__)
 
 
 class GaugeWidget(QWidget):
@@ -64,7 +65,6 @@ class MainWindow(QMainWindow):
         QMainWindow.__init__(self, *args, **kwargs)
 
         self.setCentralWidget(MainWidget(self))
-
         self.show()
 
     def keyPressEvent(self, key_event):
@@ -82,28 +82,54 @@ class MainWindow(QMainWindow):
 class MainWidget(QWidget):
     ''' Top level widget covering the central widget in the MainWindow.'''
 
+    signalStatus = qc.pyqtSignal()
+
     def __init__(self, *args, **kwargs):
         tstart = time.time()
         QWidget.__init__(self, *args, **kwargs)
 
-        top_layout = QHBoxLayout()
+        top_layout = QVBoxLayout()
         self.setLayout(top_layout)
         label = QLabel('PLAYGROUND')
         top_layout.addWidget(label)
 
-        trace1 = TraceWidget(parent=self)
-        top_layout.addWidget(trace1)
+        self.trace1 = TraceWidget(parent=self)
+        top_layout.addWidget(self.trace1)
 
-        x = num.linspace(0, 2 * num.pi, 100)
-        trace1.draw_trace(x, num.random.random(len(x)))
+        self.trace2 = TraceWidget(parent=self)
+        top_layout.addWidget(self.trace2)
+
+        self.worker = Worker()
+
+        self.make_connections()
+
+        self.worker.start()
+        self.start_drawing()
+
+    def make_connections(self):
+        self.worker.signalReady.connect(self.refreshwidgets)
+
+        #self.connect(self.worker, pyqtSignal('ready'), self.refreshwidgets)
+
+    def start_drawing(self):
+
+        self.timer = qc.QTimer()
+        self.timer.timeout.connect(self.refreshwidgets)
+        self.timer.start(100)
+
+    def refreshwidgets(self):
+        self.trace1.draw_trace(num.abs(self.worker.freq_vect1),
+                               num.abs(self.worker.fft_frame1))
+        #self.trace2.draw_trace(self.worker.freq_vect2, self.worker.fft_frame2)
         self.repaint()
 
-        tstop = time.time()
-        print('time spent on drawing: %s' % (tstop-tstart))
 
 
 class TraceWidget(QWidget):
     ''' A TraceWidget displays data (x, y coordinates). '''
+
+    signalStatus = qc.pyqtSignal()
+
     def __init__(self, *args, **kwargs):
         QWidget.__init__(self, *args, **kwargs)
         layout = QHBoxLayout()
@@ -113,34 +139,38 @@ class TraceWidget(QWidget):
         self.setContentsMargins(1, 1, 1, 1)
 
         self.color = qg.QColor(4, 1, 255)
-        self._xvisible = num.zeros(0)
-        self._yvisible = num.zeros(0)
+        self._xvisible = num.zeros(1)
+        self._yvisible = num.zeros(1)
 
     def paintEvent(self, e):
         ''' This is executed e.g. when self.repaint() is called. Draws the
         underlying data and scales the content to fit into the widget.'''
         painter = qg.QPainter(self)
-        pen = qg.QPen(self.color, 0.01, qc.Qt.SolidLine)
+        pen = qg.QPen(self.color, 0.001, qc.Qt.SolidLine)
         painter.setPen(pen)
+        self._xvisible /= self._xvisible.max()
+        self._yvisible = num.log(self._yvisible)
+        self._yvisible /= self._yvisible.max()
+
+
         qpoints = make_QPolygonF(self._xvisible, self._yvisible)
 
         height = self.height()
         width = self.width()
-        s = min(width, height)
 
         stransform = qg.QTransform()
-        stransform.scale(s/self._xvisible.max(), s/self._xvisible.max())
+        stransform.scale(width/self._xvisible.max(), height/self._yvisible.max())
 
-        ttransform = qg.QTransform()
-        ttransform.translate(0., self.geometry().center().y())
+        #ttransform = qg.QTransform()
+        #ttransform.translate(0., self.geometry().center().y())
 
-        transform = stransform * ttransform
-        painter.setTransform(transform)
+        #transform = stransform * ttransform
+        painter.setTransform(stransform)
         painter.drawPolyline(qpoints)
 
-        pen = qg.QPen(self.color, 0.1, qc.Qt.SolidLine)
-        painter.setPen(pen)
-        painter.drawPoints(qpoints)
+        #pen = qg.QPen(self.color, 0.1, qc.Qt.SolidLine)
+        #painter.setPen(pen)
+        #painter.drawPoints(qpoints)
 
     def draw_trace(self, xdata, ydata):
         '''
