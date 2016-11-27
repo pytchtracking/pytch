@@ -103,7 +103,7 @@ class Worker(qc.QObject):
     signalReady = qc.pyqtSignal()
 
     def __init__(self, gain=4999999, *args, **kwargs):
-        self.ndata_scale = 1
+        self.ndata_scale = 2
         qc.QObject.__init__(self, *args, **kwargs)
         self.mic = MicrophoneRecorder()
 

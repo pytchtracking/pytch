@@ -95,6 +95,7 @@ class MainWidget(QWidget):
         self.trace1 = SpectrumWidget(parent=self)
         top_layout.addWidget(self.trace1)
 
+        #self.trace2 = SpectrumWidget(parent=self)
         self.trace2 = SpectrumWidget(parent=self)
         top_layout.addWidget(self.trace2)
 
@@ -129,10 +130,8 @@ class MainWidget(QWidget):
                            num.abs(self.worker.fft_frame2))
         n = num.shape(self.worker.current_frame1)[0]
         xt = num.linspace(0, 100, n)
-        y1 = self.worker.current_frame1
-        y2 = self.worker.current_frame2
-        y1 = num.asarray(y1, dtype=num.float32)
-        y2 = num.asarray(y2, dtype=num.float32)
+        y1 = num.asarray(self.worker.current_frame1, dtype=num.float32)
+        y2 = num.asarray(self.worker.current_frame2, dtype=num.float32)
         self.trace3.draw_trace(xt, y1/num.abs(num.max(y1)))
         self.trace4.draw_trace(xt, y2/num.abs(num.max(y2)))
         self.repaint()
@@ -164,30 +163,34 @@ class TraceWidget(QWidget):
         ''' This is executed e.g. when self.repaint() is called. Draws the
         underlying data and scales the content to fit into the widget.'''
         painter = qg.QPainter(self)
-        pen = qg.QPen(self.color, 0.001, qc.Qt.SolidLine)
+        pen = qg.QPen(self.color, 1, qc.Qt.SolidLine)
         painter.setPen(pen)
-        self._xvisible /= num.float(self._xvisible.max())
-        self._yvisible /= num.float(self._yvisible.max())
-
-        qpoints = make_QPolygonF(self._xvisible, self._yvisible)
+        xdata = num.asarray(self._xvisible, dtype=num.float32)
+        ydata = num.asarray(self._yvisible, dtype=num.float32)
+        xdata /= num.max(num.abs(xdata))
+        ydata /= num.max(num.abs(ydata))
 
         height = self.height()
         width = self.width()
 
-        stransform = qg.QTransform()
-        stransform.scale(width/self._xvisible.max(), height/self._yvisible.max())
+        ydata *= height
+        #self._yvisible /= num.float(num.abs(self._yvisible).max())*height
+        qpoints = make_QPolygon(xdata*width, ydata)
+
+        #scale = 1E-3
+        #stransform = qg.QTransform()
+        #stransform.scale(width, height)
 
         #ttransform = qg.QTransform()
         #ttransform.translate(0., self.geometry().center().y())
 
         #transform = stransform * ttransform
-        painter.setTransform(stransform)
+        #painter.setTransform(stransform)
         painter.drawPolyline(qpoints)
 
-        #pen = qg.QPen(self.color, 0.1, qc.Qt.SolidLine)
-        #painter.setPen(pen)
-        #painter.drawPoints(qpoints)
-
+    def draw_trace(self, xdata, ydata):
+        self._yvisible = ydata
+        self._xvisible = xdata
 
     def sizeHint(self):
         return qc.QSize(100, 100)
@@ -202,49 +205,37 @@ class SpectrumWidget(TraceWidget):
         ''' This is executed e.g. when self.repaint() is called. Draws the
         underlying data and scales the content to fit into the widget.'''
         painter = qg.QPainter(self)
-        pen = qg.QPen(self.color, 0.001, qc.Qt.SolidLine)
+        pen = qg.QPen(self.color, 1, qc.Qt.SolidLine)
         painter.setPen(pen)
-        self._xvisible = num.log(self._xvisible)
-
-        self._xvisible /= num.float(self._xvisible.max())
-        self._yvisible = num.log(self._yvisible)
-        self._yvisible /= self._yvisible.max()
-
-        qpoints = make_QPolygonF(self._xvisible, self._yvisible)
+        xdata = num.asarray(self._xvisible, dtype=num.float)
+        ydata = num.asarray(self._yvisible, dtype=num.float)
+        xdata = xdata
+        xdata /= num.max(num.abs(xdata))
+        ydata = num.log(ydata)
+        ydata /= num.log(num.max(num.abs(ydata)))
 
         height = self.height()
         width = self.width()
 
-        stransform = qg.QTransform()
-        stransform.scale(width/self._xvisible.max(), height/self._yvisible.max())
+        ydata /= num.max(num.abs(ydata))
 
-        #ttransform = qg.QTransform()
-        #ttransform.translate(0., self.geometry().center().y())
+        ydata *= height
+        xdata *= width
+        qpoints = make_QPolygon(xdata, ydata)
 
-        #transform = stransform * ttransform
-        painter.setTransform(stransform)
         painter.drawPolyline(qpoints)
-
-        #pen = qg.QPen(self.color, 0.1, qc.Qt.SolidLine)
-        #painter.setPen(pen)
-        #painter.drawPoints(qpoints)
 
 
 def make_QPolygon(xdata, ydata):
     '''Create a :py:class:`qg.QPolygonF` instance from xdata and ydata, both
     numpy arrays.'''
     assert len(xdata) == len(ydata)
-    qpoints = qg.QPolygon(len(ydata))
-    vptr = qpoints.data()
-    vptr.setsize(len(ydata)*8*2)
-    aa = num.ndarray(
-        shape=(len(ydata), 2),
-        dtype=num.int,
-        buffer=buffer(vptr))
-    aa.setflags(write=True)
-    aa[:, 0] = xdata
-    aa[:, 1] = ydata
-    return qpoints
+
+    points = []
+    for i in xrange(len(xdata)):
+        points.append(qc.QPoint(xdata[i], ydata[i]))
+
+    return qg.QPolygon(points)
 
 
 def make_QPolygonF(xdata, ydata):
