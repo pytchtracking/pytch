@@ -92,16 +92,16 @@ class MainWidget(QWidget):
         label = QLabel('PLAYGROUND')
         top_layout.addWidget(label)
 
-        self.trace1 = SpectrumWidget(parent=self)
+        self.trace1 = PlotLogWidget(parent=self)
         top_layout.addWidget(self.trace1)
 
-        self.trace2 = SpectrumWidget(parent=self)
+        self.trace2 = PlotLogWidget(parent=self)
         top_layout.addWidget(self.trace2)
 
-        self.trace3 = TraceWidget(parent=self)
+        self.trace3 = PlotWidget(parent=self)
         top_layout.addWidget(self.trace3)
 
-        self.trace4 = TraceWidget(parent=self)
+        self.trace4 = PlotWidget(parent=self)
         top_layout.addWidget(self.trace4)
 
         self.worker = Worker()
@@ -137,8 +137,8 @@ class MainWidget(QWidget):
 
 
 
-class TraceWidget(QWidget):
-    ''' A TraceWidget displays data (x, y coordinates). '''
+class PlotWidget(QWidget):
+    ''' A PlotWidget displays data (x, y coordinates). '''
 
     signalStatus = qc.pyqtSignal()
 
@@ -173,6 +173,7 @@ class TraceWidget(QWidget):
 
         ydata = (ydata + 0.5) * self.height()
         qpoints = make_QPolygon(xdata*self.width(), ydata)
+        #qpoints = make_QPolygonF(xdata*self.width(), ydata)
 
         #scale = 1E-3
         #stransform = qg.QTransform()
@@ -185,18 +186,18 @@ class TraceWidget(QWidget):
         #painter.setTransform(ttransform)
         painter.drawPolyline(qpoints)
 
-    def draw_trace(self, xdata, ydata):
-        self._yvisible = ydata
-        self._xvisible = xdata
+    #def draw_trace(self, xdata, ydata):
+    #    self._yvisible = ydata
+    #    self._xvisible = xdata
 
     def sizeHint(self):
         return qc.QSize(100, 100)
 
 
-class SpectrumWidget(TraceWidget):
+class PlotLogWidget(PlotWidget):
 
     def __init__(self, *args, **kwargs):
-        TraceWidget.__init__(self, *args, **kwargs)
+        PlotWidget.__init__(self, *args, **kwargs)
         self.scale = 1./15
 
     def paintEvent(self, e):
@@ -215,6 +216,7 @@ class SpectrumWidget(TraceWidget):
 
         ydata *= self.height() * self.scale
         xdata *= self.width()
+        #qpoints = make_QPolygonF(xdata, ydata)
         qpoints = make_QPolygon(xdata, ydata)
 
         painter.drawPolyline(qpoints)
