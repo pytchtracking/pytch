@@ -4,12 +4,12 @@ import numpy as num
 from PyQt5 import QtCore as qc
 from PyQt5 import QtGui as qg
 from PyQt5.QtWidgets import QApplication, QWidget, QHBoxLayout, QLabel
-from PyQt5.QtWidgets import QMainWindow, QVBoxLayout
+from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QComboBox, QGridLayout
 
 import time
 import logging
 
-from two_channel_tuner import Worker
+from two_channel_tuner import Worker, getaudiodevices
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +45,7 @@ class GaugeWidget(QWidget):
         painter.drawArc(self.rectf, 2880., self._val)
         #painter.drawPie(self.rectf, 2880., self._val)
 
+
     def update_value(self, val):
         '''
         Call this method to update the arc
@@ -64,18 +65,47 @@ class MainWindow(QMainWindow):
     def __init__(self, *args, **kwargs):
         QMainWindow.__init__(self, *args, **kwargs)
 
-        self.setCentralWidget(MainWidget(self))
+        self.setCentralWidget(MainWidget(parent=self))
         self.show()
 
     def keyPressEvent(self, key_event):
-        ''' React on keyboard keys when they are pressed.'''
+        ''' React on keyboard keys when they are pressed.
+
+        Blocked by menu'''
         key_text = key_event.text()
         if key_text == 'q':
             self.close()
 
         elif key_text == 'f':
             self.showMaximized()
-        QWidget.keyPressEvent(self, key_event)
+        QMainWindow.keyPressEvent(self, key_event)
+
+
+class MenuWidget(QWidget):
+    ''' TODO: Blocks keypressevents!'''
+    def __init__(self, *args, **kwargs):
+        QWidget.__init__(self, *args, **kwargs)
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+
+        self.select_input = QComboBox()
+        devices = getaudiodevices()
+        curr = 0
+        for idevice, device in enumerate(devices):
+            self.select_input.addItem('%s: %s' % (idevice, device))
+            if 'default' in device:
+                curr = idevice
+
+        self.select_input.setCurrentIndex(idevice)
+
+        layout.addWidget(self.select_input)
+
+
+class CanvasWidget(QWidget):
+    def __init__(self, *args, **kwargs):
+        QWidget.__init__(self, *args, **kwargs)
+        self.layout = QGridLayout()
+        self.setLayout(self.layout)
 
 
 class MainWidget(QWidget):
@@ -89,31 +119,53 @@ class MainWidget(QWidget):
 
         top_layout = QVBoxLayout()
         self.setLayout(top_layout)
-        label = QLabel('PLAYGROUND')
-        top_layout.addWidget(label)
 
-        self.trace1 = PlotLogWidget(parent=self)
-        top_layout.addWidget(self.trace1)
+        #autoGainCheckBox = QCheckBox(checked=True)
+        #top_layout.addWidget(autoGain)
+        #hbox_gain.addWidget(autoGainCheckBox)
 
-        self.trace2 = PlotLogWidget(parent=self)
-        top_layout.addWidget(self.trace2)
+        # reference to checkbox
+        #self.autoGainCheckBox = autoGainCheckBox
 
-        self.trace3 = PlotWidget(parent=self)
-        top_layout.addWidget(self.trace3)
+        #hbox_fixedGain = QHBoxLayout()
+        #fixedGain = QLabel('Fixed gain level')
+        #self.fixedGainSlider = QSlider(QtCore.Qt.Horizontal)
+        #hbox_fixedGain.addWidget(fixedGain)
+        #hbox_fixedGain.addWidget(self.fixedGainSlider)
+        menu = MenuWidget(parent=self)
+        top_layout.addWidget(menu)
 
-        self.trace4 = PlotWidget(parent=self)
-        top_layout.addWidget(self.trace4)
+        canvas = CanvasWidget(parent=self)
+        self.trace1 = PlotLogWidget(parent=canvas)
+        canvas.layout.addWidget(self.trace1, 1, 0)
+
+        self.trace2 = PlotLogWidget(parent=canvas)
+        canvas.layout.addWidget(self.trace2, 2, 0)
+
+        self.trace3 = PlotWidget(parent=canvas)
+        canvas.layout.addWidget(self.trace3, 1, 1)
+
+        self.trace4 = PlotWidget(parent=canvas)
+        canvas.layout.addWidget(self.trace4, 2, 1)
+
+        top_layout.addWidget(canvas)
 
         self.worker = Worker()
+        self.worker.set_device_no(menu.select_input.currentIndex())
+        menu.select_input.activated.connect(self.set_input)
 
         self.make_connections()
 
         self.worker.start()
         self.start_drawing()
 
+    def set_input(self, i):
+        self.worker.stop()
+        self.worker.set_device_no(i)
+        self.worker.start()
+
     def make_connections(self):
         self.worker.signalReady.connect(self.refreshwidgets)
-
         #self.connect(self.worker, pyqtSignal('ready'), self.refreshwidgets)
 
     def start_drawing(self):
@@ -131,11 +183,13 @@ class MainWidget(QWidget):
         xt = num.linspace(0, self.trace3.width(), n)
         y1 = num.asarray(self.worker.current_frame1, dtype=num.float32)
         y2 = num.asarray(self.worker.current_frame2, dtype=num.float32)
-        self.trace3.draw_trace(xt, y1/num.abs(num.max(y1)))
-        self.trace4.draw_trace(xt, y2/num.abs(num.max(y2)))
+        self.trace3.draw_trace(xt, y1)
+        self.trace4.draw_trace(xt, y2)
         self.repaint()
 
 
+#class CanvasWidget(QWidget):
+#    ''' Contains the data viewers'''
 
 class PlotWidget(QWidget):
     ''' A PlotWidget displays data (x, y coordinates). '''
@@ -153,7 +207,7 @@ class PlotWidget(QWidget):
         self.color = qg.QColor(4, 1, 255)
         self._xvisible = num.random.random(1)
         self._yvisible = num.random.random(1)
-        self.yscale = 10.
+        self.yscale = 1E-4
 
     def draw_trace(self, xdata, ydata):
         self._yvisible = ydata
@@ -169,7 +223,7 @@ class PlotWidget(QWidget):
         xdata = self._xvisible
         ydata = self._yvisible
         xdata /= xdata[-1]
-        ydata /= self.yscale
+        ydata *= self.yscale
 
         ydata = (ydata + 0.5) * self.height()
         qpoints = make_QPolygon(xdata*self.width(), ydata)
@@ -185,10 +239,6 @@ class PlotWidget(QWidget):
         #transform = stransform * ttransform
         #painter.setTransform(ttransform)
         painter.drawPolyline(qpoints)
-
-    #def draw_trace(self, xdata, ydata):
-    #    self._yvisible = ydata
-    #    self._xvisible = xdata
 
     def sizeHint(self):
         return qc.QSize(100, 100)

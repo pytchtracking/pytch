@@ -32,7 +32,6 @@ FFTSIZE = 512*4
 
 RATE= 16384*4
 #RATE= 48000
-DEVICENO=7
 nchannels = 2
 #pitch logs
 global pitchlog1, pitchlog2
@@ -54,20 +53,24 @@ _lock = threading.Lock()
 
 # class taken from the SciPy 2015 Vispy talk opening example
 # see https://github.com/vispy/vispy/pull/928
+
+
+def getaudiodevices():
+    ''' Returns a list of device descriptions'''
+    p = pyaudio.PyAudio()
+    devices = []
+    for i in range(p.get_device_count()):
+        devices.append(p.get_device_info_by_index(i).get('name'))
+    return devices
+
 class MicrophoneRecorder(object):
 
     def __init__(self, rate=RATE, chunksize=FFTSIZE):
+        getaudiodevices()
         self.rate = rate
         self.chunksize = chunksize
         self.p = pyaudio.PyAudio()
-        self.stream = self.p.open(format=pyaudio.paInt16,
-                                  channels=nchannels,
-                                  rate=self.rate,
-                                  input=True,
-                                  frames_per_buffer=self.chunksize,
-                                  input_device_index=DEVICENO,
-                                  stream_callback=self.new_frame)
-        self.stop = False
+        self.device_no = 7
         self.frames = []
         self.data_ready_signal = None
         atexit.register(self.close)
@@ -76,7 +79,7 @@ class MicrophoneRecorder(object):
         data = np.fromstring(data, 'int16')
         with _lock:
             self.frames.append(data)
-            if self.stop:
+            if self._stop:
                 return None, pyaudio.paComplete
 
         if self.data_ready_signal:
@@ -90,12 +93,23 @@ class MicrophoneRecorder(object):
         return frames
 
     def start(self):
+        self.stream = self.p.open(format=pyaudio.paInt16,
+                                  channels=nchannels,
+                                  rate=self.rate,
+                                  input=True,
+                                  frames_per_buffer=self.chunksize,
+                                  input_device_index=self.device_no,
+                                  stream_callback=self.new_frame)
         self.stream.start_stream()
+        self._stop = False
+
+    def stop(self):
+        with _lock:
+            self._stop = True
+        #self.stream.stop_stream()
+        self.stream.close()
 
     def close(self):
-        with _lock:
-            self.stop = True
-        self.stream.close()
         self.p.terminate()
 
 
@@ -112,7 +126,7 @@ class Worker(qc.QObject):
     dataReady = qc.pyqtSignal()
 
     def __init__(self, gain=4999999, *args, **kwargs):
-        self.ndata_scale = 16
+        self.ndata_scale = 8
         qc.QObject.__init__(self, *args, **kwargs)
         self.mic = MicrophoneRecorder()
         #self.mic.data_ready_signal = self.dataReady
@@ -136,12 +150,20 @@ class Worker(qc.QObject):
         self.mic.start()
         # keeps reference to mic
 
+    def set_device_no(self, i):
+        self.mic.device_no = i
+
     def start(self):
         #self.mic.data_ready.connect(self.work)
         ''' Start a loop '''
+        self.mic.start()
         self.timer = qc.QTimer()
         self.timer.timeout.connect(self.work)
         self.timer.start(50)
+
+    def stop(self):
+        self.mic.stop = True
+        #self.mic.close()
 
     def work(self):
         ''' Do the work'''
