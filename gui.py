@@ -95,7 +95,6 @@ class MainWidget(QWidget):
         self.trace1 = SpectrumWidget(parent=self)
         top_layout.addWidget(self.trace1)
 
-        #self.trace2 = SpectrumWidget(parent=self)
         self.trace2 = SpectrumWidget(parent=self)
         top_layout.addWidget(self.trace2)
 
@@ -121,7 +120,7 @@ class MainWidget(QWidget):
 
         self.timer = qc.QTimer()
         self.timer.timeout.connect(self.refreshwidgets)
-        self.timer.start(100)
+        self.timer.start(50)
 
     def refreshwidgets(self):
         self.trace1.draw_trace(self.worker.freq_vect1,
@@ -129,7 +128,7 @@ class MainWidget(QWidget):
         self.trace2.draw_trace(self.worker.freq_vect2,
                            num.abs(self.worker.fft_frame2))
         n = num.shape(self.worker.current_frame1)[0]
-        xt = num.linspace(0, 100, n)
+        xt = num.linspace(0, self.trace3.width(), n)
         y1 = num.asarray(self.worker.current_frame1, dtype=num.float32)
         y2 = num.asarray(self.worker.current_frame2, dtype=num.float32)
         self.trace3.draw_trace(xt, y1/num.abs(num.max(y1)))
@@ -154,6 +153,7 @@ class TraceWidget(QWidget):
         self.color = qg.QColor(4, 1, 255)
         self._xvisible = num.random.random(1)
         self._yvisible = num.random.random(1)
+        self.yscale = 10.
 
     def draw_trace(self, xdata, ydata):
         self._yvisible = ydata
@@ -165,17 +165,14 @@ class TraceWidget(QWidget):
         painter = qg.QPainter(self)
         pen = qg.QPen(self.color, 1, qc.Qt.SolidLine)
         painter.setPen(pen)
-        xdata = num.asarray(self._xvisible, dtype=num.float32)
-        ydata = num.asarray(self._yvisible, dtype=num.float32)
-        xdata /= num.max(num.abs(xdata))
-        ydata /= num.max(num.abs(ydata))
 
-        height = self.height()
-        width = self.width()
+        xdata = self._xvisible
+        ydata = self._yvisible
+        xdata /= xdata[-1]
+        ydata /= self.yscale
 
-        ydata *= height
-        #self._yvisible /= num.float(num.abs(self._yvisible).max())*height
-        qpoints = make_QPolygon(xdata*width, ydata)
+        ydata = (ydata + 0.5) * self.height()
+        qpoints = make_QPolygon(xdata*self.width(), ydata)
 
         #scale = 1E-3
         #stransform = qg.QTransform()
@@ -185,7 +182,7 @@ class TraceWidget(QWidget):
         #ttransform.translate(0., self.geometry().center().y())
 
         #transform = stransform * ttransform
-        #painter.setTransform(stransform)
+        #painter.setTransform(ttransform)
         painter.drawPolyline(qpoints)
 
     def draw_trace(self, xdata, ydata):
@@ -200,6 +197,7 @@ class SpectrumWidget(TraceWidget):
 
     def __init__(self, *args, **kwargs):
         TraceWidget.__init__(self, *args, **kwargs)
+        self.scale = 1./15
 
     def paintEvent(self, e):
         ''' This is executed e.g. when self.repaint() is called. Draws the
@@ -207,20 +205,16 @@ class SpectrumWidget(TraceWidget):
         painter = qg.QPainter(self)
         pen = qg.QPen(self.color, 1, qc.Qt.SolidLine)
         painter.setPen(pen)
-        xdata = num.asarray(self._xvisible, dtype=num.float)
-        ydata = num.asarray(self._yvisible, dtype=num.float)
-        xdata = xdata
-        xdata /= num.max(num.abs(xdata))
+        xdata = self._xvisible
+        ydata = self._yvisible
+
+        xdata = num.log(xdata)
+        xdata /= xdata[-1]
+
         ydata = num.log(ydata)
-        ydata /= num.log(num.max(num.abs(ydata)))
 
-        height = self.height()
-        width = self.width()
-
-        ydata /= num.max(num.abs(ydata))
-
-        ydata *= height
-        xdata *= width
+        ydata *= self.height() * self.scale
+        xdata *= self.width()
         qpoints = make_QPolygon(xdata, ydata)
 
         painter.drawPolyline(qpoints)

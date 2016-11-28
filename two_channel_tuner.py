@@ -26,7 +26,10 @@ from matplotlib.patches import Wedge
 #from gui import GaugeWidget
 
 num = np
+
+# number of samples of buffer
 FFTSIZE = 512*4
+
 RATE= 16384*4
 #RATE= 48000
 DEVICENO=7
@@ -52,6 +55,7 @@ _lock = threading.Lock()
 # class taken from the SciPy 2015 Vispy talk opening example
 # see https://github.com/vispy/vispy/pull/928
 class MicrophoneRecorder(object):
+
     def __init__(self, rate=RATE, chunksize=FFTSIZE):
         self.rate = rate
         self.chunksize = chunksize
@@ -65,6 +69,7 @@ class MicrophoneRecorder(object):
                                   stream_callback=self.new_frame)
         self.stop = False
         self.frames = []
+        self.data_ready_signal = None
         atexit.register(self.close)
 
     def new_frame(self, data, frame_count, time_info, status):
@@ -73,6 +78,9 @@ class MicrophoneRecorder(object):
             self.frames.append(data)
             if self.stop:
                 return None, pyaudio.paComplete
+
+        if self.data_ready_signal:
+            self.data_ready_signal.emit()
         return None, pyaudio.paContinue
 
     def get_frames(self):
@@ -101,21 +109,23 @@ class Worker(qc.QObject):
     ''' Grabbing data, working on it and saving the results'''
 
     signalReady = qc.pyqtSignal()
+    dataReady = qc.pyqtSignal()
 
     def __init__(self, gain=4999999, *args, **kwargs):
-        self.ndata_scale = 2
+        self.ndata_scale = 16
         qc.QObject.__init__(self, *args, **kwargs)
         self.mic = MicrophoneRecorder()
-
+        #self.mic.data_ready_signal = self.dataReady
         self.autogain_checkbox = False
         self.new_pitch1 = None
         self.new_pitch2 = None
+        self.fftsize = FFTSIZE
 
-        nfft = (self.mic.chunksize* self.ndata_scale, 1./self.mic.rate)
+        #nfft = (self.mic.chunksize* self.ndata_scale, 1./self.mic.rate)
+        nfft = (self.fftsize, 1./self.mic.rate)
         self.freq_vect1 = self.freq_vect2 = np.fft.rfftfreq(*nfft)
-        self.current_frame1 = num.ones(FFTSIZE*self.ndata_scale, dtype=num.int)
-        self.current_frame2 = num.ones(FFTSIZE*self.ndata_scale, dtype=num.int)
-        print self.current_frame1.shape
+        self.current_frame1 = num.ones(self.fftsize*self.ndata_scale, dtype=num.int)
+        self.current_frame2 = num.ones(self.fftsize*self.ndata_scale, dtype=num.int)
 
         self.fft_frame1 = None
         self.fft_frame2 = None
@@ -125,8 +135,9 @@ class Worker(qc.QObject):
         self.gain = gain
         self.mic.start()
         # keeps reference to mic
-    def start(self):
 
+    def start(self):
+        #self.mic.data_ready.connect(self.work)
         ''' Start a loop '''
         self.timer = qc.QTimer()
         self.timer.timeout.connect(self.work)
@@ -134,32 +145,26 @@ class Worker(qc.QObject):
 
     def work(self):
         ''' Do the work'''
-        #frames = copy.deepcopy(self.mic.get_frames())
         frames = self.mic.get_frames()
-        #tmp = num.empty(FFTSIZE)
-        if len(frames) > 1:
+
+        if len(frames) > 0:
             # keeps only the last frame (which contains two interleaved channels)
             buffer = frames[ -1]
-            result = np.reshape(buffer, (FFTSIZE, nchannels))
+            result = np.reshape(buffer, (self.fftsize, nchannels))
 
             i = result[:, 0].shape[0]
             append_to_frame(self.current_frame1, result[:, 0])
             append_to_frame(self.current_frame2, result[:, 1])
 
-            self.fft_frame1 = np.fft.rfft(self.current_frame1)
+            self.fft_frame1 = np.fft.rfft(self.current_frame1[-self.fftsize:])
 
-            #signal1float = num.zeros(self.current_frame1.shape,
-            #                         dtype=num.float32)
-            #print signal1float.dtype
-            #signal1float.setflags(write=True)
             signal1float = num.asarray(self.current_frame1, dtype=num.float32)
-            #signal1float = self.current_frame1.astype(num.float32)
-            #signal1float = copy(self.current_frame1)
-            #self.new_pitch1 = pitch_o(signal1float[-1024:])[0]
-            self.fft_frame2 = np.fft.rfft(self.current_frame2)
+
+            self.fft_frame2 = np.fft.rfft(self.current_frame2[-self.fftsize:])
 
             signal2float = self.current_frame2.astype(np.float32)
-            #self.new_pitch2 = precise_pitch2 = pitch_o(signal2float[-len(signal2float)/self.ndata_scale:])[0]
+            self.new_pitch2 = precise_pitch2 = pitch_o(signal2float[-self.fftsize:])[0]
+            print 'new pitch2', self.new_pitch2
             #pitch_confidence2 = pitch_o.get_confidence()
 
             #self.new_pitch1Cent = 1200* math.log((self.new_pitch1+.1)/120.,2)
