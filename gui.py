@@ -242,7 +242,7 @@ class PlotWidget(QWidget):
         ydata *= self.yscale
 
         ydata = (ydata + 0.5) * self.height()
-        qpoints = make_QPolygon(xdata*self.width(), ydata)
+        qpoints = make_QPolygonF(xdata*self.width(), ydata)
         painter.drawPolyline(qpoints)
 
     def sizehint(self):
@@ -274,7 +274,7 @@ class PlotPointsWidget(PlotWidget):
 
         #ydata = (ydata + 0.5) * self.height() * self.yscale
         ydata = ydata * self.height()
-        qpoints = make_QPolygon(xdata*self.width(), ydata)
+        qpoints = make_QPolygonF(xdata*self.width(), ydata)
         painter.drawPoints(qpoints)
 
 
@@ -303,7 +303,7 @@ class PlotLogWidget(PlotWidget):
         #print len(ydata)
         ydata *= self.height() * self.yscale
         xdata *= float(self.width())
-        qpoints = make_QPolygon(xdata[1:], ydata[1:])
+        qpoints = make_QPolygonF(xdata[1:], ydata[1:])
 
         painter.drawPolyline(qpoints)
 
@@ -318,19 +318,6 @@ class PlotLogWidget(PlotWidget):
 
     def mouseReleaseEvent(self, mouse_event):
         self.track_start = None
-
-
-def make_QPolygon(xdata, ydata):
-    '''Create a :py:class:`qg.QPolygonF` instance from xdata and ydata, both
-    numpy arrays.'''
-    assert len(xdata) == len(ydata)
-
-    points = []
-
-    for i in xrange(len(xdata)):
-        points.append(qc.QPoint(xdata[i], ydata[i]))
-
-    return qg.QPolygon(points)
 
 
 def make_QPolygonF(xdata, ydata):
