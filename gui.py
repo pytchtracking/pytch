@@ -120,18 +120,6 @@ class MainWidget(QWidget):
         top_layout = QVBoxLayout()
         self.setLayout(top_layout)
 
-        #autogainCheckBox = QCheckBox(checked=True)
-        #top_layout.addWidget(autoGain)
-        #hbox_gain.addWidget(autoGainCheckBox)
-
-        # reference to checkbox
-        #self.autoGainCheckBox = autoGainCheckBox
-
-        #hbox_fixedGain = QHBoxLayout()
-        #fixedgain = QLabel('Fixed gain level')
-        #self.fixedGainSlider = QSlider(QtCore.Qt.Horizontal)
-        #hbox_fixedGain.addWidget(fixedGain)
-        #hbox_fixedGain.addWidget(self.fixedGainSlider)
         menu = MenuWidget(parent=self)
         top_layout.addWidget(menu)
 
