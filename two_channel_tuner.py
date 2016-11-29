@@ -147,12 +147,9 @@ class Worker(qc.QObject):
         self.gain = gain
         self.mic.start()
         self.pitchlog1 = np.arange(PITCHLOGLEN)#, dtype=np.int)
-        print 'pl', self.pitchlog1
         self.pitchlog2 = np.arange(PITCHLOGLEN)#, dtype=np.int)
-        self.pitchlog_vect1 = np.arange(PITCHLOGLEN, dtype=np.int)
-        self.pitchlog_vect2 = np.arange(PITCHLOGLEN, dtype=np.int)
-        self.pitchlog_vect1[:] = num.nan
-        self.pitchlog_vect2[:] = num.nan
+        self.pitchlog_vect1 = np.ones(PITCHLOGLEN, dtype=np.int)
+        self.pitchlog_vect2 = np.ones(PITCHLOGLEN, dtype=np.int)
 
         # keeps reference to mic
 
@@ -194,18 +191,17 @@ class Worker(qc.QObject):
             signal2float = self.current_frame2.astype(np.float32)
             self.new_pitch1 = pitch_o(signal1float[-self.fftsize:])[0]
             self.new_pitch2 = pitch_o(signal2float[-self.fftsize:])[0]
-            print 'new pitch2', self.new_pitch2
             #pitch_confidence2 = pitch_o.get_confidence()
 
-            self.new_pitch1Cent = 1200* math.log((self.new_pitch1+.1)/120.,2)
-            self.new_pitch2Cent = 1200* math.log((self.new_pitch2+.1)/120.,2)
-            self.pitchlog_vect1 = num.roll(self.pitchlog_vect1, 1)
-            self.pitchlog_vect2 = num.roll(self.pitchlog_vect2, 1)
+            self.pitchlog_vect1 = num.roll(self.pitchlog_vect1, -1)
+            self.pitchlog_vect2 = num.roll(self.pitchlog_vect2, -1)
+
+            self.new_pitch1Cent = 1200.* math.log((self.new_pitch1+.1)/120.,2)
+            self.new_pitch2Cent = 1200.* math.log((self.new_pitch2+.1)/120.,2)
 
             self.pitchlog_vect1[-1] = self.new_pitch1Cent
             self.pitchlog_vect2[-1] = self.new_pitch2Cent
-            #append_to_frame(self.pitchlog_vect1, self.new_pitch1Cent)
-            #append_to_frame(self.pitchlog_vect2, self.new_pitch2Cent)
+            print self.pitchlog_vect1
 
             #ivCents = abs(self.new_pitch2Cent - self.new_pitch1Cent)
             #if 0< ivCents <= 1200:

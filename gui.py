@@ -196,12 +196,14 @@ class MainWidget(QWidget):
 
         y1 = num.asarray(w.current_frame1, dtype=num.float32)
         y2 = num.asarray(w.current_frame2, dtype=num.float32)
-        #print w.pitchlog1
-        #print w.pitchlog_vect1
+        #self.pitch1.draw_trace(
+        #    w.pitchlog1, num.abs(w.pitchlog_vect1-w.pitchlog_vect2))
+        #self.pitch2.draw_trace(
+        #    w.pitchlog1, num.abs(w.pitchlog_vect2-w.pitchlog_vect1))
         self.pitch1.draw_trace(
-            w.pitchlog1, num.abs(w.pitchlog_vect1-w.pitchlog_vect2))
+            w.pitchlog1, num.log(num.abs(w.pitchlog_vect1)))
         self.pitch2.draw_trace(
-            w.pitchlog1, num.abs(w.pitchlog_vect2-w.pitchlog_vect1))
+            w.pitchlog1, num.log(num.abs(w.pitchlog_vect2)))
 
         self.repaint()
 
@@ -250,25 +252,26 @@ class PlotWidget(QWidget):
     def sizehint(self):
         return qc.QSize(100, 100)
 
+
 class PlotPointsWidget(PlotWidget):
     ''' delta pitch widget'''
     def __init__(self, *args, **kwargs):
         PlotWidget.__init__(self, *args, **kwargs)
+        self.yscale = 1E-1
 
     def paintEvent(self, e):
         painter = qg.QPainter(self)
-        pen = qg.QPen(self.color, 1, qc.Qt.SolidLine)
+        pen = qg.QPen(self.color, 4, qc.Qt.SolidLine)
         painter.setPen(pen)
 
-        xdata = self._xvisible
+        xdata = num.asarray(self._xvisible, dtype=num.float)
         ydata = self._yvisible
-        print xdata, ydata
         xdata /= xdata[-1]
         ydata *= self.yscale
 
-        ydata = (ydata + 0.5) * self.height()
+        #ydata = (ydata + 0.5) * self.height() * self.yscale
+        ydata = ydata * self.height()
         qpoints = make_QPolygon(xdata*self.width(), ydata)
-        #qpoints = make_QPolygonF(xdata, ydata)
         painter.drawPoints(qpoints)
 
 
