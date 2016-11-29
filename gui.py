@@ -3,8 +3,9 @@ import numpy as num
 
 from PyQt5 import QtCore as qc
 from PyQt5 import QtGui as qg
-from PyQt5.QtWidgets import QApplication, QWidget, QHBoxLayout, QLabel
+from PyQt5.QtWidgets import QApplication, QWidget, QHBoxLayout, QLabel, QMenu
 from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QComboBox, QGridLayout
+from PyQt5.QtWidgets import QAction
 
 import time
 import logging
@@ -117,6 +118,7 @@ class MainWidget(QWidget):
         tstart = time.time()
         QWidget.__init__(self, *args, **kwargs)
 
+        self.setMouseTracking(True)
         top_layout = QVBoxLayout()
         self.setLayout(top_layout)
 
@@ -215,7 +217,18 @@ class PlotWidget(QWidget):
         self.color = qg.QColor(4, 1, 255)
         self._xvisible = num.random.random(1)
         self._yvisible = num.random.random(1)
+        self.track_start = None
         self.yscale = 1E-4
+
+        self.right_click_menu = QMenu(self)
+
+        select_scale = QAction('asdf', self.right_click_menu)
+        select_scale.triggered.connect(self.set_yscale_mode)
+        self.addAction(select_scale)
+
+
+    def set_yscale_mode(self, mode):
+        self.scale_mode = mode == 'log'
 
     def draw_trace(self, xdata, ydata):
         self._yvisible = ydata
@@ -236,9 +249,19 @@ class PlotWidget(QWidget):
         ydata = (ydata + 0.5) * self.height()
         qpoints = make_QPolygon(xdata*self.width(), ydata)
         painter.drawPolyline(qpoints)
+        print 'MAKE MENUWIDGET AND DRAW MENU INSIDE'
+        print self.right_click_menu.isEnabled()
+        print self.right_click_menu.isVisible()
 
     def sizehint(self):
         return qc.QSize(100, 100)
+
+    def mousePressEvent(self, mouse_ev):
+        point = self.mapFromGlobal(mouse_ev.globalPos())
+        self.track_start = (point.x(), point.y())
+
+        if mouse_ev.button() == qc.Qt.RightButton:
+            self.right_click_menu.exec_(qg.QCursor.pos())
 
 
 class PlotPointsWidget(PlotWidget):
@@ -288,6 +311,17 @@ class PlotLogWidget(PlotWidget):
         qpoints = make_QPolygon(xdata[1:], ydata[1:])
 
         painter.drawPolyline(qpoints)
+
+    def mouseMoveEvent(self, mouse_ev):
+        point = self.mapFromGlobal(mouse_ev.globalPos())
+        if self.track_start:
+            x0, y0 = self.track_start
+            dy = (point.y() - y0) / float(self.height())
+            self.yscale = self.yscale + dy
+        self.repaint()
+
+    def mouseReleaseEvent(self, mouse_event):
+        self.track_start = None
 
 
 def make_QPolygon(xdata, ydata):
