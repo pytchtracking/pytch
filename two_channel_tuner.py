@@ -124,7 +124,7 @@ class Worker(qc.QObject):
     dataReady = qc.pyqtSignal()
 
     def __init__(self, gain=4999999, *args, **kwargs):
-        self.ndata_scale = 8
+        self.ndata_scale = 16
         qc.QObject.__init__(self, *args, **kwargs)
         self.mic = MicrophoneRecorder()
         #self.mic.data_ready_signal = self.dataReady
@@ -162,7 +162,7 @@ class Worker(qc.QObject):
         self.mic.start()
         self.timer = qc.QTimer()
         self.timer.timeout.connect(self.work)
-        self.timer.start(50)
+        self.timer.start(10)
 
     def stop(self):
         self.mic.stop = True

@@ -65,8 +65,8 @@ class MainWindow(QMainWindow):
     ''' Top level Window. The entry point of the gui.'''
     def __init__(self, *args, **kwargs):
         QMainWindow.__init__(self, *args, **kwargs)
-
-        self.setCentralWidget(MainWidget(parent=self))
+        main_widget = MainWidget(parent=self)
+        self.setCentralWidget(main_widget)
         self.show()
 
     def keypressevent(self, key_event):
@@ -153,7 +153,6 @@ class MainWidget(QWidget):
         self.make_connections()
 
         self.worker.start()
-        self.start_drawing()
 
     def set_input(self, i):
         self.worker.stop()
@@ -162,13 +161,6 @@ class MainWidget(QWidget):
 
     def make_connections(self):
         self.worker.signalReady.connect(self.refreshwidgets)
-        #self.connect(self.worker, pyqtSignal('ready'), self.refreshwidgets)
-
-    def start_drawing(self):
-
-        self.timer = qc.QTimer()
-        self.timer.timeout.connect(self.refreshwidgets)
-        self.timer.start(50)
 
     def refreshwidgets(self):
         w = self.worker
@@ -198,9 +190,6 @@ class MainWidget(QWidget):
         self.repaint()
 
 
-#class canvaswidget(QWidget):
-#    ''' contains the data viewers'''
-
 class PlotWidget(QWidget):
     ''' a plotwidget displays data (x, y coordinates). '''
 
@@ -218,6 +207,10 @@ class PlotWidget(QWidget):
         self._xvisible = num.random.random(1)
         self._yvisible = num.random.random(1)
         self.track_start = None
+        self.yscale_mode = None
+        self.xscale_mode = None
+
+        self.xscale = 1.
         self.yscale = 1E-4
 
         self.right_click_menu = QMenu(self)
@@ -226,9 +219,11 @@ class PlotWidget(QWidget):
         select_scale.triggered.connect(self.set_yscale_mode)
         self.addAction(select_scale)
 
-
     def set_yscale_mode(self, mode):
-        self.scale_mode = mode == 'log'
+        self.yscale_mode = mode
+
+    def set_xscale_mode(self, mode):
+        self.xscale_mode = mode
 
     def draw_trace(self, xdata, ydata):
         self._yvisible = ydata
@@ -249,9 +244,6 @@ class PlotWidget(QWidget):
         ydata = (ydata + 0.5) * self.height()
         qpoints = make_QPolygon(xdata*self.width(), ydata)
         painter.drawPolyline(qpoints)
-        print 'MAKE MENUWIDGET AND DRAW MENU INSIDE'
-        print self.right_click_menu.isEnabled()
-        print self.right_click_menu.isVisible()
 
     def sizehint(self):
         return qc.QSize(100, 100)
@@ -292,22 +284,25 @@ class PlotLogWidget(PlotWidget):
         PlotWidget.__init__(self, *args, **kwargs)
         self.yscale = 1./15
 
+        self.istart = 0
+        self.istop = -1
+
     def paintEvent(self, e):
         ''' This is executed e.g. when self.repaint() is called. Draws the
         underlying data and scales the content to fit into the widget.'''
         painter = qg.QPainter(self)
         pen = qg.QPen(self.color, 1, qc.Qt.SolidLine)
         painter.setPen(pen)
-        xdata = self._xvisible
-        ydata = self._yvisible
+        xdata = self._xvisible[self.istart:self.istop]
+        ydata = self._yvisible[self.istart:self.istop]
 
-        xdata = num.log(xdata)
-        xdata /= xdata[-1]
+        #xdata = num.log(xdata)
+        xdata /= xdata[self.istop]
 
         ydata = num.log(ydata)
-
+        #print len(ydata)
         ydata *= self.height() * self.yscale
-        xdata *= self.width()
+        xdata *= float(self.width())
         qpoints = make_QPolygon(xdata[1:], ydata[1:])
 
         painter.drawPolyline(qpoints)
@@ -317,7 +312,8 @@ class PlotLogWidget(PlotWidget):
         if self.track_start:
             x0, y0 = self.track_start
             dy = (point.y() - y0) / float(self.height())
-            self.yscale = self.yscale + dy
+            self.istart += dy*self.width()
+            self.istop -= dy*self.width()
         self.repaint()
 
     def mouseReleaseEvent(self, mouse_event):
