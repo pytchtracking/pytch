@@ -68,10 +68,10 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(MainWidget(parent=self))
         self.show()
 
-    def keyPressEvent(self, key_event):
-        ''' React on keyboard keys when they are pressed.
+    def keypressevent(self, key_event):
+        ''' react on keyboard keys when they are pressed.
 
-        Blocked by menu'''
+        blocked by menu'''
         key_text = key_event.text()
         if key_text == 'q':
             self.close()
@@ -82,7 +82,7 @@ class MainWindow(QMainWindow):
 
 
 class MenuWidget(QWidget):
-    ''' TODO: Blocks keypressevents!'''
+    ''' todo: blocks keypressevents!'''
     def __init__(self, *args, **kwargs):
         QWidget.__init__(self, *args, **kwargs)
         layout = QVBoxLayout()
@@ -109,9 +109,9 @@ class CanvasWidget(QWidget):
 
 
 class MainWidget(QWidget):
-    ''' Top level widget covering the central widget in the MainWindow.'''
+    ''' top level widget covering the central widget in the MainWindow.'''
 
-    signalStatus = qc.pyqtSignal()
+    signalstatus = qc.pyqtSignal()
 
     def __init__(self, *args, **kwargs):
         tstart = time.time()
@@ -120,7 +120,7 @@ class MainWidget(QWidget):
         top_layout = QVBoxLayout()
         self.setLayout(top_layout)
 
-        #autoGainCheckBox = QCheckBox(checked=True)
+        #autogainCheckBox = QCheckBox(checked=True)
         #top_layout.addWidget(autoGain)
         #hbox_gain.addWidget(autoGainCheckBox)
 
@@ -128,7 +128,7 @@ class MainWidget(QWidget):
         #self.autoGainCheckBox = autoGainCheckBox
 
         #hbox_fixedGain = QHBoxLayout()
-        #fixedGain = QLabel('Fixed gain level')
+        #fixedgain = QLabel('Fixed gain level')
         #self.fixedGainSlider = QSlider(QtCore.Qt.Horizontal)
         #hbox_fixedGain.addWidget(fixedGain)
         #hbox_fixedGain.addWidget(self.fixedGainSlider)
@@ -136,17 +136,23 @@ class MainWidget(QWidget):
         top_layout.addWidget(menu)
 
         canvas = CanvasWidget(parent=self)
-        self.trace1 = PlotLogWidget(parent=canvas)
-        canvas.layout.addWidget(self.trace1, 1, 0)
+        self.spectrum1 = PlotLogWidget(parent=canvas)
+        canvas.layout.addWidget(self.spectrum1, 1, 0)
 
-        self.trace2 = PlotLogWidget(parent=canvas)
-        canvas.layout.addWidget(self.trace2, 2, 0)
+        self.spectrum2 = PlotLogWidget(parent=canvas)
+        canvas.layout.addWidget(self.spectrum2, 2, 0)
 
-        self.trace3 = PlotWidget(parent=canvas)
-        canvas.layout.addWidget(self.trace3, 1, 1)
+        self.trace1 = PlotWidget(parent=canvas)
+        canvas.layout.addWidget(self.trace1, 1, 1)
 
-        self.trace4 = PlotWidget(parent=canvas)
-        canvas.layout.addWidget(self.trace4, 2, 1)
+        self.trace2 = PlotWidget(parent=canvas)
+        canvas.layout.addWidget(self.trace2, 2, 1)
+
+        self.pitch1 = PlotPointsWidget(parent=canvas)
+        canvas.layout.addWidget(self.pitch1, 3, 0, 1, 2)
+
+        self.pitch2 = PlotPointsWidget(parent=canvas)
+        canvas.layout.addWidget(self.pitch2, 3, 0, 1, 2)
 
         top_layout.addWidget(canvas)
 
@@ -175,26 +181,38 @@ class MainWidget(QWidget):
         self.timer.start(50)
 
     def refreshwidgets(self):
-        self.trace1.draw_trace(self.worker.freq_vect1,
-                           num.abs(self.worker.fft_frame1))
-        self.trace2.draw_trace(self.worker.freq_vect2,
-                           num.abs(self.worker.fft_frame2))
-        n = num.shape(self.worker.current_frame1)[0]
-        xt = num.linspace(0, self.trace3.width(), n)
-        y1 = num.asarray(self.worker.current_frame1, dtype=num.float32)
-        y2 = num.asarray(self.worker.current_frame2, dtype=num.float32)
-        self.trace3.draw_trace(xt, y1)
-        self.trace4.draw_trace(xt, y2)
+        w = self.worker
+        self.spectrum1.draw_trace(w.freq_vect1,
+                           num.abs(w.fft_frame1))
+        self.spectrum2.draw_trace(w.freq_vect2,
+                           num.abs(w.fft_frame2))
+
+        n = num.shape(w.current_frame1)[0]
+        xt = num.linspace(0, self.spectrum1.width(), n)
+        y1 = num.asarray(w.current_frame1, dtype=num.float32)
+        y2 = num.asarray(w.current_frame2, dtype=num.float32)
+        self.trace1.draw_trace(xt, y1)
+        self.trace2.draw_trace(xt, y2)
+
+        y1 = num.asarray(w.current_frame1, dtype=num.float32)
+        y2 = num.asarray(w.current_frame2, dtype=num.float32)
+        #print w.pitchlog1
+        #print w.pitchlog_vect1
+        self.pitch1.draw_trace(
+            w.pitchlog1, num.abs(w.pitchlog_vect1-w.pitchlog_vect2))
+        self.pitch2.draw_trace(
+            w.pitchlog1, num.abs(w.pitchlog_vect2-w.pitchlog_vect1))
+
         self.repaint()
 
 
-#class CanvasWidget(QWidget):
-#    ''' Contains the data viewers'''
+#class canvaswidget(QWidget):
+#    ''' contains the data viewers'''
 
 class PlotWidget(QWidget):
-    ''' A PlotWidget displays data (x, y coordinates). '''
+    ''' a plotwidget displays data (x, y coordinates). '''
 
-    signalStatus = qc.pyqtSignal()
+    signalstatus = qc.pyqtSignal()
 
     def __init__(self, *args, **kwargs):
         QWidget.__init__(self, *args, **kwargs)
@@ -214,7 +232,7 @@ class PlotWidget(QWidget):
         self._xvisible = xdata
 
     def paintEvent(self, e):
-        ''' This is executed e.g. when self.repaint() is called. Draws the
+        ''' this is executed e.g. when self.repaint() is called. Draws the
         underlying data and scales the content to fit into the widget.'''
         painter = qg.QPainter(self)
         pen = qg.QPen(self.color, 1, qc.Qt.SolidLine)
@@ -227,28 +245,38 @@ class PlotWidget(QWidget):
 
         ydata = (ydata + 0.5) * self.height()
         qpoints = make_QPolygon(xdata*self.width(), ydata)
-        #qpoints = make_QPolygonF(xdata*self.width(), ydata)
-
-        #scale = 1E-3
-        #stransform = qg.QTransform()
-        #stransform.scale(width, height)
-
-        #ttransform = qg.QTransform()
-        #ttransform.translate(0., self.geometry().center().y())
-
-        #transform = stransform * ttransform
-        #painter.setTransform(ttransform)
         painter.drawPolyline(qpoints)
 
-    def sizeHint(self):
+    def sizehint(self):
         return qc.QSize(100, 100)
+
+class PlotPointsWidget(PlotWidget):
+    ''' delta pitch widget'''
+    def __init__(self, *args, **kwargs):
+        PlotWidget.__init__(self, *args, **kwargs)
+
+    def paintEvent(self, e):
+        painter = qg.QPainter(self)
+        pen = qg.QPen(self.color, 1, qc.Qt.SolidLine)
+        painter.setPen(pen)
+
+        xdata = self._xvisible
+        ydata = self._yvisible
+        print xdata, ydata
+        xdata /= xdata[-1]
+        ydata *= self.yscale
+
+        ydata = (ydata + 0.5) * self.height()
+        qpoints = make_QPolygon(xdata*self.width(), ydata)
+        #qpoints = make_QPolygonF(xdata, ydata)
+        painter.drawPoints(qpoints)
 
 
 class PlotLogWidget(PlotWidget):
 
     def __init__(self, *args, **kwargs):
         PlotWidget.__init__(self, *args, **kwargs)
-        self.scale = 1./15
+        self.yscale = 1./15
 
     def paintEvent(self, e):
         ''' This is executed e.g. when self.repaint() is called. Draws the
@@ -264,10 +292,9 @@ class PlotLogWidget(PlotWidget):
 
         ydata = num.log(ydata)
 
-        ydata *= self.height() * self.scale
+        ydata *= self.height() * self.yscale
         xdata *= self.width()
-        #qpoints = make_QPolygonF(xdata, ydata)
-        qpoints = make_QPolygon(xdata, ydata)
+        qpoints = make_QPolygon(xdata[1:], ydata[1:])
 
         painter.drawPolyline(qpoints)
 
@@ -278,6 +305,7 @@ def make_QPolygon(xdata, ydata):
     assert len(xdata) == len(ydata)
 
     points = []
+
     for i in xrange(len(xdata)):
         points.append(qc.QPoint(xdata[i], ydata[i]))
 

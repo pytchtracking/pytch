@@ -36,8 +36,6 @@ nchannels = 2
 #pitch logs
 global pitchlog1, pitchlog2
 PITCHLOGLEN=20
-pitchlog1 = np.arange(PITCHLOGLEN, dtype=np.float32)
-pitchlog2 = np.arange(PITCHLOGLEN, dtype=np.float32)
 
 # Pitch
 tolerance = 0.8
@@ -148,6 +146,14 @@ class Worker(qc.QObject):
         self.new_pitch2Cent = None
         self.gain = gain
         self.mic.start()
+        self.pitchlog1 = np.arange(PITCHLOGLEN)#, dtype=np.int)
+        print 'pl', self.pitchlog1
+        self.pitchlog2 = np.arange(PITCHLOGLEN)#, dtype=np.int)
+        self.pitchlog_vect1 = np.arange(PITCHLOGLEN, dtype=np.int)
+        self.pitchlog_vect2 = np.arange(PITCHLOGLEN, dtype=np.int)
+        self.pitchlog_vect1[:] = num.nan
+        self.pitchlog_vect2[:] = num.nan
+
         # keeps reference to mic
 
     def set_device_no(self, i):
@@ -184,15 +190,28 @@ class Worker(qc.QObject):
 
             self.fft_frame2 = np.fft.rfft(self.current_frame2[-self.fftsize:])
 
+            signal1float = self.current_frame1.astype(np.float32)
             signal2float = self.current_frame2.astype(np.float32)
-            self.new_pitch2 = precise_pitch2 = pitch_o(signal2float[-self.fftsize:])[0]
+            self.new_pitch1 = pitch_o(signal1float[-self.fftsize:])[0]
+            self.new_pitch2 = pitch_o(signal2float[-self.fftsize:])[0]
             print 'new pitch2', self.new_pitch2
             #pitch_confidence2 = pitch_o.get_confidence()
 
-            #self.new_pitch1Cent = 1200* math.log((self.new_pitch1+.1)/120.,2)
-            #self.new_pitch2Cent = 1200* math.log((self.new_pitch2+.1)/120.,2)
+            self.new_pitch1Cent = 1200* math.log((self.new_pitch1+.1)/120.,2)
+            self.new_pitch2Cent = 1200* math.log((self.new_pitch2+.1)/120.,2)
+            self.pitchlog_vect1 = num.roll(self.pitchlog_vect1, 1)
+            self.pitchlog_vect2 = num.roll(self.pitchlog_vect2, 1)
 
-            #self.ivCents = abs(self.new_pitch2Cent - self.new_pitch1Cent)
+            self.pitchlog_vect1[-1] = self.new_pitch1Cent
+            self.pitchlog_vect2[-1] = self.new_pitch2Cent
+            #append_to_frame(self.pitchlog_vect1, self.new_pitch1Cent)
+            #append_to_frame(self.pitchlog_vect2, self.new_pitch2Cent)
+
+            #ivCents = abs(self.new_pitch2Cent - self.new_pitch1Cent)
+            #if 0< ivCents <= 1200:
+            #    plot gauge
+
+            # plot self.new_pitcj1Cent - self.newptch2Cent und anders rum
             self.signalReady.emit()
 
 
