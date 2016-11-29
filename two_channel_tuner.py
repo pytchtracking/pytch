@@ -4,7 +4,6 @@ Created on May 23 2014
 
 @author: florian
 """
-import copy
 import time
 import sys
 import threading
@@ -16,14 +15,6 @@ import numpy as np
 from PyQt5 import QtCore as qc
 import matplotlib
 matplotlib.use('Qt5Agg')
-
-# import numpy as np
-import mpl_toolkits.axisartist.angle_helper as angle_helper
-from matplotlib.projections import PolarAxes
-from mpl_toolkits.axisartist.grid_finder import (FixedLocator, MaxNLocator, DictFormatter)
-#import matplotlib.pyplot as plt
-from matplotlib.patches import Wedge
-#from gui import GaugeWidget
 
 num = np
 
