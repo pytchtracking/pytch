@@ -108,15 +108,22 @@ def append_to_frame(f, d):
     f[-i:] = d.T
 
 
-class Worker(qc.QObject):
-    ''' Grabbing data, working on it and saving the results'''
-
+class WorkerBase(qc.QObject):
     signalReady = qc.pyqtSignal()
     dataReady = qc.pyqtSignal()
 
+    def start(self):
+        '''to be implemented in subclass'''
+        print('start WorkerBase')
+        pass
+
+
+class Worker(WorkerBase):
+    ''' Grabbing data, working on it and saving the results'''
+
     def __init__(self, gain=4999999, *args, **kwargs):
+        WorkerBase.__init__(self, *args, **kwargs)
         self.ndata_scale = 16*2
-        qc.QObject.__init__(self, *args, **kwargs)
         self.mic = MicrophoneRecorder()
         #self.mic.data_ready_signal = self.dataReady
         self.autogain_checkbox = False
