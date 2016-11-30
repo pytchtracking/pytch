@@ -13,8 +13,8 @@ import math
 from aubio import pitch
 import numpy as np
 from PyQt5 import QtCore as qc
-import matplotlib
-matplotlib.use('Qt5Agg')
+#import matplotlib
+#matplotlib.use('Qt5Agg')
 
 num = np
 
@@ -192,7 +192,7 @@ class Worker(qc.QObject):
 
             self.pitchlog_vect1[-1] = self.new_pitch1Cent
             self.pitchlog_vect2[-1] = self.new_pitch2Cent
-            print self.pitchlog_vect1
+            print(self.pitchlog_vect1)
 
             #ivCents = abs(self.new_pitch2Cent - self.new_pitch1Cent)
             #if 0< ivCents <= 1200:

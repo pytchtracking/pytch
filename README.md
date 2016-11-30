@@ -7,8 +7,7 @@
 - aubio
 - pyaudio
 
-on OSX using homebrew
-brew install pyqt5
+pip3 install pyqt5, pyaudio, aubio
 
 ## Todo
 - cross spectrum
