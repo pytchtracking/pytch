@@ -5,7 +5,7 @@ from PyQt5 import QtCore as qc
 from PyQt5 import QtGui as qg
 from PyQt5.QtWidgets import QApplication, QWidget, QHBoxLayout, QLabel, QMenu
 from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QComboBox, QGridLayout
-from PyQt5.QtWidgets import QAction
+from PyQt5.QtWidgets import QAction, QSlider, QPushButton
 
 import time
 import logging
@@ -89,7 +89,31 @@ class MenuWidget(QWidget):
         layout = QVBoxLayout()
         self.setLayout(layout)
 
+        self.play_button = QPushButton('Play')
+        layout.addWidget(self.play_button)
+
+        self.pause_button = QPushButton('Pause')
+        layout.addWidget(self.pause_button)
+
+        layout.addWidget(QLabel('Select Input Device'))
         self.select_input = QComboBox()
+        layout.addWidget(self.select_input)
+        self.set_input_devices()
+
+        layout.addWidget(QLabel('NFFT'))
+        self.nfft_slider = self.get_nfft_slider()
+        layout.addWidget(self.nfft_slider)
+
+    def get_nfft_slider(self):
+        ''' Return a QSlider for modifying FFT width'''
+        nfft_slider = QSlider(qc.Qt.Horizontal)
+        nfft_slider.setRange(256, 256*8)
+        nfft_slider.setValue(512)
+        nfft_slider.setTickInterval(256)
+        return nfft_slider
+
+    def set_input_devices(self):
+        ''' Query device list and set the drop down menu'''
         devices = getaudiodevices()
         curr = 0
         for idevice, device in enumerate(devices):
@@ -98,9 +122,6 @@ class MenuWidget(QWidget):
                 curr = idevice
 
         self.select_input.setCurrentIndex(idevice)
-
-        layout.addWidget(self.select_input)
-
 
 class CanvasWidget(QWidget):
     def __init__(self, *args, **kwargs):
@@ -122,8 +143,8 @@ class MainWidget(QWidget):
         top_layout = QVBoxLayout()
         self.setLayout(top_layout)
 
-        menu = MenuWidget(parent=self)
-        top_layout.addWidget(menu)
+        self.menu = MenuWidget(parent=self)
+        top_layout.addWidget(self.menu)
 
         canvas = CanvasWidget(parent=self)
         self.spectrum1 = PlotLogWidget(parent=canvas)
@@ -147,8 +168,7 @@ class MainWidget(QWidget):
         top_layout.addWidget(canvas)
 
         self.worker = Worker()
-        self.worker.set_device_no(menu.select_input.currentIndex())
-        menu.select_input.activated.connect(self.set_input)
+        self.worker.set_device_no(self.menu.select_input.currentIndex())
 
         self.make_connections()
 
@@ -161,6 +181,10 @@ class MainWidget(QWidget):
 
     def make_connections(self):
         self.worker.signalReady.connect(self.refreshwidgets)
+        self.menu.nfft_slider.valueChanged.connect(self.worker.set_nfft)
+        self.menu.select_input.activated.connect(self.set_input)
+        self.menu.pause_button.clicked.connect(self.worker.stop)
+        self.menu.play_button.clicked.connect(self.worker.start)
 
     def refreshwidgets(self):
         w = self.worker
@@ -254,6 +278,8 @@ class PlotWidget(QWidget):
 
         if mouse_ev.button() == qc.Qt.RightButton:
             self.right_click_menu.exec_(qg.QCursor.pos())
+        elif mouse_ev.button() == qc.Qt.LeftButton:
+            self.parent().worker.stop()
 
 
 class PlotPointsWidget(PlotWidget):

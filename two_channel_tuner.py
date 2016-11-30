@@ -95,8 +95,8 @@ class MicrophoneRecorder(object):
     def stop(self):
         with _lock:
             self._stop = True
-        #self.stream.stop_stream()
-        self.stream.close()
+        self.stream.stop_stream()
+        #self.stream.close()
 
     def close(self):
         self.p.terminate()
@@ -154,6 +154,9 @@ class Worker(WorkerBase):
     def set_device_no(self, i):
         self.mic.device_no = i
 
+    def set_nfft(self, nfft):
+        print 'not implemented'
+
     def start(self):
         #self.mic.data_ready.connect(self.work)
         ''' Start a loop '''
@@ -163,8 +166,7 @@ class Worker(WorkerBase):
         self.timer.start(10)
 
     def stop(self):
-        self.mic.stop = True
-        #self.mic.close()
+        self.mic.stop()
 
     def work(self):
         ''' Do the work'''
