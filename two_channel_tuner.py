@@ -140,7 +140,7 @@ class Worker(WorkerBase):
         WorkerBase.__init__(self, *args, **kwargs)
         self.ndata_scale = 16*2
         self.fftsize = FFTSIZE
-        self.mic = MicrophoneRecorder(chunksize=4096)
+        self.mic = MicrophoneRecorder(chunksize=2048)
         self.setup_buffers()
         self.mic.data_ready_signal = self.dataReady
         self.mic.data_ready_signal.connect(self.work)

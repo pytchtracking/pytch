@@ -15,6 +15,11 @@ from two_channel_tuner import Worker, getaudiodevices
 logger = logging.getLogger(__name__)
 
 
+if sys.version_info < (3, 0):
+    _buffer = buffer
+else:
+    _buffer = memoryview
+
 class GaugeWidget(QWidget):
     def __init__(self, *args, **kwargs):
         '''
@@ -356,7 +361,7 @@ def make_QPolygonF(xdata, ydata):
     aa = num.ndarray(
         shape=(len(ydata), 2),
         dtype=num.float64,
-        buffer=buffer(vptr))
+        buffer=_buffer(vptr))
     aa.setflags(write=True)
     aa[:, 0] = xdata
     aa[:, 1] = ydata
