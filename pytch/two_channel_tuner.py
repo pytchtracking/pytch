@@ -21,7 +21,8 @@ num = np
 # number of samples of buffer
 FFTSIZE = 512*4
 
-RATE= 16384*4
+RATE= 16384
+#RATE = 44100
 #RATE= 48000
 nchannels = 2
 #pitch logs
@@ -59,6 +60,9 @@ class DummySignal():
     def emit(self):
         return
 
+    def connect(self, *args, **kwargs):
+        print args, kwargs
+
 class MicrophoneRecorder(object):
 
     def __init__(self, rate=RATE, chunksize=FFTSIZE):
@@ -68,9 +72,11 @@ class MicrophoneRecorder(object):
         self.device_no = 7
         self.frames = []
         self.data_ready_signal = DummySignal()
+        self.stream = None
         atexit.register(self.terminate)
 
     def new_frame(self, data, frame_count, time_info, status):
+        print 'TEST'
         data = np.fromstring(data, 'int16')
         with _lock:
             self.frames.append(data)
@@ -88,20 +94,24 @@ class MicrophoneRecorder(object):
         return frames
 
     def start(self):
+        if self.stream is None:
+            raise Exception('cannot start stream which is None')
         self.stream.start_stream()
         self._stop = False
 
     def start_new_stream(self):
         self.frames = []
+        print self.p.get_default_host_api_info()
         self.stream = self.p.open(format=pyaudio.paInt16,
                                   channels=nchannels,
+                                  # MAYBE SOMETHING IS WRONG HERE
                                   rate=self.rate,
                                   input=True,
                                   frames_per_buffer=self.chunksize,
-                                  input_device_index=self.device_no,
+                                  input_device_index=7,
                                   stream_callback=self.new_frame)
-        self.stream.start_stream()
         self._stop = False
+        #self.stream.start_stream()
 
     def stop(self):
         with _lock:
@@ -133,17 +143,19 @@ class WorkerBase(qc.QObject):
         pass
 
 
-class Worker(WorkerBase):
+class Worker(object):
     ''' Grabbing data, working on it and saving the results'''
 
     def __init__(self, *args, **kwargs):
-        WorkerBase.__init__(self, *args, **kwargs)
+        #WorkerBase.__init__(self, *args, **kwargs)
         self.ndata_scale = 16*2
         self.fftsize = FFTSIZE
         self.mic = MicrophoneRecorder(chunksize=2048)
         self.setup_buffers()
-        self.mic.data_ready_signal = self.dataReady
-        self.mic.data_ready_signal.connect(self.work)
+        #self.mic.data_ready_signal = self.dataReady
+        #self.mic.data_ready_signal.connect(self.work)
+
+        self.mic.start_new_stream()
 
     def setup_buffers(self):
         self.new_pitch1 = None
@@ -161,7 +173,6 @@ class Worker(WorkerBase):
         self.ivCents = None
         self.new_pitch1Cent = None
         self.new_pitch2Cent = None
-        self.mic.start_new_stream()
         self.pitchlog1 = np.arange(PITCHLOGLEN)#, dtype=np.int)
         self.pitchlog2 = np.arange(PITCHLOGLEN)#, dtype=np.int)
         self.pitchlog_vect1 = np.ones(PITCHLOGLEN, dtype=np.int)
@@ -177,12 +188,12 @@ class Worker(WorkerBase):
         self.fftsize = int(nfft)
         self.fftsize -= nfft %2
         self.setup_buffers()
-
         self.mic.start()
 
     def start(self):
         #self.mic.data_ready.connect(self.work)
-        ''' Start a loop '''
+        ''' Start a loop todo check is stream already started!'''
+
         self.mic.start()
         # self.timer = qc.QTimer()
         # self.timer.timeout.connect(self.work)
@@ -197,7 +208,7 @@ class Worker(WorkerBase):
 
     def process(self, frames):
         ''' Do the work'''
-
+        print 'process'
         if len(frames) > 0:
             # keeps only the last frame (which contains two interleaved channels)
             buffer = frames[ -1]

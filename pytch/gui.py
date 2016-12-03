@@ -103,7 +103,7 @@ class MenuWidget(QWidget):
         layout.addWidget(QLabel('Select Input Device'))
         self.select_input = QComboBox()
         layout.addWidget(self.select_input)
-        self.set_input_devices()
+        #self.set_input_devices()
 
         layout.addWidget(QLabel('NFFT'))
         self.nfft_slider = self.get_nfft_slider()
@@ -119,7 +119,7 @@ class MenuWidget(QWidget):
 
     def set_input_devices(self):
         ''' Query device list and set the drop down menu'''
-        devices = getaudiodevices()
+        #devices = getaudiodevices()
         curr = 0
         for idevice, device in enumerate(devices):
             self.select_input.addItem('%s: %s' % (idevice, device))
@@ -173,23 +173,25 @@ class MainWidget(QWidget):
         top_layout.addWidget(canvas)
 
         self.worker = Worker()
-        self.worker.set_device_no(self.menu.select_input.currentIndex())
+        #self.worker.set_device_no(self.menu.select_input.currentIndex())
+        #self.worker.stop()
 
         self.make_connections()
 
-        self.worker.start()
+        #self.worker.start_new_stream()
 
-    def set_input(self, i):
-        self.worker.stop()
-        self.worker.set_device_no(i)
-        self.worker.start()
+    #def set_input(self, i):
+    #    self.worker.stop()
+    #    self.worker.set_device_no(i)
+    #    self.worker.start()
 
     def make_connections(self):
         self.worker.signalReady.connect(self.refreshwidgets)
         self.menu.nfft_slider.valueChanged.connect(self.worker.set_nfft)
-        self.menu.select_input.activated.connect(self.set_input)
+        #self.menu.select_input.activated.connect(self.set_input)
         self.menu.pause_button.clicked.connect(self.worker.stop)
         self.menu.play_button.clicked.connect(self.worker.start)
+        print 'connections'
 
     def refreshwidgets(self):
         w = self.worker
