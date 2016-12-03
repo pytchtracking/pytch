@@ -148,10 +148,14 @@ class MainWidget(QWidget):
         top_layout = QVBoxLayout()
         self.setLayout(top_layout)
 
-        self.menu = MenuWidget(parent=self)
-        top_layout.addWidget(self.menu)
+        menu = MenuWidget(parent=self)
+        top_layout.addWidget(menu)
+        self.worker = Worker()
+        self.worker.set_device_no(menu.select_input.currentIndex())
+        menu.select_input.activated.connect(self.set_input)
 
         canvas = CanvasWidget(parent=self)
+        canvas.dx = self.worker.deltat
         self.spectrum1 = PlotLogWidget(parent=canvas)
         canvas.layout.addWidget(self.spectrum1, 1, 0)
 
@@ -171,10 +175,6 @@ class MainWidget(QWidget):
         canvas.layout.addWidget(self.pitch2, 3, 0, 1, 2)
 
         top_layout.addWidget(canvas)
-
-        self.worker = Worker()
-        #self.worker.set_device_no(self.menu.select_input.currentIndex())
-        #self.worker.stop()
 
         self.make_connections()
 
@@ -249,12 +249,18 @@ class PlotWidget(QWidget):
         select_scale = QAction('asdf', self.right_click_menu)
         select_scale.triggered.connect(self.set_yscale_mode)
         self.addAction(select_scale)
+        self.trange = (0, 10)
+        self.update_indices()
 
     def set_yscale_mode(self, mode):
         self.yscale_mode = mode
 
     def set_xscale_mode(self, mode):
         self.xscale_mode = mode
+
+    def update_indices(self):
+        f = self.parent().dx * self.width()
+        self.istart, self.istop = (int(self.trange[0]/f), int(self.trange[1]/f))
 
     def draw_trace(self, xdata, ydata):
         self._yvisible = ydata
@@ -266,9 +272,9 @@ class PlotWidget(QWidget):
         painter = qg.QPainter(self)
         pen = qg.QPen(self.color, 1, qc.Qt.SolidLine)
         painter.setPen(pen)
-
-        xdata = self._xvisible
-        ydata = self._yvisible
+        istart, istop = self.istart, self.istop
+        xdata = self._xvisible[istart: istop]
+        ydata = self._yvisible[istart: istop]
         xdata /= xdata[-1]
         ydata *= self.yscale
 
@@ -287,6 +293,20 @@ class PlotWidget(QWidget):
             self.right_click_menu.exec_(qg.QCursor.pos())
         elif mouse_ev.button() == qc.Qt.LeftButton:
             self.parent().worker.stop()
+
+    def mouseReleaseEvent(self, mouse_event):
+        self.track_start = None
+
+    def mouseMoveEvent(self, mouse_ev):
+        point = self.mapFromGlobal(mouse_ev.globalPos())
+        if self.track_start:
+            x0, y0 = self.track_start
+            dy = (point.y() - y0) / float(self.height())
+            self.istart += dy*self.width()
+            self.istop -= dy*self.width()
+
+        self.update_indices()
+        self.repaint()
 
 
 class PlotPointsWidget(PlotWidget):
@@ -317,9 +337,6 @@ class PlotLogWidget(PlotWidget):
         PlotWidget.__init__(self, *args, **kwargs)
         self.yscale = 1./15
 
-        self.istart = 0
-        self.istop = -1
-
     def paintEvent(self, e):
         ''' This is executed e.g. when self.repaint() is called. Draws the
         underlying data and scales the content to fit into the widget.'''
@@ -339,18 +356,6 @@ class PlotLogWidget(PlotWidget):
         qpoints = make_QPolygonF(xdata[1:], ydata[1:])
 
         painter.drawPolyline(qpoints)
-
-    def mouseMoveEvent(self, mouse_ev):
-        point = self.mapFromGlobal(mouse_ev.globalPos())
-        if self.track_start:
-            x0, y0 = self.track_start
-            dy = (point.y() - y0) / float(self.height())
-            self.istart += dy*self.width()
-            self.istop -= dy*self.width()
-        self.repaint()
-
-    def mouseReleaseEvent(self, mouse_event):
-        self.track_start = None
 
 
 def make_QPolygonF(xdata, ydata):

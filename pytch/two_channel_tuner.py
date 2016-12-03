@@ -19,25 +19,14 @@ from PyQt5 import QtCore as qc
 num = np
 
 # number of samples of buffer
-FFTSIZE = 512*4
 
 RATE= 16384
-#RATE = 44100
-#RATE= 48000
 nchannels = 2
 #pitch logs
 global pitchlog1, pitchlog2
 PITCHLOGLEN=20
 
-# Pitch
-tolerance = 0.8
-downsample = 1
-win_s = FFTSIZE // downsample # fft size
-hop_s = FFTSIZE  // downsample # hop size
 
-pitch_o = pitch("yin", win_s, hop_s, RATE)
-pitch_o.set_unit("Hz")
-pitch_o.set_tolerance(tolerance)
 
 _lock = threading.Lock()
 
@@ -65,7 +54,8 @@ class DummySignal():
 
 class MicrophoneRecorder(object):
 
-    def __init__(self, rate=RATE, chunksize=FFTSIZE):
+    def __init__(self, rate=16384, chunksize=512):
+        getaudiodevices()
         self.rate = rate
         self.chunksize = chunksize
         self.p = pyaudio.PyAudio()
@@ -149,9 +139,7 @@ class Worker(object):
     def __init__(self, *args, **kwargs):
         #WorkerBase.__init__(self, *args, **kwargs)
         self.ndata_scale = 16*2
-        self.fftsize = FFTSIZE
-        self.mic = MicrophoneRecorder(chunksize=2048)
-        self.setup_buffers()
+        qc.QObject.__init__(self, *args, **kwargs)
         #self.mic.data_ready_signal = self.dataReady
         #self.mic.data_ready_signal.connect(self.work)
 
@@ -160,23 +148,38 @@ class Worker(object):
     def setup_buffers(self):
         self.new_pitch1 = None
         self.new_pitch2 = None
+        self.fftsize = 512*4
 
         #nfft = (self.mic.chunksize* self.ndata_scale, 1./self.mic.rate)
-        nfft = (self.fftsize, 1./self.mic.rate)
+        rate = 16384*4
+        self.deltat = 1./rate
+        self.mic = MicrophoneRecorder(rate=rate, chunksize=self.fftsize)
+        self.mic.start()
+        nfft = (self.fftsize, self.deltat)
         self.freq_vect1 = self.freq_vect2 = np.fft.rfftfreq(*nfft)
-        self.current_frame1 = num.ones(self.mic.chunksize*self.ndata_scale,
-                                       dtype=num.int)
-        self.current_frame2 = num.ones(self.mic.chunksize*self.ndata_scale, dtype=num.int)
-
         self.fft_frame1 = None
         self.fft_frame2 = None
         self.ivCents = None
         self.new_pitch1Cent = None
         self.new_pitch2Cent = None
+        self.gain = gain
+        self.current_frame1 = num.ones(self.fftsize*self.ndata_scale, dtype=num.int)
+        self.current_frame2 = num.ones(self.fftsize*self.ndata_scale, dtype=num.int)
+
         self.pitchlog1 = np.arange(PITCHLOGLEN)#, dtype=np.int)
         self.pitchlog2 = np.arange(PITCHLOGLEN)#, dtype=np.int)
         self.pitchlog_vect1 = np.ones(PITCHLOGLEN, dtype=np.int)
         self.pitchlog_vect2 = np.ones(PITCHLOGLEN, dtype=np.int)
+
+        # keeps reference to mic
+        # Pitch
+        tolerance = 0.8
+        downsample = 1
+        win_s = self.fftsize // downsample # fft size
+        hop_s = self.fftsize  // downsample # hop size
+        self.pitch_o = pitch("yin", win_s, hop_s, rate)
+        self.pitch_o.set_unit("Hz")
+        self.pitch_o.set_tolerance(tolerance)
 
     def set_device_no(self, i):
         self.mic.close()
@@ -224,15 +227,17 @@ class Worker(object):
             self.fft_frame1 = np.fft.rfft(self.current_frame1[-self.fftsize:])
             self.fft_frame2 = np.fft.rfft(self.current_frame2[-self.fftsize:])
 
-            self.new_pitch1 = pitch_o(signal1float[-self.fftsize:])[0]
-            self.new_pitch2 = pitch_o(signal2float[-self.fftsize:])[0]
+            signal1float = self.current_frame1.astype(np.float32)
+            signal2float = self.current_frame2.astype(np.float32)
+            self.new_pitch1 = self.pitch_o(signal1float[-self.fftsize:])[0]
+            self.new_pitch2 = self.pitch_o(signal2float[-self.fftsize:])[0]
             #pitch_confidence2 = pitch_o.get_confidence()
 
             self.pitchlog_vect1 = num.roll(self.pitchlog_vect1, -1)
             self.pitchlog_vect2 = num.roll(self.pitchlog_vect2, -1)
 
-            self.new_pitch1Cent = 1200.* math.log((self.new_pitch1+.1)/120.,2)
-            self.new_pitch2Cent = 1200.* math.log((self.new_pitch2+.1)/120.,2)
+            self.new_pitch1Cent = 1200.* math.log((self.new_pitch1+.1)/120., 2)
+            self.new_pitch2Cent = 1200.* math.log((self.new_pitch2+.1)/120., 2)
 
             self.pitchlog_vect1[-1] = self.new_pitch1Cent
             self.pitchlog_vect2[-1] = self.new_pitch2Cent
