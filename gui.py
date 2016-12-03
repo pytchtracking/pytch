@@ -318,6 +318,14 @@ class PlotLogWidget(PlotWidget):
         self.istart = 0
         self.istop = -1
 
+    def smooth(self, data):
+        ''' rectangular smoothing. make it optional'''
+        return num.mean((data,
+                         num.roll(data, 2),
+                         num.roll(data, 1),
+                         num.roll(data, -2),
+                         num.roll(data, -1)), axis=0)
+
     def paintEvent(self, e):
         ''' This is executed e.g. when self.repaint() is called. Draws the
         underlying data and scales the content to fit into the widget.'''
@@ -331,6 +339,7 @@ class PlotLogWidget(PlotWidget):
         xdata /= xdata[self.istop]
 
         ydata = num.log(ydata)
+        ydata = self.smooth(ydata)
         #print len(ydata)
         ydata *= self.height() * self.yscale
         xdata *= float(self.width())
