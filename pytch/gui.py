@@ -10,7 +10,9 @@ from PyQt5.QtWidgets import QAction, QSlider, QPushButton
 import time
 import logging
 
-from two_channel_tuner import Worker, getaudiodevices
+from pytch.two_channel_tuner import Worker
+from pytch.data import getaudiodevices
+from pytch.core import Core
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +140,8 @@ class CanvasWidget(QWidget):
 class MainWidget(QWidget):
     ''' top level widget covering the central widget in the MainWindow.'''
 
-    signalstatus = qc.pyqtSignal()
+    #signalstatus = qc.pyqtSignal()
+    processingFinished = qc.pyqtSignal()
 
     def __init__(self, *args, **kwargs):
         tstart = time.time()
@@ -148,14 +151,17 @@ class MainWidget(QWidget):
         top_layout = QVBoxLayout()
         self.setLayout(top_layout)
 
-        menu = MenuWidget(parent=self)
-        top_layout.addWidget(menu)
-        self.worker = Worker()
-        self.worker.set_device_no(menu.select_input.currentIndex())
-        menu.select_input.activated.connect(self.set_input)
+        self.menu = MenuWidget(parent=self)
+        top_layout.addWidget(self.menu)
+
+        self.core = Core()
+        self.core.device_no = self.menu.select_input.currentIndex()
+        self.core.worker.processingFinished = self.processingFinished
+        self.menu.select_input.activated.connect(self.core.set_device_no)
 
         canvas = CanvasWidget(parent=self)
-        canvas.dx = self.worker.deltat
+        canvas.dx = 1./self.core.data_input.sampling_rate
+
         self.spectrum1 = PlotLogWidget(parent=canvas)
         canvas.layout.addWidget(self.spectrum1, 1, 0)
 
@@ -178,53 +184,62 @@ class MainWidget(QWidget):
 
         self.make_connections()
 
+        self.core.start()
+
         #self.worker.start_new_stream()
 
-    #def set_input(self, i):
-    #    self.worker.stop()
-    #    self.worker.set_device_no(i)
-    #    self.worker.start()
-
     def make_connections(self):
-        self.worker.signalReady.connect(self.refreshwidgets)
-        self.menu.nfft_slider.valueChanged.connect(self.worker.set_nfft)
+        #self.core.signalReady.connect(self.refreshwidgets)
+        self.processingFinished.connect(self.refreshwidgets)
+        self.menu.nfft_slider.valueChanged.connect(self.core.worker.set_fft_length)
         #self.menu.select_input.activated.connect(self.set_input)
-        self.menu.pause_button.clicked.connect(self.worker.stop)
-        self.menu.play_button.clicked.connect(self.worker.start)
-        print 'connections'
+        self.menu.pause_button.clicked.connect(self.core.data_input.stop)
+        self.menu.play_button.clicked.connect(self.core.data_input.start)
+        logger.debug('connections made')
 
     def refreshwidgets(self):
-        w = self.worker
-        self.spectrum1.draw_trace(w.freq_vect1,
-                           num.abs(w.fft_frame1))
-        self.spectrum2.draw_trace(w.freq_vect2,
-                           num.abs(w.fft_frame2))
+        tstart = time.time()
+        w = self.core.worker
 
-        n = num.shape(w.current_frame1)[0]
-        xt = num.linspace(0, self.spectrum1.width(), n)
-        y1 = num.asarray(w.current_frame1, dtype=num.float32)
-        y2 = num.asarray(w.current_frame2, dtype=num.float32)
-        self.trace1.draw_trace(xt, y1)
-        self.trace2.draw_trace(xt, y2)
+        self.spectrum1.draw_trace(w.freqs, num.abs(w.ffts[0]))
+        self.spectrum2.draw_trace(w.freqs, num.abs(w.ffts[1]))
 
-        y1 = num.asarray(w.current_frame1, dtype=num.float32)
-        y2 = num.asarray(w.current_frame2, dtype=num.float32)
+        #ju#n = num.shape(w.current_frame1)[0]
+        #n = 44100
+        #xt = num.linspace(0, self.spectrum1.width(), n)
+        #y1 = num.asarray(w.frames[0], dtype=num.float32)
+        #y2 = num.asarray(w.frames[1], dtype=num.float32)
+        #self.trace1.draw_trace(xt, y1)
+        #self.trace2.draw_trace(xt, y2)
+        self.trace1.draw_trace(*w.frames[0].latest_frame(4))
+        self.trace2.draw_trace(*w.frames[1].latest_frame(4))
+        #self.trace2.draw_trace(w.frames[1].xdata, w.frames[1].ydata)
+
+        #y1 = num.asarray(w.current_frame1, dtype=num.float32)
+        #y2 = num.asarray(w.current_frame2, dtype=num.float32)
         #self.pitch1.draw_trace(
         #    w.pitchlog1, num.abs(w.pitchlog_vect1-w.pitchlog_vect2))
         #self.pitch2.draw_trace(
         #    w.pitchlog1, num.abs(w.pitchlog_vect2-w.pitchlog_vect1))
-        self.pitch1.draw_trace(
-            w.pitchlog1, num.log(num.abs(w.pitchlog_vect1)))
-        self.pitch2.draw_trace(
-            w.pitchlog1, num.log(num.abs(w.pitchlog_vect2)))
-
+        #self.pitch1.draw_trace(
+        #    #w.pitchlogs[0].xdata, num.log(num.abs(w.pitchlogs[0].ydata)))
+        #    w.pitchlogs[0].xdata, num.abs(w.pitchlogs[0].ydata))
+        #self.pitch2.draw_trace(
+            #w.pitchlog1, num.log(num.abs(w.pitchlog_vect2)))
         self.repaint()
+        tstop = time.time()
+        logger.debug('refreshing widgets took %s seconds' % (tstop-tstart))
 
+def normalize_to01(d):
+    ''' normalize data vector *d* between 0 and 1'''
+    dmin = num.min(d)
+    dmax = num.max(d)
+    return (d-dmin)/(dmax-dmin)
 
 class PlotWidget(QWidget):
     ''' a plotwidget displays data (x, y coordinates). '''
 
-    signalstatus = qc.pyqtSignal()
+    #signalstatus = qc.pyqtSignal()
 
     def __init__(self, *args, **kwargs):
         QWidget.__init__(self, *args, **kwargs)
@@ -272,12 +287,10 @@ class PlotWidget(QWidget):
         painter = qg.QPainter(self)
         pen = qg.QPen(self.color, 1, qc.Qt.SolidLine)
         painter.setPen(pen)
-        istart, istop = self.istart, self.istop
-        xdata = self._xvisible[istart: istop]
-        ydata = self._yvisible[istart: istop]
-        xdata /= xdata[-1]
-        ydata *= self.yscale
-
+        xdata = self._xvisible
+        ydata = self._yvisible
+        xdata = normalize_to01(xdata)
+        ydata =  ydata * self.yscale
         ydata = (ydata + 0.5) * self.height()
         qpoints = make_QPolygonF(xdata*self.width(), ydata)
         painter.drawPolyline(qpoints)
@@ -343,14 +356,16 @@ class PlotLogWidget(PlotWidget):
         painter = qg.QPainter(self)
         pen = qg.QPen(self.color, 1, qc.Qt.SolidLine)
         painter.setPen(pen)
-        xdata = self._xvisible[self.istart:self.istop]
-        ydata = self._yvisible[self.istart:self.istop]
+        xdata = self._xvisible#[self.istart:self.istop]
+        ydata = self._yvisible#[self.istart:self.istop]
+        xdata = normalize_to01(xdata)
+        ##xdata = num.log(xdata)
+        #xdata /= xdata[self.istop]
+        #xdata = self._xvisible
+        ydata = num.log(self._yvisible)
+        #ydata = self._yvisible
+        #ydata = normalize_to01(ydata)
 
-        #xdata = num.log(xdata)
-        xdata /= xdata[self.istop]
-
-        ydata = num.log(ydata)
-        #print len(ydata)
         ydata *= self.height() * self.yscale
         xdata *= float(self.width())
         qpoints = make_QPolygonF(xdata[1:], ydata[1:])

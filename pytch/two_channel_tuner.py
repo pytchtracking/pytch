@@ -1,127 +1,20 @@
 # -*- coding: utf-8 -*-
-"""
-Created on May 23 2014
 
-@author: florian
-"""
 import time
 import sys
 import threading
-import atexit
 import pyaudio
 import math
 from aubio import pitch
-import numpy as np
+import numpy as num
 from PyQt5 import QtCore as qc
-#import matplotlib
-#matplotlib.use('Qt5Agg')
 
-num = np
+from pytch.data import MicrophoneRecorder, Buffer
+from pytch.util import DummySignal
 
-# number of samples of buffer
+import logging
 
-RATE= 16384
-nchannels = 2
-#pitch logs
-global pitchlog1, pitchlog2
-PITCHLOGLEN=20
-
-
-
-_lock = threading.Lock()
-
-# class taken from the SciPy 2015 Vispy talk opening example
-# see https://github.com/vispy/vispy/pull/928
-
-
-def getaudiodevices():
-    ''' Returns a list of device descriptions'''
-    p = pyaudio.PyAudio()
-    devices = []
-    for i in range(p.get_device_count()):
-        devices.append(p.get_device_info_by_index(i).get('name'))
-    return devices
-
-class DummySignal():
-    def __init__(self):
-        pass
-
-    def emit(self):
-        return
-
-    def connect(self, *args, **kwargs):
-        print args, kwargs
-
-class MicrophoneRecorder(object):
-
-    def __init__(self, rate=16384, chunksize=512):
-        getaudiodevices()
-        self.rate = rate
-        self.chunksize = chunksize
-        self.p = pyaudio.PyAudio()
-        self.device_no = 7
-        self.frames = []
-        self.data_ready_signal = DummySignal()
-        self.stream = None
-        atexit.register(self.terminate)
-
-    def new_frame(self, data, frame_count, time_info, status):
-        print 'TEST'
-        data = np.fromstring(data, 'int16')
-        with _lock:
-            self.frames.append(data)
-            if self._stop:
-                return None, pyaudio.paComplete
-
-        #self.data_ready_signal.emit()
-
-        return None, pyaudio.paContinue
-
-    def get_frames(self):
-        with _lock:
-            frames = self.frames
-            self.frames = []
-        return frames
-
-    def start(self):
-        if self.stream is None:
-            raise Exception('cannot start stream which is None')
-        self.stream.start_stream()
-        self._stop = False
-
-    def start_new_stream(self):
-        self.frames = []
-        print self.p.get_default_host_api_info()
-        self.stream = self.p.open(format=pyaudio.paInt16,
-                                  channels=nchannels,
-                                  # MAYBE SOMETHING IS WRONG HERE
-                                  rate=self.rate,
-                                  input=True,
-                                  frames_per_buffer=self.chunksize,
-                                  input_device_index=7,
-                                  stream_callback=self.new_frame)
-        self._stop = False
-        #self.stream.start_stream()
-
-    def stop(self):
-        with _lock:
-            self._stop = True
-        self.stream.stop_stream()
-
-    def close(self):
-        self.stop()
-        self.stream.close()
-
-    def terminate(self):
-        self.close()
-        self.p.terminate()
-
-
-def append_to_frame(f, d):
-    i = d.shape[0]
-    f[:-i] = f[i:]
-    f[-i:] = d.T
-
+logger = logging.getLogger(__name__)
 
 class WorkerBase(qc.QObject):
     signalReady = qc.pyqtSignal()
@@ -129,47 +22,62 @@ class WorkerBase(qc.QObject):
 
     def start(self):
         '''to be implemented in subclass'''
-        print('start WorkerBase')
+        logger.debug('start WorkerBase')
         pass
 
 
-class Worker(object):
+class Worker(WorkerBase):
     ''' Grabbing data, working on it and saving the results'''
 
-    def __init__(self, *args, **kwargs):
-        #WorkerBase.__init__(self, *args, **kwargs)
+    def __init__(self, fft_size, provider, *args, **kwargs):
+        WorkerBase.__init__(self, *args, **kwargs)
         self.ndata_scale = 16*2
-        qc.QObject.__init__(self, *args, **kwargs)
-        #self.mic.data_ready_signal = self.dataReady
-        #self.mic.data_ready_signal.connect(self.work)
+        self.nchannels = 2
+        self.processingFinished = DummySignal()
+        self.provider = provider
+        self.buffer_length = 3*60     # seconds
+        self.fftsize = fft_size
+        self.setup_buffers()
 
-        self.mic.start_new_stream()
+    def set_data_provider(self, provider):
+        self.provider = provider
+
+    def set_fft_length(self, n):
+        self.fftsize = n
+        self.setup_buffers()
 
     def setup_buffers(self):
+
+        p = self.provider
         self.new_pitch1 = None
         self.new_pitch2 = None
-        self.fftsize = 512*4
 
         #nfft = (self.mic.chunksize* self.ndata_scale, 1./self.mic.rate)
-        rate = 16384*4
-        self.deltat = 1./rate
-        self.mic = MicrophoneRecorder(rate=rate, chunksize=self.fftsize)
-        self.mic.start()
-        nfft = (self.fftsize, self.deltat)
-        self.freq_vect1 = self.freq_vect2 = np.fft.rfftfreq(*nfft)
+        nfft = (self.fftsize, p.deltat)
+        self.freqs  = num.fft.rfftfreq(*nfft)
         self.fft_frame1 = None
         self.fft_frame2 = None
         self.ivCents = None
         self.new_pitch1Cent = None
         self.new_pitch2Cent = None
-        self.gain = gain
-        self.current_frame1 = num.ones(self.fftsize*self.ndata_scale, dtype=num.int)
-        self.current_frame2 = num.ones(self.fftsize*self.ndata_scale, dtype=num.int)
+        #self.current_frame1 = Buffer()
+        #self.current_frame2 = Buffer()
+        self.frames = [Buffer(p.sampling_rate,
+                             self.buffer_length)] * self.nchannels
 
-        self.pitchlog1 = np.arange(PITCHLOGLEN)#, dtype=np.int)
-        self.pitchlog2 = np.arange(PITCHLOGLEN)#, dtype=np.int)
-        self.pitchlog_vect1 = np.ones(PITCHLOGLEN, dtype=np.int)
-        self.pitchlog_vect2 = np.ones(PITCHLOGLEN, dtype=np.int)
+        self.ffts = num.ones((self.nchannels, len(self.freqs)))
+        #self.pitches = num.zeros((self.nchannels, self.fftsize))
+        #self.current_frame1 = num.ones(self.fftsize*self.ndata_scale, dtype=num.int)
+        #self.current_frame2 = num.ones(self.fftsize*self.ndata_scale, dtype=num.int)
+
+        #self.pitchlog1 = num.arange(PITCHLOGLEN)#, dtype=num.int)
+        #self.pitchlog2 = num.arange(PITCHLOGLEN)#, dtype=num.int)
+        #self.pitchlog_vect1 = num.ones(PITCHLOGLEN, dtype=num.int)
+        #self.pitchlog_vect2 = num.ones(PITCHLOGLEN, dtype=num.int)
+
+        # get sampling rate from refresh rate
+        PITCHLOGLEN = 40
+        self.pitchlogs = [Buffer(1., PITCHLOGLEN, dtype=num.int)] * self.nchannels
 
         # keeps reference to mic
         # Pitch
@@ -177,79 +85,72 @@ class Worker(object):
         downsample = 1
         win_s = self.fftsize // downsample # fft size
         hop_s = self.fftsize  // downsample # hop size
-        self.pitch_o = pitch("yin", win_s, hop_s, rate)
+        self.pitch_o = pitch("yin", win_s, hop_s, p.sampling_rate)
         self.pitch_o.set_unit("Hz")
         self.pitch_o.set_tolerance(tolerance)
 
-    def set_device_no(self, i):
-        self.mic.close()
-        self.mic.device_no = i
-        self.mic.start_new_stream()
-
     def set_nfft(self, nfft):
-        self.mic.stop()
         self.fftsize = int(nfft)
-        self.fftsize -= nfft %2
-        self.setup_buffers()
-        self.mic.start()
+        print self.fftsize
 
-    def start(self):
-        #self.mic.data_ready.connect(self.work)
-        ''' Start a loop todo check is stream already started!'''
-
-        self.mic.start()
-        # self.timer = qc.QTimer()
-        # self.timer.timeout.connect(self.work)
-        # self.timer.start(10)
-
-    def stop(self):
-        self.mic.stop()
-
-    def work(self):
-        frames = self.mic.get_frames()
-        self.process(frames)
-
-    def process(self, frames):
+    def process(self):
         ''' Do the work'''
-        print 'process'
+        logger.debug('start processing')
+        frames = self.provider.get_data()
+
         if len(frames) > 0:
-            # keeps only the last frame (which contains two interleaved channels)
-            buffer = frames[ -1]
-            result = np.reshape(buffer, (self.mic.chunksize, nchannels))
+            logger.debug('process')
 
-            i = result[:, 0].shape[0]
-            append_to_frame(self.current_frame1, result[:, 0])
-            append_to_frame(self.current_frame2, result[:, 1])
+            # change reshape
+            result = num.reshape(frames[-1], (self.provider.chunksize,
+                                          self.nchannels)).T
+            for i in range(self.nchannels):
+                self.frames[i].append(result[i].T)
 
-            signal1float = num.asarray(self.current_frame1, dtype=num.float32)
-            signal2float = num.asarray(self.current_frame2, dtype=num.float32)
+            for i in range(self.nchannels):
+                frame_work = self.frames[i].latest_frame_data(self.fftsize)
+                self.ffts[i, :] = num.fft.rfft(frame_work)
+                pitch = self.pitch_o(frame_work.astype(num.float32))[0]
+                new_pitch_Cent = 1200.* math.log((pitch +.1)/120., 2)
+                self.pitchlogs[i].append(num.array([new_pitch_Cent]))
 
-            self.fft_frame1 = np.fft.rfft(self.current_frame1[-self.fftsize:])
-            self.fft_frame2 = np.fft.rfft(self.current_frame2[-self.fftsize:])
+            #if len(frames) > 0:
 
-            signal1float = self.current_frame1.astype(np.float32)
-            signal2float = self.current_frame2.astype(np.float32)
-            self.new_pitch1 = self.pitch_o(signal1float[-self.fftsize:])[0]
-            self.new_pitch2 = self.pitch_o(signal2float[-self.fftsize:])[0]
-            #pitch_confidence2 = pitch_o.get_confidence()
 
-            self.pitchlog_vect1 = num.roll(self.pitchlog_vect1, -1)
-            self.pitchlog_vect2 = num.roll(self.pitchlog_vect2, -1)
+            #    # keeps only the last frame (which contains two interleaved channels)
+            #    #buffer = frames[ -1]
+            #    #result = num.reshape(buffer, (self.mic.chunksize, self.nchannels))
+            #    #i = result[:, 0].shape[0]
+            #    append_to_frame(self.current_frame1, result[:, 0])
+            #    append_to_frame(self.current_frame2, result[:, 1])
 
-            self.new_pitch1Cent = 1200.* math.log((self.new_pitch1+.1)/120., 2)
-            self.new_pitch2Cent = 1200.* math.log((self.new_pitch2+.1)/120., 2)
+            #    self.fft_frame1 = num.fft.rfft(self.current_frame1[-self.fftsize:])
+            #    self.fft_frame2 = num.fft.rfft(self.current_frame2[-self.fftsize:])
 
-            self.pitchlog_vect1[-1] = self.new_pitch1Cent
-            self.pitchlog_vect2[-1] = self.new_pitch2Cent
-            print(self.pitchlog_vect1)
+            #    signal1float = self.current_frame1.astype(num.float32)
+            #    signal2float = self.current_frame2.astype(num.float32)
+            #    self.new_pitch1 = self.pitch_o(signal1float[-self.fftsize:])[0]
+            #    self.new_pitch2 = self.pitch_o(signal2float[-self.fftsize:])[0]
+            #    #pitch_confidence2 = pitch_o.get_confidence()
 
-            #ivCents = abs(self.new_pitch2Cent - self.new_pitch1Cent)
-            #if 0< ivCents <= 1200:
-            #    plot gauge
+            #    self.pitchlog_vect1 = num.roll(self.pitchlog_vect1, -1)
+            #    self.pitchlog_vect2 = num.roll(self.pitchlog_vect2, -1)
 
-            # plot self.new_pitcj1Cent - self.newptch2Cent und anders rum
-            self.signalReady.emit()
+            #    self.new_pitch1Cent = 1200.* math.log((self.new_pitch1+.1)/120., 2)
+            #    self.new_pitch2Cent = 1200.* math.log((self.new_pitch2+.1)/120., 2)
 
+            #    self.pitchlog_vect1[-1] = self.new_pitch1Cent
+            #    self.pitchlog_vect2[-1] = self.new_pitch2Cent
+
+            #    #ivCents = abs(self.new_pitch2Cent - self.new_pitch1Cent)
+            #    #if 0< ivCents <= 1200:
+            #    #    plot gauge
+
+            #    # plot self.new_pitcj1Cent - self.newptch2Cent und anders rum
+            #    #self.signalReady.emit()
+            self.processingFinished.emit()
+
+            logger.debug('finished processing')
 
 def compute_pitch_hps(x, Fs, dF=None, Fmin=30., Fmax=900., H=5):
     # default value for dF frequency resolution
@@ -257,27 +158,27 @@ def compute_pitch_hps(x, Fs, dF=None, Fmin=30., Fmax=900., H=5):
         dF = Fs / x.size
 
     # Hamming window apodization
-    x = np.array(x, dtype=np.double, copy=True)
-    x *= np.hamming(x.size)
+    x = num.array(x, dtype=num.double, copy=True)
+    x *= num.hamming(x.size)
 
     # number of points in FFT to reach the resolution wanted by the user
-    n_fft = np.ceil(Fs / dF)
+    n_fft = num.ceil(Fs / dF)
 
     # DFT computation
-    X = np.abs(np.fft.fft(x, n=int(n_fft)))
+    X = num.abs(num.fft.fft(x, n=int(n_fft)))
 
     # limiting frequency R_max computation
-    R = np.floor(1 + n_fft / 2. / H)
+    R = num.floor(1 + n_fft / 2. / H)
 
     # computing the indices for min and max frequency
-    N_min = np.ceil(Fmin / Fs * n_fft)
-    N_max = np.floor(Fmax / Fs * n_fft)
+    N_min = num.ceil(Fmin / Fs * n_fft)
+    N_max = num.floor(Fmax / Fs * n_fft)
     N_max = min(N_max, R)
 
     # harmonic product spectrum computation
-    indices = (np.arange(N_max)[:, np.newaxis] * np.arange(1, H+1)).astype(int)
-    P = np.prod(X[indices.ravel()].reshape(N_max, H), axis=1)
-    ix = np.argmax(P * ((np.arange(P.size) >= N_min) & (np.arange(P.size) <= N_max)))
+    indices = (num.arange(N_max)[:, num.newaxis] * num.arange(1, H+1)).astype(int)
+    P = num.prod(X[indices.ravel()].reshape(N_max, H), axis=1)
+    ix = num.argmax(P * ((num.arange(P.size) >= N_min) & (num.arange(P.size) <= N_max)))
     return dF * ix
 
 if __name__ == "__main__":
