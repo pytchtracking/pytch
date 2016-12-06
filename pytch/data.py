@@ -81,7 +81,7 @@ class Buffer():
 
     def latest_frame(self, seconds):
         ''' Return the latest *seconds* data from buffer as x and y data tuple.'''
-        n = seconds * self.sampling_rate
+        n = min(seconds * self.sampling_rate, self.i_filled)
         y = self.data[self.i_filled - n:self.i_filled]
         x = num.arange(n, dtype=num.float64) *self.delta + \
             (self.t_filled - seconds)

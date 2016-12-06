@@ -376,7 +376,8 @@ class PlotLogWidget(PlotWidget):
 def make_QPolygonF(xdata, ydata):
     '''Create a :py:class:`qg.QPolygonF` instance from xdata and ydata, both
     numpy arrays.'''
-    assert len(xdata) == len(ydata)
+    #assert len(xdata) == len(ydata)
+
     qpoints = qg.QPolygonF(len(ydata))
     vptr = qpoints.data()
     vptr.setsize(len(ydata)*8*2)

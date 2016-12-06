@@ -91,7 +91,6 @@ class Worker(WorkerBase):
 
     def set_nfft(self, nfft):
         self.fftsize = int(nfft)
-        #print self.fftsize
 
     def process(self):
         ''' Do the work'''
