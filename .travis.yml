@@ -1,0 +1,31 @@
+language: python
+python:
+    - "2.7"
+    - "3.5"
+
+matrix:
+    include:
+        - os: linux
+          sudo: required
+          cache: pip
+          virtualenv:
+              system_site_packages: true
+        - os: osx
+          osx_image: xcode7.3
+          language: generic
+
+before_install:
+    - pip install --upgrade numpy setuptools aubio
+
+install:
+    - sudo apt-get update
+    - sudo apt-get install python-pyaudio
+    - if [[ "$TRAVIS_PYTHON_VERSION" == 3.5 ]]; then sudo apt-get -y install python3-pyqt5; fi
+    - if [[ "$TRAVIS_PYTHON_VERSION" == 2.7 ]]; then sudo apt-get -y install python-pyqt5; fi
+    - sudo python setup.py install
+
+script:
+    - python test/test_all.py
+
+notifications:
+    email: false
