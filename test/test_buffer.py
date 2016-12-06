@@ -1,10 +1,10 @@
 import numpy as num
 import unittest
-from subprocess import call
 from pytch.data import Buffer
 import time
 
-class MicTestCase(unittest.TestCase):
+
+class BufferTestCase(unittest.TestCase):
 
     def test_BufferIndex(self):
 

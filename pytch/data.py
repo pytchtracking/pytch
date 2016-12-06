@@ -4,6 +4,8 @@ import atexit
 import numpy as num
 import logging
 
+from pytch.util import DummySignal
+
 _lock = threading.Lock()
 
 # class taken from the SciPy 2015 Vispy talk opening example
@@ -118,13 +120,13 @@ class MicrophoneRecorder(DataProvider):
 
     def __init__(self, chunksize=512, data_ready_signal=None):
         DataProvider.__init__(self)
+        self.stream = None
         self.p = pyaudio.PyAudio()
         default = self.p.get_default_input_device_info()
         self.sampling_rate = int(default['defaultSampleRate'])
         self.chunksize = chunksize
         self.device_no = default['index']
         self.data_ready_signal = data_ready_signal or DummySignal()
-        self.stream = None
         self.nchannels = 2
 
     def new_frame(self, data, frame_count, time_info, status):
