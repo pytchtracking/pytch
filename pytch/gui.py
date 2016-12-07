@@ -293,11 +293,10 @@ class PlotWidget(QWidget):
         xdata = self._xvisible
         ydata = self._yvisible
         xdata = normalize_to01(xdata)
-        ydata =  ydata * self.yscale
-        ydata = (ydata + 0.5) * self.height()
+        ydata = (ydata * self.yscale+ 0.5) * self.height()
         qpoints = make_QPolygonF(xdata*self.width(), ydata)
         painter.drawPolyline(qpoints)
-
+    
     def sizehint(self):
         return qc.QSize(100, 100)
 

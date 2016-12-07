@@ -17,7 +17,8 @@ logger = logging.getLogger(__name__)
 def append_to_frame(f, d):
     ''' shift data in f and append new data d to buffer f'''
     i = d.shape[0]
-    f[:-i] = f[i:]
+    #f[:-i] = f[i:]
+    num.roll(f, -i)
     f[-i:] = d.T
 
 
@@ -53,6 +54,8 @@ class Buffer():
 
         self.i_filled = 0
 
+        self._x = num.arange(self.data_len, dtype=num.float64) *self.delta + self.tmin
+
     def empty(self):
         self.data = num.empty((self.data_len),
                           dtype=self.dtype)
@@ -84,11 +87,7 @@ class Buffer():
     def latest_frame(self, seconds):
         ''' Return the latest *seconds* data from buffer as x and y data tuple.'''
         n = min(seconds * self.sampling_rate, self.i_filled)
-        y = self.data[self.i_filled - n:self.i_filled]
-        x = num.arange(n, dtype=num.float64) *self.delta + \
-            (self.t_filled - seconds)
-
-        return (x, y)
+        return (self._x[self.i_filled - n:self.i_filled], self.data[self.i_filled - n:self.i_filled])
 
     def latest_frame_data(self, n):
         ''' Return the latest *seconds* data from buffer as x and y data tuple.'''
