@@ -190,7 +190,10 @@ class MainWidget(QWidget):
 
     def make_connections(self):
         #self.core.signalReady.connect(self.refreshwidgets)
-        self.processingFinished.connect(self.refreshwidgets)
+        #self.processingFinished.connect(self.refreshwidgets)
+        self.refresh_timer = qc.QTimer()
+        self.refresh_timer.timeout.connect(self.refreshwidgets)
+        self.refresh_timer.start(35)
         self.menu.nfft_slider.valueChanged.connect(self.core.worker.set_fft_length)
         #self.menu.select_input.activated.connect(self.set_input)
         self.menu.pause_button.clicked.connect(self.core.data_input.stop)
