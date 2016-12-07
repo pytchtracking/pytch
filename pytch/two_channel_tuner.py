@@ -16,21 +16,11 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-class WorkerBase(qc.QObject):
-    signalReady = qc.pyqtSignal()
-    dataReady = qc.pyqtSignal()
 
-    def start(self):
-        '''to be implemented in subclass'''
-        logger.debug('start WorkerBase')
-        pass
-
-
-class Worker(WorkerBase):
+class Worker():
     ''' Grabbing data, working on it and saving the results'''
 
-    def __init__(self, fft_size, provider, *args, **kwargs):
-        WorkerBase.__init__(self, *args, **kwargs)
+    def __init__(self, fft_size, provider):
         self.ndata_scale = 16*2
         self.nchannels = 2
         self.processingFinished = DummySignal()
