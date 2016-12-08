@@ -1,13 +1,29 @@
 #!/usr/bin/env python
 
 import logging
+import argparse
+
 from pytch.gui import from_command_line
 
-logging.basicConfig()
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-logger.info('starting pytch')
-from_command_line()
 
+if __name__=='__main__':
+    parser = argparse.ArgumentParser('pytch')
+    parser.add_argument(
+        '--loglevel', required=False, default='INFO',
+        help='Set logging level.')
+    
+    parser.add_argument('--close-after', required=False,
+                        dest='close_after',
+                        metavar='N',
+                        default=None,
+                        type=int,
+                        help='Close after N seconds. Utility option for\
+                        performance tests.')
 
-
+    args = parser.parse_args()
+    logging.basicConfig(level=args.loglevel)
+    logger = logging.getLogger()
+    logger.info('starting pytch')
+    logger.debug('debug pytch')
+    
+    from_command_line(args.close_after)
