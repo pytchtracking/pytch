@@ -1,25 +1,42 @@
 language: python
-python:
-    - "2.7"
-    - "3.5"
+#python:
+#    - "2.7"
+#    - "3.5"
 
 matrix:
     include:
         - os: linux
           sudo: required
+          python: 2.7
+          cache: pip
+          virtualenv:
+              system_site_packages: true
+        - os: linux
+          sudo: required
+          python: 3.5
           cache: pip
           virtualenv:
               system_site_packages: true
         - os: osx
           osx_image: xcode7.3
           language: generic
+          python: 2.7
+        - os: osx
+          osx_image: xcode7.3
+          language: generic
+          python: 3.5
+
+addons:
+    apt:
+        # pip pyaudio version does not seem to work properly
+        packages: [python-pyaudio]
 
 before_install:
-    - pip install --upgrade numpy setuptools aubio
+    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update ;fi
+    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install portaudio ;fi
+    - pip install --upgrade numpy setuptools aubio pyaudio
 
 install:
-    - sudo apt-get update
-    - sudo apt-get install python-pyaudio
     #- if [[ "$TRAVIS_PYTHON_VERSION" == 3.5 ]]; then sudo apt-get -y install python3-pyqt5; fi
     #- if [[ "$TRAVIS_PYTHON_VERSION" == 2.7 ]]; then sudo apt-get -y install python-pyqt5; fi
     - sudo python setup.py install

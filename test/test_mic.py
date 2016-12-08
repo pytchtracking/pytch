@@ -8,8 +8,13 @@ class MicTestCase(unittest.TestCase):
     def test_micInit(self):
 
         # kill pulseaudio to check proper startup
-        call(['pulseaudio', '--kill'])
-
+        try:
+            call(['pulseaudio', '--kill'])
+        except OSError as e:
+            if e.errno==2:
+                return
+            else:
+                raise e
         mic = MicrophoneRecorder()
 
         mic.start_new_stream()
