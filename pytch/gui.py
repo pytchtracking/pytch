@@ -76,17 +76,27 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(main_widget)
         self.show()
 
+    def sizeHint(self):
+        return qc.QSize(800, 600)
+
     def keypressevent(self, key_event):
         ''' react on keyboard keys when they are pressed.
 
         blocked by menu'''
         key_text = key_event.text()
         if key_text == 'q':
+            self.want_close.emit()
             self.close()
 
         elif key_text == 'f':
             self.showMaximized()
         QMainWindow.keyPressEvent(self, key_event)
+
+    def closeEvent(self, ev):
+        '''Called when application is closed.'''
+        logger.debug('closing')
+        self.centralWidget().core.data_input.terminate()
+        QMainWindow.closeEvent(self, ev)
 
 
 class MenuWidget(QWidget):
@@ -105,7 +115,7 @@ class MenuWidget(QWidget):
         layout.addWidget(QLabel('Select Input Device'))
         self.select_input = QComboBox()
         layout.addWidget(self.select_input)
-        #self.set_input_devices()
+        self.set_input_devices()
 
         layout.addWidget(QLabel('NFFT'))
         self.nfft_slider = self.get_nfft_slider()
@@ -121,7 +131,7 @@ class MenuWidget(QWidget):
 
     def set_input_devices(self):
         ''' Query device list and set the drop down menu'''
-        #devices = getaudiodevices()
+        devices = getaudiodevices()
         curr = 0
         for idevice, device in enumerate(devices):
             self.select_input.addItem('%s: %s' % (idevice, device))
@@ -140,7 +150,6 @@ class CanvasWidget(QWidget):
 class MainWidget(QWidget):
     ''' top level widget covering the central widget in the MainWindow.'''
 
-    #signalstatus = qc.pyqtSignal()
     processingFinished = qc.pyqtSignal()
 
     def __init__(self, *args, **kwargs):
@@ -195,7 +204,6 @@ class MainWidget(QWidget):
         self.refresh_timer.timeout.connect(self.refreshwidgets)
         self.refresh_timer.start(35)
         self.menu.nfft_slider.valueChanged.connect(self.core.worker.set_fft_length)
-        #self.menu.select_input.activated.connect(self.set_input)
         self.menu.pause_button.clicked.connect(self.core.data_input.stop)
         self.menu.play_button.clicked.connect(self.core.data_input.start)
         logger.debug('connections made')
@@ -241,8 +249,6 @@ def normalize_to01(d):
 
 class PlotWidget(QWidget):
     ''' a plotwidget displays data (x, y coordinates). '''
-
-    #signalstatus = qc.pyqtSignal()
 
     def __init__(self, *args, **kwargs):
         QWidget.__init__(self, *args, **kwargs)
@@ -291,15 +297,11 @@ class PlotWidget(QWidget):
         pen = qg.QPen(self.color, 1, qc.Qt.SolidLine)
         painter.setPen(pen)
         xdata = self._xvisible
-        ydata = self._yvisible
         xdata = normalize_to01(xdata)
-        ydata = (ydata * self.yscale+ 0.5) * self.height()
+        ydata = (self._yvisible * self.yscale+ 0.5) * self.height()
         qpoints = make_QPolygonF(xdata*self.width(), ydata)
         painter.drawPolyline(qpoints)
     
-    def sizehint(self):
-        return qc.QSize(100, 100)
-
     def mousePressEvent(self, mouse_ev):
         point = self.mapFromGlobal(mouse_ev.globalPos())
         self.track_start = (point.x(), point.y())
@@ -392,9 +394,15 @@ def make_QPolygonF(xdata, ydata):
     aa[:, 1] = ydata
     return qpoints
 
-def from_command_line():
+def from_command_line(close_after=None):
     app = QApplication(sys.argv)
     window = MainWindow()
+    print(close_after)
+    if close_after:
+        close_timer = qc.QTimer()
+        close_timer.timeout.connect(window.close)
+        close_timer.start(close_after)
+    
     sys.exit(app.exec_())
 
 if __name__ == '__main__':
