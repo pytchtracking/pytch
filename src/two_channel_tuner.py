@@ -18,14 +18,18 @@ logger = logging.getLogger(__name__)
 
 
 class Worker():
-    ''' Grabbing data, working on it and saving the results'''
 
-    def __init__(self, fft_size, provider):
+    def __init__(self, fft_size, provider, buffer_length):
+        ''' Grabbing data, working on it and saving the results
+
+        :param buffer_length: in seconds'''
+
+
         self.ndata_scale = 16*2
         self.nchannels = 2
         self.processingFinished = DummySignal()
         self.provider = provider
-        self.buffer_length = 3*60     # seconds
+        self.buffer_length = buffer_length     # seconds
         self.fftsize = fft_size
         self.setup_buffers()
 
@@ -85,7 +89,7 @@ class Worker():
     def process(self):
         ''' Do the work'''
         logger.debug('start processing')
-        frames = self.provider.get_data()
+        frames = self.provider.get_frames()
 
         if len(frames) > 0:
             logger.debug('process')
@@ -103,23 +107,6 @@ class Worker():
                 new_pitch_Cent = 1200.* math.log((pitch +.1)/120., 2)
                 self.pitchlogs[i].append(num.array([new_pitch_Cent]))
 
-            #if len(frames) > 0:
-
-
-            #    # keeps only the last frame (which contains two interleaved channels)
-            #    #buffer = frames[ -1]
-            #    #result = num.reshape(buffer, (self.mic.chunksize, self.nchannels))
-            #    #i = result[:, 0].shape[0]
-            #    append_to_frame(self.current_frame1, result[:, 0])
-            #    append_to_frame(self.current_frame2, result[:, 1])
-
-            #    self.fft_frame1 = num.fft.rfft(self.current_frame1[-self.fftsize:])
-            #    self.fft_frame2 = num.fft.rfft(self.current_frame2[-self.fftsize:])
-
-            #    signal1float = self.current_frame1.astype(num.float32)
-            #    signal2float = self.current_frame2.astype(num.float32)
-            #    self.new_pitch1 = self.pitch_o(signal1float[-self.fftsize:])[0]
-            #    self.new_pitch2 = self.pitch_o(signal2float[-self.fftsize:])[0]
             #    #pitch_confidence2 = pitch_o.get_confidence()
 
             #    self.pitchlog_vect1 = num.roll(self.pitchlog_vect1, -1)

@@ -26,8 +26,6 @@ def prepend_to_frame(f, d):
     i = d.shape[0]
     num.roll(f, i)
     f[:i] = d.T
-    #f[:-i] = f[i:]
-    #f[-i:] = d.T
 
 
 def getaudiodevices():
@@ -36,7 +34,44 @@ def getaudiodevices():
     devices = []
     for i in range(p.get_device_count()):
         devices.append(p.get_device_info_by_index(i).get('name'))
+    p.terminate()
     return devices
+
+
+def sampling_rate_options(device_no, audio=None):
+    ''' List of supported sampling rates.'''
+    candidates = [8000., 11.025, 123123123123., 16000., 22050., 32000., 37.800, 44100.,
+                  48000.]
+    print(candidates)
+    supported_sampling_rates = []
+    for c in candidates:
+        print(c)
+        if check_sampling_rate(device_no, int(c), audio=audio):
+            print('GREAT')
+            supported_sampling_rates.append(c)
+
+    return supported_sampling_rates
+
+
+def check_sampling_rate(device_index, sampling_rate, audio=None):
+    p = audio or pyaudio.PyAudio()
+    devinfo = p.get_device_info_by_index(device_index)
+    valid = False
+    try:
+        p.is_format_supported(
+            sampling_rate,
+            input_device=devinfo['index'],
+            input_channels=devinfo['maxInputChannels'],
+            input_format=pyaudio.paInt16)
+    except ValueError as e:
+        print(e)
+        logger.debug(e)
+        valid = False
+
+    finally:
+        if not audio:
+            p.terminate()
+        return valid
 
 
 class Buffer():
@@ -107,12 +142,16 @@ class DataProvider(object):
         self.frames = []
         atexit.register(self.terminate)
 
-    def get_data(self):
-        return self.frames
+    #def get_data(self):
+    #    return self.frames
 
     def terminate(self):
         # cleanup
         pass
+
+
+class SamplingRateException(Exception):
+    pass
 
 
 class MicrophoneRecorder(DataProvider):
@@ -122,11 +161,19 @@ class MicrophoneRecorder(DataProvider):
         self.stream = None
         self.p = pyaudio.PyAudio()
         default = self.p.get_default_input_device_info()
-        self.sampling_rate = int(default['defaultSampleRate'])
-        self.chunksize = chunksize
+
         self.device_no = default['index']
+        #self.__sampling_rate = int(default['defaultSampleRate'])
+        self.__sampling_rate = int(16000)
+
+        self.chunksize = chunksize
         self.data_ready_signal = data_ready_signal or DummySignal()
         self.nchannels = 2
+
+    @property
+    def sampling_rate_options(self):
+        ''' List of supported sampling rates.'''
+        return sampling_rate_options(self.device_no, audio=self.p)
 
     def new_frame(self, data, frame_count, time_info, status):
         #logger.debug('new data. frame count: %s, time_info:%s' % (frame_count,
@@ -152,6 +199,15 @@ class MicrophoneRecorder(DataProvider):
             raise Exception('cannot start stream which is None')
         self.stream.start_stream()
         self._stop = False
+
+    @property
+    def sampling_rate(self):
+        return self.__sampling_rate
+
+    @sampling_rate.setter
+    def sampling_rate(self, rate):
+        check_sampling_rate(rate, self.device_no, audio=self.p)
+        self.__sampling_rate = rate
 
     def start_new_stream(self):
         self.frames = []

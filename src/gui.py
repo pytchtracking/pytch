@@ -1,5 +1,6 @@
 import sys
 import numpy as num
+import math
 
 from PyQt5 import QtCore as qc
 from PyQt5 import QtGui as qg
@@ -11,7 +12,7 @@ import time
 import logging
 
 from pytch.two_channel_tuner import Worker
-from pytch.data import getaudiodevices
+from pytch.data import getaudiodevices, sampling_rate_options
 from pytch.core import Core
 
 logger = logging.getLogger(__name__)
@@ -21,6 +22,49 @@ if sys.version_info < (3, 0):
     _buffer = buffer
 else:
     _buffer = memoryview
+
+
+class Projection(object):
+    def __init__(self):
+        self.xr = 0., 1.
+        self.ur = 0., 1.
+
+    def set_in_range(self, xmin, xmax):
+        if xmax == xmin:
+            xmax = xmin + 1.
+
+        self.xr = xmin, xmax
+
+    def get_in_range(self):
+        return self.xr
+
+    def set_out_range(self, umin, umax):
+        if umax == umin:
+            umax = umin + 1.
+
+        self.ur = umin, umax
+
+    def get_out_range(self):
+        return self.ur
+
+    def __call__(self, x):
+        umin, umax = self.ur
+        xmin, xmax = self.xr
+        return umin + (x-xmin)*((umax-umin)/(xmax-xmin))
+
+    def clipped(self, x):
+        umin, umax = self.ur
+        xmin, xmax = self.xr
+        return min(umax, max(umin, umin + (x-xmin)*((umax-umin)/(xmax-xmin))))
+
+    def rev(self, u):
+        umin, umax = self.ur
+        xmin, xmax = self.xr
+        return xmin + (u-umin)*((xmax-xmin)/(umax-umin))
+
+    def copy(self):
+        return copy.copy(self)
+
 
 class GaugeWidget(QWidget):
     def __init__(self, *args, **kwargs):
@@ -62,7 +106,7 @@ class GaugeWidget(QWidget):
             self._val = min(math.log(val)/math.log(self.clip)*2880., 2880)  # 2880=16*180 (half circle)
         else:
             self._val = math.log(val) * 100
-        self.repaint()
+        #self.repaint()
 
     def sizeHint(self):
         return qc.QSize(200, 200)
@@ -79,24 +123,16 @@ class MainWindow(QMainWindow):
     def sizeHint(self):
         return qc.QSize(800, 600)
 
-    def keypressevent(self, key_event):
-        ''' react on keyboard keys when they are pressed.
-
-        blocked by menu'''
+    def keyPressEvent(self, key_event):
+        ''' react on keyboard keys when they are pressed.'''
         key_text = key_event.text()
         if key_text == 'q':
-            self.want_close.emit()
             self.close()
 
         elif key_text == 'f':
             self.showMaximized()
-        QMainWindow.keyPressEvent(self, key_event)
 
-    def closeEvent(self, ev):
-        '''Called when application is closed.'''
-        logger.debug('closing')
-        self.centralWidget().core.data_input.terminate()
-        QMainWindow.closeEvent(self, ev)
+        QMainWindow.keyPressEvent(self, key_event)
 
 
 class MenuWidget(QWidget):
@@ -116,6 +152,11 @@ class MenuWidget(QWidget):
         self.select_input = QComboBox()
         layout.addWidget(self.select_input)
         self.set_input_devices()
+
+        layout.addWidget(QLabel('Sampling rate'))
+        self.select_sampling_rate = QComboBox()
+        layout.addWidget(self.select_sampling_rate)
+        self.set_input_sampling_rates()
 
         layout.addWidget(QLabel('NFFT'))
         self.nfft_slider = self.get_nfft_slider()
@@ -139,6 +180,14 @@ class MenuWidget(QWidget):
                 curr = idevice
 
         self.select_input.setCurrentIndex(idevice)
+
+    def set_input_sampling_rates(self):
+        ''' Set input sampling rates in drop down menu'''
+        print('TEST')
+        for sr in sampling_rate_options(self.select_input.currentIndex()):
+            print(sr)
+            self.select_sampling_rate.addItem(str(sr))
+
 
 class CanvasWidget(QWidget):
     def __init__(self, *args, **kwargs):
@@ -183,10 +232,12 @@ class MainWidget(QWidget):
         self.trace2 = PlotWidget(parent=canvas)
         canvas.layout.addWidget(self.trace2, 2, 1)
 
-        self.pitch1 = PlotPointsWidget(parent=canvas)
+        #self.pitch1 = PlotPointsWidget(parent=canvas)
+        self.pitch1 = PlotWidget(parent=canvas)
         canvas.layout.addWidget(self.pitch1, 3, 0, 1, 2)
 
-        self.pitch2 = PlotPointsWidget(parent=canvas)
+        #self.pitch2 = PlotPointsWidget(parent=canvas)
+        self.pitch2 = PlotWidget(parent=canvas)
         canvas.layout.addWidget(self.pitch2, 3, 0, 1, 2)
 
         top_layout.addWidget(canvas)
@@ -202,7 +253,7 @@ class MainWidget(QWidget):
         #self.processingFinished.connect(self.refreshwidgets)
         self.refresh_timer = qc.QTimer()
         self.refresh_timer.timeout.connect(self.refreshwidgets)
-        self.refresh_timer.start(35)
+        self.refresh_timer.start(105)
         self.menu.nfft_slider.valueChanged.connect(self.core.worker.set_fft_length)
         self.menu.pause_button.clicked.connect(self.core.data_input.stop)
         self.menu.play_button.clicked.connect(self.core.data_input.start)
@@ -210,47 +261,59 @@ class MainWidget(QWidget):
 
     def refreshwidgets(self):
         tstart = time.time()
+        print('start', tstart)
         w = self.core.worker
-
-        self.spectrum1.draw_trace(w.freqs, num.abs(w.ffts[0]))
-        self.spectrum2.draw_trace(w.freqs, num.abs(w.ffts[1]))
+        #self.spectrum1.plot(w.freqs, num.abs(w.ffts[0]))
+        #self.spectrum2.plot(w.freqs, num.abs(w.ffts[1]))
 
         #ju#n = num.shape(w.current_frame1)[0]
-        #n = 44100
         #xt = num.linspace(0, self.spectrum1.width(), n)
         #y1 = num.asarray(w.frames[0], dtype=num.float32)
         #y2 = num.asarray(w.frames[1], dtype=num.float32)
-        #self.trace1.draw_trace(xt, y1)
-        #self.trace2.draw_trace(xt, y2)
-        self.trace1.draw_trace(*w.frames[0].latest_frame(4))
-        self.trace2.draw_trace(*w.frames[1].latest_frame(4))
-        #self.trace2.draw_trace(w.frames[1].xdata, w.frames[1].ydata)
+        #self.trace1.plot(xt, y1)
+        #self.trace2.plot(xt, y2)
+
+        ##############
+        self.trace1.plot(*w.frames[0].latest_frame(2))
+        self.trace2.plot(*w.frames[1].latest_frame(2))
+        ##############
+        #self.trace2.plot(w.frames[1].xdata, w.frames[1].ydata)
 
         #y1 = num.asarray(w.current_frame1, dtype=num.float32)
         #y2 = num.asarray(w.current_frame2, dtype=num.float32)
-        #self.pitch1.draw_trace(
+        #self.pitch1.plot(
         #    w.pitchlog1, num.abs(w.pitchlog_vect1-w.pitchlog_vect2))
-        #self.pitch2.draw_trace(
+        #self.pitch2.plot(
         #    w.pitchlog1, num.abs(w.pitchlog_vect2-w.pitchlog_vect1))
-        #self.pitch1.draw_trace(
+        #self.pitch1.plot(
         #    #w.pitchlogs[0].xdata, num.log(num.abs(w.pitchlogs[0].ydata)))
         #    w.pitchlogs[0].xdata, num.abs(w.pitchlogs[0].ydata))
-        #self.pitch2.draw_trace(
+        #self.pitch2.plot(
             #w.pitchlog1, num.log(num.abs(w.pitchlog_vect2)))
         self.repaint()
         tstop = time.time()
         logger.debug('refreshing widgets took %s seconds' % (tstop-tstart))
+        t1 = time.time()
+        print('tdraw', t1-time.time())
 
-def normalize_to01(d):
+    def closeEvent(self, ev):
+        '''Called when application is closed.'''
+        logger.debug('closing')
+        self.core.data_input.terminate()
+        QWidget.closeEvent(self, ev)
+
+
+def normalized_to01(d):
     ''' normalize data vector *d* between 0 and 1'''
     dmin = num.min(d)
     dmax = num.max(d)
     return (d-dmin)/(dmax-dmin)
 
+
 class PlotWidget(QWidget):
     ''' a plotwidget displays data (x, y coordinates). '''
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, buffer=None, *args, **kwargs):
         QWidget.__init__(self, *args, **kwargs)
         layout = QHBoxLayout()
         label = QLabel('Trace 1')
@@ -258,23 +321,47 @@ class PlotWidget(QWidget):
         self.setLayout(layout)
         self.setContentsMargins(1, 1, 1, 1)
 
-        self.color = qg.QColor(4, 1, 255)
-        self._xvisible = num.random.random(1)
-        self._yvisible = num.random.random(1)
+        #self.set_pen_color(41, 1, 255)
+        self.set_pen_color(qc.Qt.black)
+
         self.track_start = None
         self.yscale_mode = None
         self.xscale_mode = None
 
-        self.xscale = 1.
         self.yscale = 1E-4
 
         self.right_click_menu = QMenu(self)
 
         select_scale = QAction('asdf', self.right_click_menu)
         select_scale.triggered.connect(self.set_yscale_mode)
+        self.data_rect = self.rect()
+        self.pen_width = 10.
         self.addAction(select_scale)
-        self.trange = (0, 10)
-        self.update_indices()
+        self._xvisible = num.empty(0)
+        self._yvisible = num.empty(0)
+        self.initialized = False
+
+    def test_refresh(self, npoints=100, ntimes=100):
+        tstart = time.time()
+        for i in range(ntimes):
+            self.plot(num.random.random(npoints))
+            self.repaint()
+        tstop = time.time()
+        print(tstop-tstart)
+
+    def keyPressEvent(self, key_event):
+        ''' react on keyboard keys when they are pressed.'''
+        key_text = key_event.text()
+        if key_text == 'q':
+            self.close()
+
+        elif key_text == 'f':
+            self.showMaximized()
+
+        QMainWindow.keyPressEvent(self, key_event)
+
+    def set_pen_color(self, *rgb):
+        self.color = qg.QColor(*rgb)
 
     def set_yscale_mode(self, mode):
         self.yscale_mode = mode
@@ -282,34 +369,74 @@ class PlotWidget(QWidget):
     def set_xscale_mode(self, mode):
         self.xscale_mode = mode
 
-    def update_indices(self):
-        f = self.parent().dx * self.width()
-        self.istart, self.istop = (int(self.trange[0]/f), int(self.trange[1]/f))
+    def plot(self, xdata=None, ydata=None):
+        ''' plot data
 
-    def draw_trace(self, xdata, ydata):
-        self._yvisible = ydata
+        :param *args:  ydata | xdata, ydata
+        '''
+        xmin, xmax = num.min(xdata), num.max(xdata)
+        ymin, ymax = num.min(ydata), num.max(ydata)
+        self.data_rect.setCoords(xmin, ymin, xmax, ymax)
+        self.set_line_width()
         self._xvisible = xdata
+        self._yvisible = ydata
+
+    def set_xlim(self, xmin, xmax):
+        ''' Set x data range '''
+        self.data_rect.setLeft(xmin)
+        self.data_rect.setRight(xmax)
+
+    def set_ylim(self, ymin, ymax):
+        ''' Set x data range '''
+        # swap ?
+        #self.data_rect.setBottom(ymax)
+        #self.data_rect.setTop(ymin)
+        self.data_rect.setBottom(ymin)
+        self.data_rect.setTop(ymax)
+
+    def set_line_width(self, width=3.):
+        ''' Set width of the pen in pixels.'''
+        self.pen_width = width / self.width()
 
     def paintEvent(self, e):
         ''' this is executed e.g. when self.repaint() is called. Draws the
         underlying data and scales the content to fit into the widget.'''
+        draw_trace_num(e)
+
+    def draw_trace_num(self, e):
         painter = qg.QPainter(self)
-        pen = qg.QPen(self.color, 1, qc.Qt.SolidLine)
+        pen = qg.QPen(self.color, self.pen_width, qc.Qt.SolidLine)
         painter.setPen(pen)
-        xdata = self._xvisible
-        xdata = normalize_to01(xdata)
-        ydata = (self._yvisible * self.yscale+ 0.5) * self.height()
-        qpoints = make_QPolygonF(xdata*self.width(), ydata)
+        x = self._xvisible
+        y = self._yvisible
+        
+        qpoints = make_QPolygonF(normalized_to01(self._xvisible)*self.width(),
+                                 normalized_to01(self._yvisible)*self.height())
+
+        #painter.setRenderHint(qg.QPainter.Antialiasing)
+        #painter.fillRect(self.data_rect, qg.QBrush(qc.Qt.white))
+
         painter.drawPolyline(qpoints)
-    
+
+    def draw_trace_qt(self, e):
+        painter = qg.QPainter(self)
+        painter.setWindow(self.data_rect)
+        painter.setPen(qg.QPen(self.color, self.pen_width, qc.Qt.SolidLine))
+        qpoints = make_QPolygonF(self._xvisible, self._yvisible)
+
+        #painter.setRenderHint(qg.QPainter.Antialiasing)
+        #painter.fillRect(self.data_rect, qg.QBrush(qc.Qt.white))
+
+        painter.drawPolyline(qpoints)
+
     def mousePressEvent(self, mouse_ev):
+        self.test_refresh()
         point = self.mapFromGlobal(mouse_ev.globalPos())
         self.track_start = (point.x(), point.y())
-
-        if mouse_ev.button() == qc.Qt.RightButton:
-            self.right_click_menu.exec_(qg.QCursor.pos())
-        elif mouse_ev.button() == qc.Qt.LeftButton:
-            self.parent().worker.stop()
+        #if mouse_ev.button() == qc.Qt.RightButton:
+        #    self.right_click_menu.exec_(qg.QCursor.pos())
+        #elif mouse_ev.button() == qc.Qt.LeftButton:
+        #    self.parent().worker.stop()
 
     def mouseReleaseEvent(self, mouse_event):
         self.track_start = None
@@ -323,7 +450,15 @@ class PlotWidget(QWidget):
             self.istop -= dy*self.width()
 
         self.update_indices()
-        self.repaint()
+        #self.repaint()
+
+
+class PlotBuffer(PlotWidget):
+    ''' plot the content of a Buffer instance.
+
+    This class represents an interface between a Buffer and a PlotWidget.'''
+    def __init__(self, *args, **kwargs):
+        PlotWidget.__init__(self, *args, **kwargs)
 
 
 class PlotPointsWidget(PlotWidget):
@@ -332,7 +467,7 @@ class PlotPointsWidget(PlotWidget):
         PlotWidget.__init__(self, *args, **kwargs)
         self.yscale = 1E-1
 
-    def paintEvent(self, e):
+    def paintEvent_asdf(self, e):
         painter = qg.QPainter(self)
         pen = qg.QPen(self.color, 4, qc.Qt.SolidLine)
         painter.setPen(pen)
@@ -354,7 +489,7 @@ class PlotLogWidget(PlotWidget):
         PlotWidget.__init__(self, *args, **kwargs)
         self.yscale = 1./15
 
-    def paintEvent(self, e):
+    def paintEvent_ASDf(self, e):
         ''' This is executed e.g. when self.repaint() is called. Draws the
         underlying data and scales the content to fit into the widget.'''
         painter = qg.QPainter(self)
@@ -362,13 +497,13 @@ class PlotLogWidget(PlotWidget):
         painter.setPen(pen)
         xdata = self._xvisible#[self.istart:self.istop]
         ydata = self._yvisible#[self.istart:self.istop]
-        xdata = normalize_to01(xdata)
+        xdata = normalized_to01(xdata)
         ##xdata = num.log(xdata)
         #xdata /= xdata[self.istop]
         #xdata = self._xvisible
         ydata = num.log(self._yvisible)
         #ydata = self._yvisible
-        #ydata = normalize_to01(ydata)
+        #ydata = normalized_to01(ydata)
 
         ydata *= self.height() * self.yscale
         xdata *= float(self.width())
@@ -380,30 +515,42 @@ class PlotLogWidget(PlotWidget):
 def make_QPolygonF(xdata, ydata):
     '''Create a :py:class:`qg.QPolygonF` instance from xdata and ydata, both
     numpy arrays.'''
-    #assert len(xdata) == len(ydata)
+    assert len(xdata) == len(ydata)
 
-    qpoints = qg.QPolygonF(len(ydata))
+    nydata = len(ydata)
+    qpoints = qg.QPolygonF(nydata)
     vptr = qpoints.data()
-    vptr.setsize(len(ydata)*8*2)
+    vptr.setsize(int(nydata*8*2))
     aa = num.ndarray(
-        shape=(len(ydata), 2),
+        shape=(nydata, 2),
         dtype=num.float64,
         buffer=_buffer(vptr))
     aa.setflags(write=True)
     aa[:, 0] = xdata
     aa[:, 1] = ydata
+
     return qpoints
 
+
+def mean_decimation(d, ndecimate):
+    ''' Decimate signal by factor (int) *ndecimate* using averaging.'''
+    pad_size = math.ceil(float(d.size)/ndecimate)*ndecimate - d.size
+    d = num.append(d, num.zeros(pad_size)*num.nan)
+    return num.nanmean(d.reshape(-1, ndecimate), axis=1)
+
+
 def from_command_line(close_after=None):
+    ''' Start the GUI from comamand line'''
     app = QApplication(sys.argv)
     window = MainWindow()
-    print(close_after)
+
     if close_after:
         close_timer = qc.QTimer()
         close_timer.timeout.connect(window.close)
         close_timer.start(close_after)
-    
+
     sys.exit(app.exec_())
+
 
 if __name__ == '__main__':
     from_command_line()

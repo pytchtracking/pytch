@@ -10,9 +10,11 @@ class Core(qc.QObject):
 
     def __init__(self, *args, **kwargs):
         qc.QObject.__init__(self, *args, **kwargs)
-
+        buffer_length = 3 * 60.
+        fft_size = 512
         self.data_input = MicrophoneRecorder(data_ready_signal=self.dataReady)
-        self.worker = Worker(512, self.data_input)
+        self.worker = Worker(fft_size, self.data_input, buffer_length)
+
         self.data_input.data_ready_signal.connect(self.worker.process)
 
     def set_device_no(self, i):

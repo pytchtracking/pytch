@@ -16,8 +16,11 @@ class MicTestCase(unittest.TestCase):
             else:
                 raise e
         mic = MicrophoneRecorder()
+            #mic.device_no = 7
+        print(mic.device_no)
 
         mic.start_new_stream()
+        print('OPTIONS', mic.sampling_rate_options)
         mic.terminate()
 
 
