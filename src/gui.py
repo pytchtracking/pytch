@@ -116,8 +116,6 @@ class MainWindow(QMainWindow):
     ''' Top level Window. The entry point of the gui.'''
     def __init__(self, *args, **kwargs):
         QMainWindow.__init__(self, *args, **kwargs)
-        main_widget = MainWidget(parent=self)
-        self.setCentralWidget(main_widget)
         self.show()
 
     def sizeHint(self):
@@ -543,6 +541,8 @@ def from_command_line(close_after=None):
     ''' Start the GUI from comamand line'''
     app = QApplication(sys.argv)
     window = MainWindow()
+    main_widget = MainWidget()
+    window.setCentralWidget(main_widget)
 
     if close_after:
         close_timer = qc.QTimer()
