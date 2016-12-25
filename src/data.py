@@ -92,7 +92,7 @@ class Buffer():
         self._x = num.arange(self.data_len, dtype=num.float64) *self.delta + self.tmin
 
     def empty(self):
-        self.data = num.empty((self.data_len),
+        self.data = num.empty((int(self.data_len)),
                           dtype=self.dtype)
 
     def dump(self):
@@ -135,6 +135,8 @@ class Buffer():
         self.data[self.i_filled:self.i_filled+n] = d
         self.i_filled += n
 
+        data = num.fromstring(data, 'int16').reshape(self.chunksize,
+                                                     self.nchannels).T
 
 class DataProvider(object):
     ''' Base class defining common interface for data input to Worker'''

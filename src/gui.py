@@ -399,7 +399,7 @@ class PlotWidget(QWidget):
     def paintEvent(self, e):
         ''' this is executed e.g. when self.repaint() is called. Draws the
         underlying data and scales the content to fit into the widget.'''
-        draw_trace_num(e)
+        self.draw_trace_num(e)
 
     def draw_trace_num(self, e):
         painter = qg.QPainter(self)
@@ -407,7 +407,7 @@ class PlotWidget(QWidget):
         painter.setPen(pen)
         x = self._xvisible
         y = self._yvisible
-        
+
         qpoints = make_QPolygonF(normalized_to01(self._xvisible)*self.width(),
                                  normalized_to01(self._yvisible)*self.height())
 
