@@ -32,6 +32,7 @@ class Worker():
         self.buffer_length = buffer_length     # seconds
         self.fftsize = fft_size
         self.setup_buffers()
+        self.cross_spectra_combinations = []
 
     def set_data_provider(self, provider):
         self.provider = provider
@@ -72,6 +73,8 @@ class Worker():
         # get sampling rate from refresh rate
         PITCHLOGLEN = 40
         self.pitchlogs = [Buffer(1., PITCHLOGLEN, dtype=num.int)] * self.nchannels
+        self.cross_spectra = [Buffer(1., PITCHLOGLEN, dtype=num.int)] * len(self.cross_spectra_combinations)
+        self.cross_phases = [Buffer(1., PITCHLOGLEN, dtype=num.int)] * len(self.cross_spectra_combinations)
 
         # keeps reference to mic
         # Pitch
@@ -107,6 +110,11 @@ class Worker():
                 new_pitch_Cent = 1200.* math.log((pitch +.1)/120., 2)
                 self.pitchlogs[i].append(num.array([new_pitch_Cent]))
 
+            for i, (i1, i2) in enumerate(self.cross_spectra_combinations):
+                s, p = cross_spectra(self.ffts[i1], self.ffts[i2])
+                self.cross_spectra[i].append(s)
+                self.cross_phases[i].append(p)
+
             #    #pitch_confidence2 = pitch_o.get_confidence()
 
             #    self.pitchlog_vect1 = num.roll(self.pitchlog_vect1, -1)
@@ -127,6 +135,11 @@ class Worker():
             self.processingFinished.emit()
 
             logger.debug('finished processing')
+
+def cross_spectrum(spec1, spec2):
+    ''' Returns cross spectrum and phase of *spec1* and *spec2*'''
+    cross = spec1 * spec2.conjugate()
+    return num.abs(cross), num.unwrap(num.arctan2(cross.image, cross.real))
 
 def compute_pitch_hps(x, Fs, dF=None, Fmin=30., Fmax=900., H=5):
     # default value for dF frequency resolution
