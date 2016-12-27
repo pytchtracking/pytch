@@ -121,7 +121,7 @@ class Buffer():
 
     def latest_frame(self, seconds):
         ''' Return the latest *seconds* data from buffer as x and y data tuple.'''
-        n = min(seconds * self.sampling_rate, self.i_filled)
+        n = int(min(seconds * self.sampling_rate, self.i_filled))
         return (self._x[self.i_filled - n:self.i_filled], self.data[self.i_filled - n:self.i_filled])
 
     def latest_frame_data(self, n):
@@ -135,8 +135,6 @@ class Buffer():
         self.data[self.i_filled:self.i_filled+n] = d
         self.i_filled += n
 
-        data = num.fromstring(data, 'int16').reshape(self.chunksize,
-                                                     self.nchannels).T
 
 class DataProvider(object):
     ''' Base class defining common interface for data input to Worker'''
