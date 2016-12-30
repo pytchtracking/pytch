@@ -138,6 +138,8 @@ class Buffer():
         self.data[self.i_filled:self.i_filled+n] = d
         self.i_filled += n
 
+        data = num.fromstring(data, 'int16').reshape(self.chunksize,
+                                                     self.nchannels).T
 
 class RingBuffer(Buffer):
     def __init__(self, *args, **kwargs):
