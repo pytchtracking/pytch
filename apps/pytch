@@ -3,7 +3,8 @@
 import logging
 import argparse
 
-from pytch.gui import from_command_line
+#from pytch.gui import from_command_line
+from pytch.gui_qt4 import from_command_line
 
 
 if __name__=='__main__':

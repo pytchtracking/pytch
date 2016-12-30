@@ -3,11 +3,13 @@ import numpy as num
 import scipy.signal as signal
 import math
 
-from PyQt5 import QtCore as qc
-from PyQt5 import QtGui as qg
-from PyQt5.QtWidgets import QApplication, QWidget, QHBoxLayout, QLabel, QMenu
-from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QComboBox, QGridLayout
-from PyQt5.QtWidgets import QAction, QSlider, QPushButton
+from PyQt4 import QtCore as qc
+from PyQt4 import QtGui as qg
+from PyQt4.QtGui import QApplication, QWidget, QHBoxLayout, QLabel, QMenu
+from PyQt4.QtGui import QMainWindow, QVBoxLayout, QComboBox, QGridLayout
+from PyQt4.QtGui import QAction, QSlider, QPushButton, QDockWidget
+
+import pyqtgraph as pg
 
 import time
 import logging
@@ -17,7 +19,7 @@ from pytch.data import getaudiodevices, sampling_rate_options
 from pytch.core import Core
 
 logger = logging.getLogger(__name__)
-
+use_pyqtgraph = False
 
 if sys.version_info < (3, 0):
     _buffer = buffer
@@ -109,8 +111,8 @@ class GaugeWidget(QWidget):
             self._val = math.log(val) * 100
         #self.repaint()
 
-    def sizeHint(self):
-        return qc.QSize(200, 200)
+    #def sizeHint(self):
+    #    return qc.QSize(200, 200)
 
 
 class MainWindow(QMainWindow):
@@ -118,9 +120,6 @@ class MainWindow(QMainWindow):
     def __init__(self, *args, **kwargs):
         QMainWindow.__init__(self, *args, **kwargs)
         self.show()
-
-    def sizeHint(self):
-        return qc.QSize(800, 600)
 
     def keyPressEvent(self, key_event):
         ''' react on keyboard keys when they are pressed.'''
@@ -138,28 +137,28 @@ class MenuWidget(QWidget):
     ''' todo: blocks keypressevents!'''
     def __init__(self, *args, **kwargs):
         QWidget.__init__(self, *args, **kwargs)
-        layout = QVBoxLayout()
+        layout = QGridLayout()
         self.setLayout(layout)
 
         self.play_button = QPushButton('Play')
-        layout.addWidget(self.play_button)
+        layout.addWidget(self.play_button, 0, 0)
 
         self.pause_button = QPushButton('Pause')
-        layout.addWidget(self.pause_button)
+        layout.addWidget(self.pause_button, 0, 1)
 
-        layout.addWidget(QLabel('Select Input Device'))
+        layout.addWidget(QLabel('Select Input Device'), 1, 0)
         self.select_input = QComboBox()
-        layout.addWidget(self.select_input)
+        layout.addWidget(self.select_input, 1, 1)
         self.set_input_devices()
 
-        layout.addWidget(QLabel('Sampling rate'))
+        layout.addWidget(QLabel('Sampling rate'), 2, 0)
         self.select_sampling_rate = QComboBox()
-        layout.addWidget(self.select_sampling_rate)
+        layout.addWidget(self.select_sampling_rate, 2, 1)
         self.set_input_sampling_rates()
 
-        layout.addWidget(QLabel('NFFT'))
+        layout.addWidget(QLabel('NFFT'), 3, 0)
         self.nfft_slider = self.get_nfft_slider()
-        layout.addWidget(self.nfft_slider)
+        layout.addWidget(self.nfft_slider, 3, 1)
 
     def get_nfft_slider(self):
         ''' Return a QSlider for modifying FFT width'''
@@ -185,16 +184,22 @@ class MenuWidget(QWidget):
         print('TEST')
         for sr in sampling_rate_options(self.select_input.currentIndex()):
             print(sr)
-            self.select_sampling_rate.addItem(str(sr))
+            #self.select_sampling_rate.addItem(str(sr))
+            self.select_sampling_rate.addItem('ASDFASDF')
 
 
 class CanvasWidget(QWidget):
+    ''' Contains all visualizing elements'''
     def __init__(self, *args, **kwargs):
         QWidget.__init__(self, *args, **kwargs)
         self.layout = QGridLayout()
         self.setLayout(self.layout)
 
-tfollow = 8.
+    def sizeHint(self):
+        return qc.QSize(1200, 1200)
+
+
+tfollow = 3.
 
 class MainWidget(QWidget):
     ''' top level widget covering the central widget in the MainWindow.'''
@@ -206,10 +211,13 @@ class MainWidget(QWidget):
         QWidget.__init__(self, *args, **kwargs)
 
         self.setMouseTracking(True)
-        top_layout = QVBoxLayout()
+        top_layout = QHBoxLayout()
         self.setLayout(top_layout)
 
-        self.menu = MenuWidget(parent=self)
+        self.menu = MenuWidget()
+
+        dock_widget_area = QDockWidget()
+        dock_widget_area.setWidget(self.menu)
         top_layout.addWidget(self.menu)
 
         self.core = Core()
@@ -220,19 +228,28 @@ class MainWidget(QWidget):
         canvas = CanvasWidget(parent=self)
         canvas.dx = 1./self.core.data_input.sampling_rate
 
-        #self.spectrum1 = PlotWidget(parent=canvas)
-        self.spectrum1 = PlotLogWidget(parent=canvas)
+        self.spectrum1 = PlotWidget(parent=canvas)
+        self.spectrum2 = PlotWidget(parent=canvas)
+        #self.spectrum1 = PlotLogWidget(parent=canvas)
+        #self.spectrum2 = PlotLogWidget(parent=canvas)
         canvas.layout.addWidget(self.spectrum1, 1, 0)
-
-        self.spectrum2 = PlotLogWidget(parent=canvas)
-        #self.spectrum2 = PlotWidget(parent=canvas)
         canvas.layout.addWidget(self.spectrum2, 2, 0)
 
-        self.trace1 = PlotWidget(parent=canvas)
-        canvas.layout.addWidget(self.trace1, 1, 1)
+        if use_pyqtgraph:
+            trace1_widget = pg.PlotWidget()
+            self.trace1_qtgraph = trace1_widget.getPlotItem()
+            canvas.layout.addWidget(trace1_widget, 1, 1)
 
-        self.trace2 = PlotWidget(parent=canvas)
-        canvas.layout.addWidget(self.trace2, 2, 1)
+            trace2_widget= pg.PlotWidget()
+            self.trace2_qtgraph = trace2_widget.getPlotItem()
+            canvas.layout.addWidget(trace2_widget, 2, 1)
+        else:
+            self.trace1 = PlotWidget(parent=canvas)
+            self.trace2 = PlotWidget(parent=canvas)
+            self.trace1.tfollow = 4.
+            self.trace2.tfollow = 4.
+            canvas.layout.addWidget(self.trace1, 1, 1)
+            canvas.layout.addWidget(self.trace2, 2, 1)
 
         #self.pitch1 = PlotPointsWidget(parent=canvas)
         self.pitch1 = PlotWidget(parent=canvas)
@@ -263,23 +280,30 @@ class MainWidget(QWidget):
         #tstart = time.time()
         #print('start', tstart)
         w = self.core.worker
-        self.spectrum1.plot(w.freqs, num.abs(w.ffts[0]))
-        self.spectrum2.plot(w.freqs, num.abs(w.ffts[1]))
+        self.spectrum1.plotlog(w.freqs, num.abs(w.ffts[0]))
+        self.spectrum2.plotlog(w.freqs, num.abs(w.ffts[1]))
+        self.spectrum1.set_ylim(num.log(10.), num.log(100000.))
+        self.spectrum2.set_ylim(num.log(10.), num.log(100000.))
 
-        ##############
-        self.trace1.plot(*w.frames[0].latest_frame(tfollow), ndecimate=20)
-        self.trace2.plot(*w.frames[1].latest_frame(tfollow), ndecimate=20)
-
-        #self.trace1.plot(w.frames[0].xdata, w.frames[0].ydata)#.latest_frame())
-        #self.trace2.plot(w.frames[1].xdata, w.frames[1].ydata)#.latest_frame())
-        ##############
+        if use_pyqtgraph:
+            self.trace1_qtgraph.clear()
+            self.trace2_qtgraph.clear()
+            self.trace1_qtgraph.plot(*w.frames[0].latest_frame(tfollow))
+            self.trace2_qtgraph.plot(*w.frames[1].latest_frame(tfollow))
+        else:
+            self.trace1.plot(*w.frames[0].latest_frame(self.trace1.tfollow), ndecimate=20)
+            self.trace2.plot(*w.frames[1].latest_frame(self.trace2.tfollow), ndecimate=20)
+            self.trace1.set_ylim(-3000., 3000.)
+            self.trace2.set_ylim(-3000., 3000.)
+        ###############
         #self.trace2.plot(w.frames[1].xdata, w.frames[1].ydata)
 
         #y1 = num.asarray(w.current_frame1, dtype=num.float32)
         #y2 = num.asarray(w.current_frame2, dtype=num.float32)
-        #self.pitch1.plot(
+        self.pitch1.plot(
         #    #w.pitchlogs[0].xdata, num.log(num.abs(w.pitchlogs[0].ydata)))
-        #    w.pitchlogs[0].xdata, num.abs(w.pitchlogs[0].ydata))
+            #w.pitchlogs[0].xdata.latest_frame(tfollow), num.abs(w.pitchlogs[0].ydata.latest_frame(tfollow)), symbol='o')
+            *w.pitchlogs[0].latest_frame(tfollow*2), symbol='o')
         #self.pitch2.plot(
             #w.pitchlog1, num.log(num.abs(w.pitchlog_vect2)))
         self.repaint()
@@ -304,6 +328,7 @@ def normalized_to01(d):
     return (d-dmin)/(dmax-dmin)
 
 
+
 class PlotWidget(QWidget):
     ''' a plotwidget displays data (x, y coordinates). '''
 
@@ -319,23 +344,59 @@ class PlotWidget(QWidget):
         self.set_pen_color(qc.Qt.black)
 
         self.track_start = None
-        self.yscale_mode = None
-        self.xscale_mode = None
 
-        self.yscale = 1E-4
+        self.yscale = 1.
+        self.tfollow = 0
+
+        self.ymin = False
+        self.ymax = False
+        self.xmin = False
+        self.xmax = False
+
+        self.left = 0.1
+        self.right = 1.
+        self.top = 1.
+        self.bottom = 0.1
 
         self.right_click_menu = QMenu(self)
 
+        self.yticks = None
+
         select_scale = QAction('asdf', self.right_click_menu)
-        select_scale.triggered.connect(self.set_yscale_mode)
-        self.data_rect = self.rect()
-        self.pen_width = 1
+        self.data_rect = qc.QRectF(self.rect())
+        self.pen_width = .0
         self.addAction(select_scale)
         self._xvisible = num.empty(0)
         self._yvisible = num.empty(0)
-        self.initialized = False
         self.yproj = Projection()
         self.xproj = Projection()
+
+    def setup_annotation_boxes(self):
+        ''' left and bottom boxes containing labels, dashes, marks, etc.'''
+        w, h = self.wh
+        l = self.left
+        r = self.right
+        t = self.top
+        b = self.bottom
+
+        tl = qc.QPoint((1.-b) * h , l * w)
+        br = qc.QPoint(h, w * r)
+        size = qc.QSize(w * (1. - (l + (1.-r))),
+                        h * (1. - ((1.-t)+b)))
+        #tl = qc.QPoint(0., 0)
+        #br = qc.QPoint( 100., 100.)
+
+        #self.x_annotation_rect = qc.QRect(w * (l+(r-l)/2.),
+        #                                  h * (b+(t-b)/2.),
+        #                                  w * l,
+        #                                  h * b)
+        #self.x_annotation_rect = qc.QRect(tl, br)
+        self.x_annotation_rect = qc.QRect(tl, size)
+        print self.x_annotation_rect
+
+    @property
+    def wh(self):
+        return self.width(), self.height()
 
     def test_refresh(self, npoints=100, ntimes=100):
         tstart = time.time()
@@ -358,20 +419,13 @@ class PlotWidget(QWidget):
     def set_pen_color(self, *rgb):
         self.color = qg.QColor(*rgb)
 
-    def set_yscale_mode(self, mode):
-        self.yscale_mode = mode
-
-    def set_xscale_mode(self, mode):
-        self.xscale_mode = mode
-
-    def plot(self, xdata=None, ydata=None, ndecimate=0, envelope=False):
+    def plot(self, xdata=None, ydata=None, ndecimate=0, envelope=False, symbol='--'):
         ''' plot data
 
         :param *args:  ydata | xdata, ydata
         '''
-        xmin, xmax = num.min(xdata), num.max(xdata)
-        ymin, ymax = num.min(ydata), num.max(ydata)
-        self.data_rect.setCoords(xmin, ymin, xmax, ymax)
+        self.symbol = symbol
+
         if ndecimate:
             self._xvisible = mean_decimation(xdata, ndecimate)
             self._yvisible = mean_decimation(ydata, ndecimate)
@@ -379,89 +433,97 @@ class PlotWidget(QWidget):
             self._xvisible = xdata
             self._yvisible = ydata
 
-        #if envelope:
-        #    print 'too slow. should be returned piece wise by buffer'
-        #    print self._yvisible
-        #    y = num.copy(self._yvisible)
-        #    if len(y)>0:
-        #        self._yvisible = num.sqrt(y**2 + signal.hilbert(y)**2)
+        if envelope:
+            y = num.copy(self._yvisible)
+            if len(y)>0:
+                #from pyrocko.trace import hilbert
+                #self._yvisible = num.sqrt(y**2 + hilbert(y)**2)
+                self._yvisible = num.sqrt(y**2 + signal.hilbert(y)**2)
+
+    def plotlog(self, xdata, ydata, ndecimate=0, envelope=False):
+        self.plot(xdata, ydata, ndecimate, envelope)
+        self._yvisible = num.log(self._yvisible)
 
     def set_xlim(self, xmin, xmax):
         ''' Set x data range '''
+        self.xmin = xmin
+        self.xmax = xmax
         self.data_rect.setLeft(xmin)
         self.data_rect.setRight(xmax)
 
     def set_ylim(self, ymin, ymax):
         ''' Set x data range '''
         # swap ?
-        #self.data_rect.setBottom(ymax)
-        #self.data_rect.setTop(ymin)
-        self.data_rect.setBottom(ymin)
-        self.data_rect.setTop(ymax)
+        self.ymin = ymin
+        self.ymax = ymax
+        self.data_rect.setBottom(ymax)
+        self.data_rect.setTop(ymin)
 
     def paintEvent(self, e):
         ''' this is executed e.g. when self.repaint() is called. Draws the
         underlying data and scales the content to fit into the widget.'''
         if len(self._xvisible) == 0:
             return
+        w, h = self.wh
 
-        self.xproj.set_in_range(num.max((num.max(self._xvisible) - tfollow, 0)),
-                                num.max((num.max(self._xvisible), tfollow)))
-        self.xproj.set_out_range(0., self.width())
+        if self.tfollow:
+            xmin = num.max((num.max(self._xvisible) - self.tfollow, 0))
+            xmax = num.max((num.max(self._xvisible), self.tfollow))
+        else:
+            xmin = self.xmin or num.min(self._xvisible)
+            xmax = self.xmax or num.max(self._xvisible)
 
-        yrange = 1000.
-        self.yproj.set_in_range(-yrange, yrange)
-        self.yproj.set_out_range(0, self.height())
+        self.xproj.set_in_range(xmin, xmax)
+        self.xproj.set_out_range(w * self.left, w * self.right)
+
+        ymin = self.ymin or num.min(self._yvisible)
+        ymax = self.ymax or num.max(self._yvisible)
+
+        self.yproj.set_in_range(ymin, ymax)
+        self.yproj.set_out_range(h*self.bottom, h*self.top)
         self.draw_trace(e)
-
-    def draw_log_trace(self, e):
-        painter = qg.QPainter(self)
-        pen = qg.QPen(self.color, self.pen_width, qc.Qt.SolidLine)
-        painter.setPen(pen)
-
-        qpoints = make_QPolygonF(self.xproj(self._xvisible),
-                                 self.yproj(num.log(self._yvisible)))
-
-        painter.setRenderHint(qg.QPainter.Antialiasing)
-        #painter.fillRect(self.data_rect, qg.QBrush(qc.Qt.white))
-        painter.drawPolyline(qpoints)
-        self.draw_axes(painter)
 
     def draw_trace(self, e):
         painter = qg.QPainter(self)
-        pen = qg.QPen(self.color, self.pen_width, qc.Qt.SolidLine)
-        painter.setPen(pen)
-
         qpoints = make_QPolygonF(self.xproj(self._xvisible),
                                  self.yproj(self._yvisible))
 
         painter.setRenderHint(qg.QPainter.Antialiasing)
-        #painter.fillRect(self.data_rect, qg.QBrush(qc.Qt.white))
-        painter.drawPolyline(qpoints)
+
+        painter.fillRect(qc.QRectF(self.xmin, self.ymin, self.xmax, self.ymax), qg.QBrush(qc.Qt.white))
+
+        if self.symbol == '--':
+            pen = qg.QPen(self.color, self.pen_width, qc.Qt.SolidLine)
+            painter.setPen(pen)
+            painter.drawPolyline(qpoints)
+        elif self.symbol == 'o':
+            pen = qg.QPen(self.color, 10, qc.Qt.SolidLine)
+            painter.save()
+            painter.setPen(pen)
+            painter.drawPoints(qpoints)
+            painter.restore()
         self.draw_axes(painter)
+        self.draw_labels(painter)
 
     def draw_axes(self, painter):
         ''' draw x and y axis'''
-        h = self.height()
-        w = self.width()
-        points = [qc.QPoint(0, 0),
-                  qc.QPoint(0, h),
-                  qc.QPoint(w, h),]
-                  #qc.QPoint(w, 0),
-                  #qc.QPoint(0, 0)]
+        w, h = self.wh
+        points = [qc.QPoint(w*self.left, h*(1.-self.top)),
+                  qc.QPoint(w*self.left, h*(1.-self.bottom)),
+                  qc.QPoint(w*self.right, h*(1.-self.bottom)),]
         qpoints = qg.QPolygon(points)
-        painter.drawPolyline(qpoints)
 
-    def draw_trace_qt(self, e):
-        painter = qg.QPainter(self)
-        painter.setWindow(self.data_rect)
-        painter.setPen(qg.QPen(self.color, self.pen_width, qc.Qt.SolidLine))
-        qpoints = make_QPolygonF(self._xvisible, self._yvisible)
+        t = self.yticks or num.linspace(num.min(self._yvisible), num.max(self._yvisible), 10)
+        for d in t:
+            yval = self.yproj(d)
+            points = qg.QPolygon([qc.QPoint(w*self.left, yval),
+                      qc.QPoint(w*self.left*0.05, yval),])
 
-        #painter.setRenderHint(qg.QPainter.Antialiasing)
-        #painter.fillRect(self.data_rect, qg.QBrush(qc.Qt.white))
+            painter.drawPolyline(points)
 
-        painter.drawPolyline(qpoints)
+    def draw_labels(self, painter):
+        self.setup_annotation_boxes()
+        painter.drawText(self.x_annotation_rect, qc.Qt.AlignCenter, 'Time')
 
     def mousePressEvent(self, mouse_ev):
         self.test_refresh()
@@ -527,10 +589,10 @@ class PlotLogWidget(PlotWidget):
             return
 
         self.xproj.set_in_range(num.min(self._xvisible), num.max(self._xvisible))
-        self.xproj.set_out_range(0., self.width())
+        self.xproj.set_out_range(self.width(), 0.)
 
         self.yproj.set_in_range(0., 10.)
-        self.yproj.set_out_range(0, self.height())
+        self.yproj.set_out_range(self.height(), 0.)
         self.draw_log_trace(e)
 
 

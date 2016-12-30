@@ -1,6 +1,6 @@
 import numpy as num
 import unittest
-from pytch.data import Buffer
+from pytch.data import Buffer, RingBuffer
 import time
 
 
@@ -27,7 +27,7 @@ class BufferTestCase(unittest.TestCase):
         num.testing.assert_array_almost_equal(b.xdata, num.arange(10))
 
     def test_benchmark_fill(self):
-        iall = 1000
+        iall = 100
         sampling_rate = 44100
         blength = 3 * 60.
         chunk_length = 0.025 * sampling_rate
@@ -60,6 +60,18 @@ class BufferTestCase(unittest.TestCase):
         num.testing.assert_array_almost_equal(x, num.arange(3*sampling_rate,
                                                             4*sampling_rate,
                                                             dtype=num.float)*dt)
+
+    def test_ringbuffer(self):
+        r = RingBuffer(1, 10) 
+        d = num.arange(3)
+        r.append(d)
+        print r.data
+        r.append(d)
+        print r.data
+        r.append(d)
+        print r.data
+        r.append(d)
+        print r.data
 
 if __name__=='__main__':
     unittest.main()

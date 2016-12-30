@@ -109,7 +109,7 @@ class Buffer():
 
     @property
     def xdata(self):
-        return self.tmin + num.arange(self.i_filled, dtype=num.float64) *self.delta
+        return self.tmin + num.arange(self.i_filled, dtype=num.float64) * self.delta
 
     @property
     def ydata(self):
@@ -122,17 +122,31 @@ class Buffer():
     def latest_frame(self, seconds):
         ''' Return the latest *seconds* data from buffer as x and y data tuple.'''
         n = int(min(seconds * self.sampling_rate, self.i_filled))
-        return (self._x[self.i_filled - n:self.i_filled], self.data[self.i_filled - n:self.i_filled])
+        xi = num.arange(self.i_filled-n, self.i_filled) % self.data.size
+        return (self._x[xi], self.data[xi])
 
     def latest_frame_data(self, n):
         ''' Return the latest *seconds* data from buffer as x and y data tuple.'''
-        return self.data[self.i_filled-n: self.i_filled]
+        xi = num.arange(self.i_filled-n, self.i_filled) % self.data.size
+        return self.data[xi]
 
     def append(self, d):
         ''' Append data frame *d* to Buffer'''
-        n = len(d)
-        chunk_length = self.sampling_rate * n
+        n = d.shape[0]
+        if self.i_filled + n > self.data.size:
+            raise Exception('data overflow')
         self.data[self.i_filled:self.i_filled+n] = d
+        self.i_filled += n
+
+
+class RingBuffer(Buffer):
+    def __init__(self, *args, **kwargs):
+        Buffer.__init__(self, *args, **kwargs)
+
+    def append(self, d):
+        n = d.size
+        xi = (self.i_filled + num.arange(n)) % self.data.size
+        self.data[xi] = d
         self.i_filled += n
 
 

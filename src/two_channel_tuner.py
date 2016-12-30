@@ -7,9 +7,10 @@ import pyaudio
 import math
 from aubio import pitch
 import numpy as num
-from PyQt5 import QtCore as qc
+#from PyQt5 import QtCore as qc
+from PyQt4 import QtCore as qc
 
-from pytch.data import MicrophoneRecorder, Buffer
+from pytch.data import MicrophoneRecorder, Buffer, RingBuffer
 from pytch.util import DummySignal
 
 import logging
@@ -31,8 +32,9 @@ class Worker():
         self.provider = provider
         self.buffer_length = buffer_length     # seconds
         self.fftsize = fft_size
-        self.setup_buffers()
+        #self.cross_spectra_combinations = [(0, 1), ]
         self.cross_spectra_combinations = []
+        self.setup_buffers()
 
     def set_data_provider(self, provider):
         self.provider = provider
@@ -47,7 +49,6 @@ class Worker():
         self.new_pitch1 = None
         self.new_pitch2 = None
 
-        #nfft = (self.mic.chunksize* self.ndata_scale, 1./self.mic.rate)
         nfft = (self.fftsize, p.deltat)
         self.freqs  = num.fft.rfftfreq(*nfft)
         self.fft_frame1 = None
@@ -55,26 +56,19 @@ class Worker():
         self.ivCents = None
         self.new_pitch1Cent = None
         self.new_pitch2Cent = None
-        #self.current_frame1 = Buffer()
-        #self.current_frame2 = Buffer()
-        self.frames = [Buffer(p.sampling_rate,
+        self.frames = [RingBuffer(p.sampling_rate,
                              self.buffer_length)] * self.nchannels
 
         self.ffts = num.ones((self.nchannels, len(self.freqs)))
-        #self.pitches = num.zeros((self.nchannels, self.fftsize))
-        #self.current_frame1 = num.ones(self.fftsize*self.ndata_scale, dtype=num.int)
-        #self.current_frame2 = num.ones(self.fftsize*self.ndata_scale, dtype=num.int)
 
-        #self.pitchlog1 = num.arange(PITCHLOGLEN)#, dtype=num.int)
-        #self.pitchlog2 = num.arange(PITCHLOGLEN)#, dtype=num.int)
         #self.pitchlog_vect1 = num.ones(PITCHLOGLEN, dtype=num.int)
         #self.pitchlog_vect2 = num.ones(PITCHLOGLEN, dtype=num.int)
 
         # get sampling rate from refresh rate
-        PITCHLOGLEN = 40
-        self.pitchlogs = [Buffer(1., PITCHLOGLEN, dtype=num.int)] * self.nchannels
-        self.cross_spectra = [Buffer(1., PITCHLOGLEN, dtype=num.int)] * len(self.cross_spectra_combinations)
-        self.cross_phases = [Buffer(1., PITCHLOGLEN, dtype=num.int)] * len(self.cross_spectra_combinations)
+        n_pitch = int(p.sampling_rate/self.fftsize)
+        self.pitchlogs = [Buffer(n_pitch, self.buffer_length*n_pitch, dtype=num.int)] * self.nchannels
+        self.cross_spectra = [Buffer(n_pitch, self.buffer_length*n_pitch, dtype=num.int)] * len(self.cross_spectra_combinations)
+        self.cross_phases = [Buffer(n_pitch, self.buffer_length*n_pitch, dtype=num.int)] * len(self.cross_spectra_combinations)
 
         # keeps reference to mic
         # Pitch
@@ -108,10 +102,16 @@ class Worker():
                 self.ffts[i, :] = num.fft.rfft(frame_work)
                 pitch = self.pitch_o(frame_work.astype(num.float32))[0]
                 new_pitch_Cent = 1200.* math.log((pitch +.1)/120., 2)
+                #new_pitch_Cent = math.log((pitch +.1)/120., 2)
+                print 'p', new_pitch_Cent
+                #new_pitch_cent = pitch
+
+
+                print num.array([new_pitch_Cent]).shape[0]
                 self.pitchlogs[i].append(num.array([new_pitch_Cent]))
 
             for i, (i1, i2) in enumerate(self.cross_spectra_combinations):
-                s, p = cross_spectra(self.ffts[i1], self.ffts[i2])
+                s, p = cross_spectrum(self.ffts[i1], self.ffts[i2])
                 self.cross_spectra[i].append(s)
                 self.cross_phases[i].append(p)
 
@@ -139,7 +139,7 @@ class Worker():
 def cross_spectrum(spec1, spec2):
     ''' Returns cross spectrum and phase of *spec1* and *spec2*'''
     cross = spec1 * spec2.conjugate()
-    return num.abs(cross), num.unwrap(num.arctan2(cross.image, cross.real))
+    return num.abs(cross), num.unwrap(num.arctan2(cross.imag, cross.real))
 
 def compute_pitch_hps(x, Fs, dF=None, Fmin=30., Fmax=900., H=5):
     # default value for dF frequency resolution

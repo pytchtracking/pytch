@@ -2,7 +2,7 @@ from pytch.two_channel_tuner import Worker
 from pytch.data import MicrophoneRecorder
 from pytch.util import dummy
 
-from PyQt5 import QtCore as qc
+from PyQt4 import QtCore as qc
 
 
 class Core(qc.QObject):
