@@ -3,13 +3,20 @@ import numpy as num
 import scipy.signal as signal
 import math
 
-from PyQt4 import QtCore as qc
-from PyQt4 import QtGui as qg
-from PyQt4.QtGui import QApplication, QWidget, QHBoxLayout, QLabel, QMenu
-from PyQt4.QtGui import QMainWindow, QVBoxLayout, QComboBox, QGridLayout
-from PyQt4.QtGui import QAction, QSlider, QPushButton, QDockWidget
 
-import pyqtgraph as pg
+if False:
+    from PyQt4 import QtCore as qc
+    from PyQt4 import QtGui as qg
+    from PyQt4.QtGui import QApplication, QWidget, QHBoxLayout, QLabel, QMenu
+    from PyQt4.QtGui import QMainWindow, QVBoxLayout, QComboBox, QGridLayout
+    from PyQt4.QtGui import QAction, QSlider, QPushButton, QDockWidget
+else:
+    from PyQt5 import QtCore as qc
+    from PyQt5 import QtGui as qg
+    from PyQt5.QtWidgets import QApplication, QWidget, QHBoxLayout, QLabel, QMenu
+    from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QComboBox, QGridLayout
+    from PyQt5.QtWidgets import QAction, QSlider, QPushButton, QDockWidget
+
 
 import time
 import logging
@@ -236,6 +243,8 @@ class MainWidget(QWidget):
         canvas.layout.addWidget(self.spectrum2, 2, 0)
 
         if use_pyqtgraph:
+            import pyqtgraph as pg
+
             trace1_widget = pg.PlotWidget()
             self.trace1_qtgraph = trace1_widget.getPlotItem()
             canvas.layout.addWidget(trace1_widget, 1, 1)
@@ -392,7 +401,6 @@ class PlotWidget(QWidget):
         #                                  h * b)
         #self.x_annotation_rect = qc.QRect(tl, br)
         self.x_annotation_rect = qc.QRect(tl, size)
-        print self.x_annotation_rect
 
     @property
     def wh(self):
@@ -442,6 +450,8 @@ class PlotWidget(QWidget):
 
     def plotlog(self, xdata, ydata, ndecimate=0, envelope=False):
         self.plot(xdata, ydata, ndecimate, envelope)
+        if any(self._yvisible==0.):
+            return
         self._yvisible = num.log(self._yvisible)
 
     def set_xlim(self, xmin, xmax):
