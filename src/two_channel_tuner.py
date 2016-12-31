@@ -7,8 +7,6 @@ import pyaudio
 import math
 from aubio import pitch
 import numpy as num
-#from PyQt5 import QtCore as qc
-from PyQt4 import QtCore as qc
 
 from pytch.data import MicrophoneRecorder, Buffer, RingBuffer
 from pytch.util import DummySignal
@@ -99,15 +97,12 @@ class Worker():
 
             for i in range(self.nchannels):
                 frame_work = self.frames[i].latest_frame_data(self.fftsize)
-                self.ffts[i, :] = num.fft.rfft(frame_work)
+                self.ffts[i, :] = num.abs(num.fft.rfft(frame_work))
                 pitch = self.pitch_o(frame_work.astype(num.float32))[0]
                 new_pitch_Cent = 1200.* math.log((pitch +.1)/120., 2)
                 #new_pitch_Cent = math.log((pitch +.1)/120., 2)
-                print 'p', new_pitch_Cent
                 #new_pitch_cent = pitch
 
-
-                print num.array([new_pitch_Cent]).shape[0]
                 self.pitchlogs[i].append(num.array([new_pitch_Cent]))
 
             for i, (i1, i2) in enumerate(self.cross_spectra_combinations):

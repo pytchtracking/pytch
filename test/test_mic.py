@@ -12,13 +12,11 @@ class MicTestCase(unittest.TestCase):
             call(['pulseaudio', '--kill'])
         except OSError as e:
             if e.errno==2:
-                return
+                pass
             else:
                 raise e
         mic = MicrophoneRecorder()
-            #mic.device_no = 7
-        print(mic.device_no)
-
+        #mic.device_no = 7
         mic.start_new_stream()
         print('OPTIONS', mic.sampling_rate_options)
         mic.terminate()
