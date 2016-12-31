@@ -344,8 +344,6 @@ class PlotWidget(QWidget):
     def __init__(self, buffer=None, *args, **kwargs):
         QWidget.__init__(self, *args, **kwargs)
         layout = QHBoxLayout()
-        label = QLabel('Trace 1')
-        layout.addWidget(label)
         self.setLayout(layout)
         self.setContentsMargins(1, 1, 1, 1)
 
@@ -370,6 +368,7 @@ class PlotWidget(QWidget):
         self.right_click_menu = QMenu(self)
 
         self.yticks = None
+        self.xticks = None
 
         select_scale = QAction('asdf', self.right_click_menu)
         self.data_rect = qc.QRectF(self.rect())
@@ -486,11 +485,13 @@ class PlotWidget(QWidget):
         self.xproj.set_in_range(xmin, xmax)
         self.xproj.set_out_range(w * self.left, w * self.right)
 
-        ymin = self.ymin or num.min(self._yvisible)
-        ymax = self.ymax or num.max(self._yvisible)
-
+        ymin = self.ymin if self.ymin else num.min(self._yvisible)
+        ymax = self.ymax if self.ymax else num.max(self._yvisible)
         self.yproj.set_in_range(ymin, ymax)
-        self.yproj.set_out_range(h*self.bottom, h*self.top)
+        self.yproj.set_out_range(
+            h*self.top,
+            h*self.bottom,)#)
+             #h*self.top)
         self.draw_trace(e)
 
     def draw_trace(self, e):
@@ -514,6 +515,8 @@ class PlotWidget(QWidget):
             painter.restore()
         self.draw_axes(painter)
         self.draw_labels(painter)
+        self.draw_y_ticks(painter)
+        self.draw_x_ticks(painter)
 
     def draw_axes(self, painter):
         ''' draw x and y axis'''
@@ -521,15 +524,34 @@ class PlotWidget(QWidget):
         points = [qc.QPoint(w*self.left, h*(1.-self.top)),
                   qc.QPoint(w*self.left, h*(1.-self.bottom)),
                   qc.QPoint(w*self.right, h*(1.-self.bottom)),]
-        qpoints = qg.QPolygon(points)
+        painter.drawPoints(qg.QPolygon(points))
 
-        t = self.yticks or num.linspace(num.min(self._yvisible), num.max(self._yvisible), 10)
-        for d in t:
-            yval = self.yproj(d)
-            points = qg.QPolygon([qc.QPoint(w*self.left, yval),
-                      qc.QPoint(w*self.left*0.05, yval),])
+    def make_nice_ticks(self, data_min, data_max):
+        ''' to be improved'''
+        return num.linspace(data_min, data_max, 10)
 
-            painter.drawPolyline(points)
+    def draw_x_ticks(self, painter):
+        w, h = self.wh
+        ticks = self.xticks or self.make_nice_ticks(
+            num.min(self._xvisible),
+            num.max(self._xvisible)
+        )
+
+        ticks = self.xproj(ticks)
+        tick_anchor = self.bottom*h
+        lines = [qc.QLineF(xval, tick_anchor* 0.8, xval, tick_anchor) for xval in ticks]
+        painter.drawLines(lines)
+        for xval in ticks:
+            painter.drawText(qc.QPointF(xval, tick_anchor), str(xval))
+
+    def draw_y_ticks(self, painter):
+        w, h = self.wh
+        ticks = self.yticks or num.linspace(num.min(self._yvisible), num.max(self._yvisible), 10)
+        ticks = self.yproj(ticks)
+        lines = [qc.QLineF(w * self.left * 0.8, yval, w*self.left, yval) for yval in ticks]
+        painter.drawLines(lines)
+        for yval in ticks:
+            painter.drawText(qc.QPointF(0, yval), str(yval))
 
     def draw_labels(self, painter):
         self.setup_annotation_boxes()
