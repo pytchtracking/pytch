@@ -24,6 +24,8 @@ import logging
 from pytch.two_channel_tuner import Worker
 from pytch.data import getaudiodevices, sampling_rate_options
 from pytch.core import Core
+from pytch.gui_util import AutoScaler
+
 
 logger = logging.getLogger(__name__)
 use_pyqtgraph = False
@@ -32,6 +34,17 @@ if sys.version_info < (3, 0):
     _buffer = buffer
 else:
     _buffer = memoryview
+
+
+colors = {
+    'black': (0, 0, 0),
+    'white': (255, 255, 255),
+    'red': (255, 0, 0),
+    'green': (0, 255, 0),
+    'blue': (0, 0, 255),
+}
+
+channel_to_color = [ 'blue', 'red', 'green', 'black']
 
 
 class Projection(object):
@@ -156,7 +169,7 @@ class MenuWidget(QWidget):
         layout.addWidget(QLabel('Select Input Device'), 1, 0)
         self.select_input = QComboBox()
         layout.addWidget(self.select_input, 1, 1)
-        self.set_input_devices()
+        self.set_input_devices(self.select_input)
 
         layout.addWidget(QLabel('Sampling rate'), 2, 0)
         self.select_sampling_rate = QComboBox()
@@ -164,27 +177,29 @@ class MenuWidget(QWidget):
         self.set_input_sampling_rates()
 
         layout.addWidget(QLabel('NFFT'), 3, 0)
-        self.nfft_slider = self.get_nfft_slider()
+        self.nfft_slider = self.get_nfft_box()
         layout.addWidget(self.nfft_slider, 3, 1)
 
-    def get_nfft_slider(self):
+    def get_nfft_box(self):
         ''' Return a QSlider for modifying FFT width'''
-        nfft_slider = QSlider(qc.Qt.Horizontal)
-        nfft_slider.setRange(256, 256*8)
-        nfft_slider.setValue(512)
-        nfft_slider.setTickInterval(256)
-        return nfft_slider
+        b = QComboBox()
 
-    def set_input_devices(self):
+        for fft_factor in [2, 4, 8]:
+            b.addItem('%s' % (512*fft_factor))
+
+        b.setCurrentIndex(0)
+        return b
+
+    def set_input_devices(self, box):
         ''' Query device list and set the drop down menu'''
         devices = getaudiodevices()
         curr = 0
         for idevice, device in enumerate(devices):
-            self.select_input.addItem('%s: %s' % (idevice, device))
+            box.addItem('%s: %s' % (idevice, device))
             if 'default' in device:
                 curr = idevice
 
-        self.select_input.setCurrentIndex(idevice)
+        box.setCurrentIndex(idevice)
 
     def set_input_sampling_rates(self):
         ''' Set input sampling rates in drop down menu'''
@@ -237,8 +252,6 @@ class MainWidget(QWidget):
 
         self.spectrum1 = PlotWidget(parent=canvas)
         self.spectrum2 = PlotWidget(parent=canvas)
-        #self.spectrum1 = PlotLogWidget(parent=canvas)
-        #self.spectrum2 = PlotLogWidget(parent=canvas)
         canvas.layout.addWidget(self.spectrum1, 1, 0)
         canvas.layout.addWidget(self.spectrum2, 2, 0)
 
@@ -280,17 +293,18 @@ class MainWidget(QWidget):
         self.refresh_timer = qc.QTimer()
         self.refresh_timer.timeout.connect(self.refreshwidgets)
         self.refresh_timer.start(50)
-        self.menu.nfft_slider.valueChanged.connect(self.core.worker.set_fft_length)
+        self.menu.nfft_slider.activated.connect(self.core.worker.set_fft_length)
         self.menu.pause_button.clicked.connect(self.core.data_input.stop)
         self.menu.play_button.clicked.connect(self.core.data_input.start)
         logger.debug('connections made')
 
     def refreshwidgets(self):
         #tstart = time.time()
-        #print('start', tstart)
         w = self.core.worker
-        self.spectrum1.plotlog(w.freqs, num.abs(w.ffts[0]))
-        self.spectrum2.plotlog(w.freqs, num.abs(w.ffts[1]))
+        self.spectrum1.plotlog(w.freqs, num.abs(w.ffts[0]),
+                            color=channel_to_color[0])
+        self.spectrum2.plotlog(w.freqs, num.abs(w.ffts[1]),
+                            color=channel_to_color[1])
         self.spectrum1.set_ylim(num.log(10.), num.log(100000.))
         self.spectrum2.set_ylim(num.log(10.), num.log(100000.))
 
@@ -300,26 +314,25 @@ class MainWidget(QWidget):
             self.trace1_qtgraph.plot(*w.frames[0].latest_frame(tfollow))
             self.trace2_qtgraph.plot(*w.frames[1].latest_frame(tfollow))
         else:
-            self.trace1.plot(*w.frames[0].latest_frame(self.trace1.tfollow), ndecimate=20)
-            self.trace2.plot(*w.frames[1].latest_frame(self.trace2.tfollow), ndecimate=20)
+            self.trace1.plot(*w.frames[0].latest_frame(self.trace1.tfollow),
+                             ndecimate=20, color=channel_to_color[0])
+            self.trace2.plot(*w.frames[1].latest_frame(self.trace2.tfollow),
+                             ndecimate=20, color=channel_to_color[1])
             self.trace1.set_ylim(-3000., 3000.)
             self.trace2.set_ylim(-3000., 3000.)
-        ###############
-        #self.trace2.plot(w.frames[1].xdata, w.frames[1].ydata)
 
-        #y1 = num.asarray(w.current_frame1, dtype=num.float32)
-        #y2 = num.asarray(w.current_frame2, dtype=num.float32)
         self.pitch1.plot(
-        #    #w.pitchlogs[0].xdata, num.log(num.abs(w.pitchlogs[0].ydata)))
-            #w.pitchlogs[0].xdata.latest_frame(tfollow), num.abs(w.pitchlogs[0].ydata.latest_frame(tfollow)), symbol='o')
-            *w.pitchlogs[0].latest_frame(tfollow*2), symbol='o')
-        #self.pitch2.plot(
-            #w.pitchlog1, num.log(num.abs(w.pitchlog_vect2)))
+            *w.pitchlogs[0].latest_frame(tfollow*2),
+            symbol='o',
+            color=channel_to_color[0])
+        self.pitch1.plot(
+            *w.pitchlogs[1].latest_frame(tfollow*2),
+            symbol='o',
+            color=channel_to_color[1])
+
         self.repaint()
         #tstop = time.time()
         #logger.debug('refreshing widgets took %s seconds' % (tstop-tstart))
-        #t1 = time.time()
-        #print('tdraw', t1-time.time())
 
     def closeEvent(self, ev):
         '''Called when application is closed.'''
@@ -348,7 +361,7 @@ class PlotWidget(QWidget):
         self.setContentsMargins(1, 1, 1, 1)
 
         #self.set_pen_color(41, 1, 255)
-        self.set_pen_color(qc.Qt.black)
+        #self.set_pen_color(qc.Qt.black)
 
         self.track_start = None
 
@@ -369,6 +382,16 @@ class PlotWidget(QWidget):
 
         self.yticks = None
         self.xticks = None
+
+        self.yscaler = AutoScaler(
+            no_exp_interval=(-3, 2), approx_ticks=7,
+            snap=True
+        )
+
+        self.xscaler = AutoScaler(
+            no_exp_interval=(-3, 2), approx_ticks=7,
+            snap=True
+        )
 
         select_scale = QAction('asdf', self.right_click_menu)
         self.data_rect = qc.QRectF(self.rect())
@@ -423,16 +446,19 @@ class PlotWidget(QWidget):
 
         QMainWindow.keyPressEvent(self, key_event)
 
-    def set_pen_color(self, *rgb):
+    def set_pen_color(self, rgb):
         self.color = qg.QColor(*rgb)
 
-    def plot(self, xdata=None, ydata=None, ndecimate=0, envelope=False, symbol='--'):
+    def plot(self, xdata=None, ydata=None, ndecimate=0, envelope=False, symbol='--', color='black'):
         ''' plot data
 
         :param *args:  ydata | xdata, ydata
         '''
         self.symbol = symbol
+        self.set_pen_color(colors[color])
+        self.set_data(xdata, ydata, ndecimate)
 
+    def set_data(self, xdata=None, ydata=None, ndecimate=0):
         if ndecimate:
             self._xvisible = mean_decimation(xdata, ndecimate)
             self._yvisible = mean_decimation(ydata, ndecimate)
@@ -440,15 +466,15 @@ class PlotWidget(QWidget):
             self._xvisible = xdata
             self._yvisible = ydata
 
-        if envelope:
+        if False: # envelope
             y = num.copy(self._yvisible)
             if len(y)>0:
                 #from pyrocko.trace import hilbert
                 #self._yvisible = num.sqrt(y**2 + hilbert(y)**2)
                 self._yvisible = num.sqrt(y**2 + signal.hilbert(y)**2)
 
-    def plotlog(self, xdata, ydata, ndecimate=0, envelope=False):
-        self.plot(xdata, ydata, ndecimate, envelope)
+    def plotlog(self, xdata, ydata, ndecimate=0, envelope=False, **style_kwargs):
+        self.plot(xdata, ydata, ndecimate, envelope, **style_kwargs)
         if any(self._yvisible==0.):
             return
         self._yvisible = num.log(self._yvisible)
@@ -504,9 +530,12 @@ class PlotWidget(QWidget):
         painter.fillRect(qc.QRectF(self.xmin, self.ymin, self.xmax, self.ymax), qg.QBrush(qc.Qt.white))
 
         if self.symbol == '--':
+            painter.save()
+            #self.color.setGreen(120)
             pen = qg.QPen(self.color, self.pen_width, qc.Qt.SolidLine)
             painter.setPen(pen)
             painter.drawPolyline(qpoints)
+            painter.restore()
         elif self.symbol == 'o':
             pen = qg.QPen(self.color, 10, qc.Qt.SolidLine)
             painter.save()
@@ -514,7 +543,7 @@ class PlotWidget(QWidget):
             painter.drawPoints(qpoints)
             painter.restore()
         self.draw_axes(painter)
-        self.draw_labels(painter)
+        #self.draw_labels(painter)
         self.draw_y_ticks(painter)
         self.draw_x_ticks(painter)
 
@@ -528,30 +557,35 @@ class PlotWidget(QWidget):
 
     def make_nice_ticks(self, data_min, data_max):
         ''' to be improved'''
+        devisors = (1., 2., 5.)
+        vrange = data_max-data_min
+
         return num.linspace(data_min, data_max, 10)
 
     def draw_x_ticks(self, painter):
         w, h = self.wh
-        ticks = self.xticks or self.make_nice_ticks(
-            num.min(self._xvisible),
-            num.max(self._xvisible)
+        ymin, ymax, yinc = self.yscaler.make_scale(
+            (num.min(self._xvisible), num.max(self._xvisible))
         )
-
-        ticks = self.xproj(ticks)
+        ticks = num.arange(ymin, ymax, yinc)
+        ticks_proj = self.xproj(ticks)
         tick_anchor = self.bottom*h
         lines = [qc.QLineF(xval, tick_anchor* 0.8, xval, tick_anchor) for xval in ticks]
         painter.drawLines(lines)
-        for xval in ticks:
-            painter.drawText(qc.QPointF(xval, tick_anchor), str(xval))
+        for i, xval in enumerate(ticks):
+            painter.drawText(qc.QPointF(ticks_proj[i], tick_anchor), str(xval))
 
     def draw_y_ticks(self, painter):
         w, h = self.wh
-        ticks = self.yticks or num.linspace(num.min(self._yvisible), num.max(self._yvisible), 10)
-        ticks = self.yproj(ticks)
-        lines = [qc.QLineF(w * self.left * 0.8, yval, w*self.left, yval) for yval in ticks]
+        ymin, ymax, yinc = self.yscaler.make_scale(
+            (num.min(self._yvisible), num.max(self._yvisible))
+        )
+        ticks = num.arange(ymin, ymax, yinc)
+        ticks_proj = self.yproj(ticks)
+        lines = [qc.QLineF(w * self.left * 0.8, yval, w*self.left, yval) for yval in ticks_proj]
         painter.drawLines(lines)
-        for yval in ticks:
-            painter.drawText(qc.QPointF(0, yval), str(yval))
+        for i, yval in enumerate(ticks):
+            painter.drawText(qc.QPointF(0, ticks_proj[i]), str(yval))
 
     def draw_labels(self, painter):
         self.setup_annotation_boxes()
@@ -569,15 +603,15 @@ class PlotWidget(QWidget):
     def mouseReleaseEvent(self, mouse_event):
         self.track_start = None
 
-    def mouseMoveEvent(self, mouse_ev):
-        point = self.mapFromGlobal(mouse_ev.globalPos())
-        if self.track_start:
-            x0, y0 = self.track_start
-            dy = (point.y() - y0) / float(self.height())
-            self.istart += dy*self.width()
-            self.istop -= dy*self.width()
+    #def mouseMoveEvent(self, mouse_ev):
+    #    point = self.mapFromGlobal(mouse_ev.globalPos())
+    #    if self.track_start:
+    #        x0, y0 = self.track_start
+    #        dy = (point.y() - y0) / float(self.height())
+    #        self.istart += dy*self.width()
+    #        self.istop -= dy*self.width()
 
-        self.repaint()
+    #    self.repaint()
 
 
 class PlotBuffer(PlotWidget):
