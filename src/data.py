@@ -126,7 +126,7 @@ class Buffer():
         return (self._x[xi], self.data[xi])
 
     def latest_frame_data(self, n):
-        ''' Return the latest *seconds* data from buffer as x and y data tuple.'''
+        ''' Return the latest n samples data from buffer as array.'''
         xi = num.arange(self.i_filled-n, self.i_filled) % self.data.size
         return self.data[xi]
 
