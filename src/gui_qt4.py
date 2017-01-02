@@ -2,7 +2,9 @@ import sys
 import numpy as num
 import scipy.signal as signal
 import math
-
+import time
+import logging
+import copy
 
 if False:
     from PyQt4 import QtCore as qc
@@ -17,11 +19,7 @@ else:
     from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QComboBox, QGridLayout
     from PyQt5.QtWidgets import QAction, QSlider, QPushButton, QDockWidget
 
-
-import time
-import logging
-
-from pytch.two_channel_tuner import Worker
+from pytch.two_channel_tuner import cross_spectrum
 from pytch.data import getaudiodevices, sampling_rate_options
 from pytch.core import Core
 from pytch.gui_util import AutoScaler
@@ -273,18 +271,15 @@ class MainWidget(QWidget):
             canvas.layout.addWidget(self.trace1, 1, 1)
             canvas.layout.addWidget(self.trace2, 2, 1)
 
-        #self.pitch1 = PlotPointsWidget(parent=canvas)
-        self.pitch1 = PlotWidget(parent=canvas)
-        canvas.layout.addWidget(self.pitch1, 3, 0, 1, 2)
-
-        #self.pitch2 = PlotPointsWidget(parent=canvas)
-        self.pitch2 = PlotWidget(parent=canvas)
-        canvas.layout.addWidget(self.pitch2, 3, 0, 1, 2)
+        self.pitch = PlotWidget(parent=canvas)
+        canvas.layout.addWidget(self.pitch, 3, 0, 1, 2)
 
         top_layout.addWidget(canvas)
 
-        self.make_connections()
+        self.cross_spectrum = PlotWidget(parent=canvas)
+        canvas.layout.addWidget(self.cross_spectrum, 4, 0, 1, 2)
 
+        self.make_connections()
         self.core.start()
 
         #self.worker.start_new_stream()
@@ -321,14 +316,17 @@ class MainWidget(QWidget):
             self.trace1.set_ylim(-3000., 3000.)
             self.trace2.set_ylim(-3000., 3000.)
 
-        self.pitch1.plot(
+        self.pitch.plot(
             *w.pitchlogs[0].latest_frame(tfollow*2),
             symbol='o',
             color=channel_to_color[0])
-        self.pitch1.plot(
+        self.pitch.plot(
             *w.pitchlogs[1].latest_frame(tfollow*2),
             symbol='o',
             color=channel_to_color[1])
+
+        self.cross_spectrum.plot(ydata=cross_spectrum(w.ffts[0], w.ffts[1])[0])
+        self.cross_spectrum.set_ylim(0, 1E7)
 
         self.repaint()
         #tstop = time.time()
@@ -360,18 +358,17 @@ class PlotWidget(QWidget):
         self.setLayout(layout)
         self.setContentsMargins(1, 1, 1, 1)
 
-        #self.set_pen_color(41, 1, 255)
-        #self.set_pen_color(qc.Qt.black)
+        self.set_pen_color('black')
 
         self.track_start = None
 
         self.yscale = 1.
         self.tfollow = 0
 
-        self.ymin = False
-        self.ymax = False
-        self.xmin = False
-        self.xmax = False
+        self.ymin = None
+        self.ymax = None
+        self.xmin = None
+        self.xmax = None
 
         self.left = 0.1
         self.right = 1.
@@ -394,7 +391,6 @@ class PlotWidget(QWidget):
         )
 
         select_scale = QAction('asdf', self.right_click_menu)
-        self.data_rect = qc.QRectF(self.rect())
         self.pen_width = .0
         self.addAction(select_scale)
         self._xvisible = num.empty(0)
@@ -446,16 +442,24 @@ class PlotWidget(QWidget):
 
         QMainWindow.keyPressEvent(self, key_event)
 
-    def set_pen_color(self, rgb):
-        self.color = qg.QColor(*rgb)
+    def set_pen_color(self, color):
+        '''
+        :param color: color name as string
+        '''
+        self.color = qg.QColor(*colors[color])
 
-    def plot(self, xdata=None, ydata=None, ndecimate=0, envelope=False, symbol='--', color='black'):
+    def plot(self, xdata=None, ydata=None, ndecimate=0, envelope=False,\
+             symbol='--', color='black'):
         ''' plot data
 
         :param *args:  ydata | xdata, ydata
         '''
         self.symbol = symbol
-        self.set_pen_color(colors[color])
+        self.set_pen_color(color)
+
+        if xdata is None:
+            xdata = num.arange(len(ydata))
+
         self.set_data(xdata, ydata, ndecimate)
 
     def set_data(self, xdata=None, ydata=None, ndecimate=0):
@@ -473,7 +477,7 @@ class PlotWidget(QWidget):
                 #self._yvisible = num.sqrt(y**2 + hilbert(y)**2)
                 self._yvisible = num.sqrt(y**2 + signal.hilbert(y)**2)
 
-    def plotlog(self, xdata, ydata, ndecimate=0, envelope=False, **style_kwargs):
+    def plotlog(self, xdata=None, ydata=None, ndecimate=0, envelope=False, **style_kwargs):
         self.plot(xdata, ydata, ndecimate, envelope, **style_kwargs)
         if any(self._yvisible==0.):
             return
@@ -483,22 +487,19 @@ class PlotWidget(QWidget):
         ''' Set x data range '''
         self.xmin = xmin
         self.xmax = xmax
-        self.data_rect.setLeft(xmin)
-        self.data_rect.setRight(xmax)
 
     def set_ylim(self, ymin, ymax):
         ''' Set x data range '''
-        # swap ?
         self.ymin = ymin
         self.ymax = ymax
-        self.data_rect.setBottom(ymax)
-        self.data_rect.setTop(ymin)
 
     def paintEvent(self, e):
         ''' this is executed e.g. when self.repaint() is called. Draws the
         underlying data and scales the content to fit into the widget.'''
+
         if len(self._xvisible) == 0:
             return
+
         w, h = self.wh
 
         if self.tfollow:
@@ -510,14 +511,17 @@ class PlotWidget(QWidget):
 
         self.xproj.set_in_range(xmin, xmax)
         self.xproj.set_out_range(w * self.left, w * self.right)
+        #ymin = self.ymin if self.ymin else num.min(self._yvisible)
+        #ymax = self.ymax if self.ymax else num.max(self._yvisible)
+        ymin = self.ymin or num.min(self._yvisible)
+        ymax = self.ymax or num.max(self._yvisible)
 
-        ymin = self.ymin if self.ymin else num.min(self._yvisible)
-        ymax = self.ymax if self.ymax else num.max(self._yvisible)
         self.yproj.set_in_range(ymin, ymax)
         self.yproj.set_out_range(
             h*self.top,
             h*self.bottom,)#)
              #h*self.top)
+
         self.draw_trace(e)
 
     def draw_trace(self, e):
@@ -527,21 +531,26 @@ class PlotWidget(QWidget):
 
         painter.setRenderHint(qg.QPainter.Antialiasing)
 
-        painter.fillRect(qc.QRectF(self.xmin, self.ymin, self.xmax, self.ymax), qg.QBrush(qc.Qt.white))
+        xmin, xmax = self.xproj.get_out_range()
+        ymin, ymax = self.yproj.get_out_range()
+        r = self.rect()
+        #painter.fillRect(qc.QRectF(xmin, ymin, xmax, ymax), qg.QBrush(qc.Qt.white))
+        painter.fillRect(r, qg.QBrush(qc.Qt.white))
 
         if self.symbol == '--':
             painter.save()
-            #self.color.setGreen(120)
             pen = qg.QPen(self.color, self.pen_width, qc.Qt.SolidLine)
             painter.setPen(pen)
             painter.drawPolyline(qpoints)
             painter.restore()
+
         elif self.symbol == 'o':
             pen = qg.QPen(self.color, 10, qc.Qt.SolidLine)
             painter.save()
             painter.setPen(pen)
             painter.drawPoints(qpoints)
             painter.restore()
+
         self.draw_axes(painter)
         #self.draw_labels(painter)
         self.draw_y_ticks(painter)
