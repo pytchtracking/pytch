@@ -150,6 +150,8 @@ class MainWindow(QMainWindow):
 
         QMainWindow.keyPressEvent(self, key_event)
 
+    def sizeHint(self):
+        return qc.QSize(900, 600)
 
 class MenuWidget(QWidget):
     ''' todo: blocks keypressevents!'''
