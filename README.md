@@ -13,7 +13,12 @@ Both, python2 and python3 are supported
 pip3 install pyqt5, pyaudio, git+git://git.aubio.org/git/aubio
 ```
 
-# Installation
+# Download and Installation
+Go to a directory where you keep your source codes and clone the project:
+```
+git clone https://github.com/HerrMuellerluedenscheid/pytch.git
+```
+cd into that directory and run
 ```
 sudo python setup.py install
 ```
