@@ -327,8 +327,10 @@ class MainWidget(QWidget):
             symbol='o',
             color=channel_to_color[1])
 
-        self.cross_spectrum.plot(ydata=cross_spectrum(w.ffts[0], w.ffts[1])[0])
-        self.cross_spectrum.set_ylim(0, 1E7)
+        self.cross_spectrum.plotlog(w.freqs, cross_spectrum(w.ffts[0], w.ffts[1])[0])
+        #self.cross_spectrum.plot(w.freqs, cross_spectrum(w.ffts[0], w.ffts[1])[0])
+        #self.cross_spectrum.set_ylim(0, 1E7)
+        self.cross_spectrum.set_ylim(0.0001, num.log(1E8))
 
         self.repaint()
         #tstop = time.time()
@@ -371,6 +373,11 @@ class PlotWidget(QWidget):
         self.ymax = None
         self.xmin = None
         self.xmax = None
+
+        self._ymin = 0.
+        self._ymax = 1.
+        self._xmin = 0.
+        self._xmax = 1.
 
         self.left = 0.1
         self.right = 1.
@@ -458,6 +465,12 @@ class PlotWidget(QWidget):
         '''
         self.symbol = symbol
         self.set_pen_color(color)
+        if ydata is None:
+            return
+
+        if num.size(ydata) == 0:
+            print('no data in array')
+            return
 
         if xdata is None:
             xdata = num.arange(len(ydata))
@@ -465,6 +478,7 @@ class PlotWidget(QWidget):
         self.set_data(xdata, ydata, ndecimate)
 
     def set_data(self, xdata=None, ydata=None, ndecimate=0):
+
         if ndecimate:
             self._xvisible = mean_decimation(xdata, ndecimate)
             self._yvisible = mean_decimation(ydata, ndecimate)
@@ -475,23 +489,54 @@ class PlotWidget(QWidget):
         if False: # envelope
             y = num.copy(self._yvisible)
             if len(y)>0:
-                #from pyrocko.trace import hilbert
+                # from pyrocko.trace import hilbert
                 #self._yvisible = num.sqrt(y**2 + hilbert(y)**2)
                 self._yvisible = num.sqrt(y**2 + signal.hilbert(y)**2)
 
+        self.update_datalims()
+
     def plotlog(self, xdata=None, ydata=None, ndecimate=0, envelope=False, **style_kwargs):
-        self.plot(xdata, ydata, ndecimate, envelope, **style_kwargs)
-        if any(self._yvisible==0.):
-            return
-        self._yvisible = num.log(self._yvisible)
+        self.plot(xdata, num.log(ydata), ndecimate, envelope, **style_kwargs)
+
+    def update_datalims(self):
+
+        if not self.ymin:
+            self._ymin = num.min(self._yvisible)
+        else:
+            self._ymin = self.ymin
+
+        if not self.ymax:
+            self._ymax = num.max(self._yvisible)
+        else:
+            self._ymax = self.ymax
+
+        if self.tfollow:
+            self._xmin = num.max((num.max(self._xvisible) - self.tfollow, 0))
+            self._xmax = num.max((num.max(self._xvisible), self.tfollow))
+        else:
+            if not self.xmin:
+                self._xmin = num.min(self._xvisible)
+
+            if not self.xmax:
+                self._xmax = num.max(self._xvisible)
+
+        w, h = self.wh
+        self.xproj.set_in_range(self._xmin, self._xmax)
+        self.xproj.set_out_range(w * self.left, w * self.right)
+
+        self.yproj.set_in_range(self._ymin, self._ymax)
+        self.yproj.set_out_range(
+            h*self.top,
+            h*self.bottom,)#)
+             #h*self.top)
 
     def set_xlim(self, xmin, xmax):
-        ''' Set x data range '''
+        ''' Set x data range. If unset scale to min|max of ydata range '''
         self.xmin = xmin
         self.xmax = xmax
 
     def set_ylim(self, ymin, ymax):
-        ''' Set x data range '''
+        ''' Set x data range. If unset scales to min|max of ydata range'''
         self.ymin = ymin
         self.ymax = ymax
 
@@ -501,28 +546,6 @@ class PlotWidget(QWidget):
 
         if len(self._xvisible) == 0:
             return
-
-        w, h = self.wh
-
-        if self.tfollow:
-            xmin = num.max((num.max(self._xvisible) - self.tfollow, 0))
-            xmax = num.max((num.max(self._xvisible), self.tfollow))
-        else:
-            xmin = self.xmin or num.min(self._xvisible)
-            xmax = self.xmax or num.max(self._xvisible)
-
-        self.xproj.set_in_range(xmin, xmax)
-        self.xproj.set_out_range(w * self.left, w * self.right)
-        #ymin = self.ymin if self.ymin else num.min(self._yvisible)
-        #ymax = self.ymax if self.ymax else num.max(self._yvisible)
-        ymin = self.ymin or num.min(self._yvisible)
-        ymax = self.ymax or num.max(self._yvisible)
-
-        self.yproj.set_in_range(ymin, ymax)
-        self.yproj.set_out_range(
-            h*self.top,
-            h*self.bottom,)#)
-             #h*self.top)
 
         self.draw_trace(e)
 
@@ -535,9 +558,7 @@ class PlotWidget(QWidget):
 
         xmin, xmax = self.xproj.get_out_range()
         ymin, ymax = self.yproj.get_out_range()
-        r = self.rect()
-        #painter.fillRect(qc.QRectF(xmin, ymin, xmax, ymax), qg.QBrush(qc.Qt.white))
-        painter.fillRect(r, qg.QBrush(qc.Qt.white))
+        painter.fillRect(self.rect(), qg.QBrush(qc.Qt.white))
 
         if self.symbol == '--':
             painter.save()
@@ -582,7 +603,7 @@ class PlotWidget(QWidget):
     def draw_y_ticks(self, painter):
         w, h = self.wh
         ymin, ymax, yinc = self.yscaler.make_scale(
-            (num.min(self._yvisible), num.max(self._yvisible))
+            (self._ymin, self._ymax)
         )
         ticks = num.arange(ymin, ymax, yinc)
         ticks_proj = self.yproj(ticks)
