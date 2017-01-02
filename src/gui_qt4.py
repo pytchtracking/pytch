@@ -555,13 +555,6 @@ class PlotWidget(QWidget):
                   qc.QPoint(w*self.right, h*(1.-self.bottom)),]
         painter.drawPoints(qg.QPolygon(points))
 
-    def make_nice_ticks(self, data_min, data_max):
-        ''' to be improved'''
-        devisors = (1., 2., 5.)
-        vrange = data_max-data_min
-
-        return num.linspace(data_min, data_max, 10)
-
     def draw_x_ticks(self, painter):
         w, h = self.wh
         ymin, ymax, yinc = self.yscaler.make_scale(
