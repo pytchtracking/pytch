@@ -105,11 +105,6 @@ class Worker():
 
                 self.pitchlogs[i].append(num.array([new_pitch_Cent]))
 
-            for i, (i1, i2) in enumerate(self.cross_spectra_combinations):
-                s, p = cross_spectrum(self.ffts[i1], self.ffts[i2])
-                self.cross_spectra[i].append(s)
-                self.cross_phases[i].append(p)
-
             #    #pitch_confidence2 = pitch_o.get_confidence()
 
             #    self.pitchlog_vect1 = num.roll(self.pitchlog_vect1, -1)
