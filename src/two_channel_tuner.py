@@ -55,8 +55,8 @@ class Worker():
         self.ivCents = None
         self.new_pitch1Cent = None
         self.new_pitch2Cent = None
-        self.frames = [RingBuffer(p.sampling_rate,
-                             self.buffer_length)] * self.nchannels
+        self.frames = [RingBuffer(p.sampling_rate, self.buffer_length),
+                       RingBuffer(p.sampling_rate, self.buffer_length)]
 
         self.ffts = num.ones((self.nchannels, len(self.freqs)))
 
@@ -65,7 +65,9 @@ class Worker():
 
         # get sampling rate from refresh rate
         n_pitch = int(p.sampling_rate/self.fftsize)
-        self.pitchlogs = [Buffer(n_pitch, self.buffer_length*n_pitch)] * self.nchannels
+        self.pitchlogs = []
+        for i in range(self.nchannels):
+            self.pitchlogs.append(Buffer(n_pitch, self.buffer_length*n_pitch))
         self.cross_spectra = [Buffer(n_pitch, self.buffer_length*n_pitch)] * len(self.cross_spectra_combinations)
         self.cross_phases = [Buffer(n_pitch, self.buffer_length*n_pitch)] * len(self.cross_spectra_combinations)
 

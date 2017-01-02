@@ -283,8 +283,11 @@ class MainWidget(QWidget):
             canvas.layout.addWidget(self.trace1, 1, 1)
             canvas.layout.addWidget(self.trace2, 2, 1)
 
-        self.pitch = PlotWidget(parent=canvas)
-        canvas.layout.addWidget(self.pitch, 3, 1)
+        self.pitch0 = PlotWidget(parent=canvas)
+        canvas.layout.addWidget(self.pitch0, 4, 0)
+
+        self.pitch1 = PlotWidget(parent=canvas)
+        canvas.layout.addWidget(self.pitch1, 4, 1)
 
         top_layout.addWidget(canvas)
 
@@ -334,19 +337,20 @@ class MainWidget(QWidget):
             self.trace1.set_ylim(-3000., 3000.)
             self.trace2.set_ylim(-3000., 3000.)
 
-        self.pitch.plot(
+        self.pitch0.plot(
             *w.pitchlogs[0].latest_frame(tfollow*2),
             symbol='o',
             color=channel_to_color[0],
             ignore_nan=True)
 
-        self.pitch.plot(
+        self.pitch1.plot(
             *w.pitchlogs[1].latest_frame(tfollow*2),
             symbol='o',
             color=channel_to_color[1],
             ignore_nan=True)
 
-        self.pitch.set_ylim(-1000., 4000.)
+        self.pitch0.set_ylim(-1000., 4000.)
+        self.pitch1.set_ylim(-1000., 4000.)
         self.cross_spectrum.plotlog(w.freqs, cross_spectrum(w.ffts[0], w.ffts[1])[0])
         #self.cross_spectrum.plot(w.freqs, cross_spectrum(w.ffts[0], w.ffts[1])[0])
         #self.cross_spectrum.set_ylim(0, 1E7)
