@@ -17,7 +17,7 @@ else:
     from PyQt5 import QtGui as qg
     from PyQt5.QtWidgets import QApplication, QWidget, QHBoxLayout, QLabel, QMenu
     from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QComboBox, QGridLayout
-    from PyQt5.QtWidgets import QAction, QSlider, QPushButton, QDockWidget
+    from PyQt5.QtWidgets import QAction, QSlider, QPushButton, QDockWidget, QSpacerItem
 
 from pytch.two_channel_tuner import cross_spectrum
 from pytch.data import getaudiodevices, sampling_rate_options
@@ -176,16 +176,26 @@ class MenuWidget(QWidget):
         layout.addWidget(self.select_sampling_rate, 2, 1)
         self.set_input_sampling_rates()
 
+        self.nfft_options = [f*512 for f in [1,2,4,8]]
         layout.addWidget(QLabel('NFFT'), 3, 0)
         self.nfft_slider = self.get_nfft_box()
         layout.addWidget(self.nfft_slider, 3, 1)
+
+        layout.addWidget(QLabel('Noise Threshold'), 4, 0)
+        self.noise_thresh_slider = QSlider()
+        self.noise_thresh_slider.setRange(0, 10000)
+        self.noise_thresh_slider.setValue(1000)
+        self.noise_thresh_slider.setOrientation(qc.Qt.Horizontal)
+        layout.addWidget(self.noise_thresh_slider, 4, 1)
+
+        layout.addItem(QSpacerItem(40, 20), 5, 1, qc.Qt.AlignTop)
 
     def get_nfft_box(self):
         ''' Return a QSlider for modifying FFT width'''
         b = QComboBox()
 
-        for fft_factor in [2, 4, 8]:
-            b.addItem('%s' % (512*fft_factor))
+        for fft_factor in self.nfft_options:
+            b.addItem('%s' % fft_factor)
 
         b.setCurrentIndex(0)
         return b
@@ -274,12 +284,13 @@ class MainWidget(QWidget):
             canvas.layout.addWidget(self.trace2, 2, 1)
 
         self.pitch = PlotWidget(parent=canvas)
-        canvas.layout.addWidget(self.pitch, 3, 0, 1, 2)
+        canvas.layout.addWidget(self.pitch, 3, 1)
 
         top_layout.addWidget(canvas)
 
         self.cross_spectrum = PlotWidget(parent=canvas)
-        canvas.layout.addWidget(self.cross_spectrum, 4, 0, 1, 2)
+        #canvas.layout.addWidget(self.cross_spectrum, 4, 0, 1, 2)
+        canvas.layout.addWidget(self.cross_spectrum, 3, 0)
 
         self.make_connections()
         self.core.start()
@@ -290,10 +301,15 @@ class MainWidget(QWidget):
         self.refresh_timer = qc.QTimer()
         self.refresh_timer.timeout.connect(self.refreshwidgets)
         self.refresh_timer.start(50)
-        self.menu.nfft_slider.activated.connect(self.core.worker.set_fft_length)
+        self.menu.noise_thresh_slider.valueChanged.connect(self.core.worker.set_pmin)
+        self.menu.nfft_slider.activated.connect(self.set_worker_nfft)
+        #self.menu..activated.connect(self.core.worker.set_fft_length)
         self.menu.pause_button.clicked.connect(self.core.data_input.stop)
         self.menu.play_button.clicked.connect(self.core.data_input.start)
         logger.debug('connections made')
+
+    def set_worker_nfft(self, index):
+        self.core.worker.set_fft_length(self.menu.nfft_options[index])
 
     def refreshwidgets(self):
         #tstart = time.time()
@@ -321,12 +337,16 @@ class MainWidget(QWidget):
         self.pitch.plot(
             *w.pitchlogs[0].latest_frame(tfollow*2),
             symbol='o',
-            color=channel_to_color[0])
+            color=channel_to_color[0],
+            ignore_nan=True)
+
         self.pitch.plot(
             *w.pitchlogs[1].latest_frame(tfollow*2),
             symbol='o',
-            color=channel_to_color[1])
+            color=channel_to_color[1],
+            ignore_nan=True)
 
+        self.pitch.set_ylim(-1000., 4000.)
         self.cross_spectrum.plotlog(w.freqs, cross_spectrum(w.ffts[0], w.ffts[1])[0])
         #self.cross_spectrum.plot(w.freqs, cross_spectrum(w.ffts[0], w.ffts[1])[0])
         #self.cross_spectrum.set_ylim(0, 1E7)
@@ -458,10 +478,11 @@ class PlotWidget(QWidget):
         self.color = qg.QColor(*colors[color])
 
     def plot(self, xdata=None, ydata=None, ndecimate=0, envelope=False,\
-             symbol='--', color='black'):
+             symbol='--', color='black', ignore_nan=False):
         ''' plot data
 
         :param *args:  ydata | xdata, ydata
+        :param ignore_nan: skip values which are nan
         '''
         self.symbol = symbol
         self.set_pen_color(color)
@@ -474,6 +495,11 @@ class PlotWidget(QWidget):
 
         if xdata is None:
             xdata = num.arange(len(ydata))
+
+        if ignore_nan:
+            ydata = num.ma.masked_invalid(ydata)
+            xdata = xdata[~ydata.mask]
+            ydata = ydata[~ydata.mask]
 
         self.set_data(xdata, ydata, ndecimate)
 

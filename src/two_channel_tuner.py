@@ -33,6 +33,7 @@ class Worker():
         #self.cross_spectra_combinations = [(0, 1), ]
         self.cross_spectra_combinations = []
         self.setup_buffers()
+        self.pmin = 1000.
 
     def set_data_provider(self, provider):
         self.provider = provider
@@ -64,9 +65,9 @@ class Worker():
 
         # get sampling rate from refresh rate
         n_pitch = int(p.sampling_rate/self.fftsize)
-        self.pitchlogs = [Buffer(n_pitch, self.buffer_length*n_pitch, dtype=num.int)] * self.nchannels
-        self.cross_spectra = [Buffer(n_pitch, self.buffer_length*n_pitch, dtype=num.int)] * len(self.cross_spectra_combinations)
-        self.cross_phases = [Buffer(n_pitch, self.buffer_length*n_pitch, dtype=num.int)] * len(self.cross_spectra_combinations)
+        self.pitchlogs = [Buffer(n_pitch, self.buffer_length*n_pitch)] * self.nchannels
+        self.cross_spectra = [Buffer(n_pitch, self.buffer_length*n_pitch)] * len(self.cross_spectra_combinations)
+        self.cross_phases = [Buffer(n_pitch, self.buffer_length*n_pitch)] * len(self.cross_spectra_combinations)
 
         # keeps reference to mic
         # Pitch
@@ -77,6 +78,9 @@ class Worker():
         self.pitch_o = pitch("yin", win_s, hop_s, p.sampling_rate)
         self.pitch_o.set_unit("Hz")
         self.pitch_o.set_tolerance(tolerance)
+
+    def set_pmin(self, v):
+        self.pmin = v
 
     def set_nfft(self, nfft):
         self.fftsize = int(nfft)
@@ -93,17 +97,21 @@ class Worker():
             result = num.reshape(frames[-1], (self.provider.chunksize,
                                           self.nchannels)).T
             for i in range(self.nchannels):
-                self.frames[i].append(result[i].T)
+                self.frames[i].append(result[i])
 
             for i in range(self.nchannels):
                 frame_work = self.frames[i].latest_frame_data(self.fftsize)
                 self.ffts[i, :] = num.abs(num.fft.rfft(frame_work))
-                pitch = self.pitch_o(frame_work.astype(num.float32))[0]
-                new_pitch_Cent = 1200.* math.log((pitch +.1)/120., 2)
+                total_power = num.sum(self.ffts[i, :])/len(self.freqs)
+                if total_power < self.pmin:
+                    new_pitch_Cent = -9999999.
+                else:
+                    pitch = self.pitch_o(frame_work.astype(num.float32))[0]
+                    new_pitch_Cent = 1200.* math.log((pitch +.1)/120., 2)
                 #new_pitch_Cent = math.log((pitch +.1)/120., 2)
+                self.pitchlogs[i].append(num.array([new_pitch_Cent]))
                 #new_pitch_cent = pitch
 
-                self.pitchlogs[i].append(num.array([new_pitch_Cent]))
 
             #    #pitch_confidence2 = pitch_o.get_confidence()
 
