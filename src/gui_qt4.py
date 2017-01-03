@@ -6,6 +6,11 @@ import time
 import logging
 import copy
 
+from pytch.two_channel_tuner import cross_spectrum
+from pytch.data import getaudiodevices, sampling_rate_options
+from pytch.core import Core
+from pytch.gui_util import AutoScaler
+
 if False:
     from PyQt4 import QtCore as qc
     from PyQt4 import QtGui as qg
@@ -18,11 +23,6 @@ else:
     from PyQt5.QtWidgets import QApplication, QWidget, QHBoxLayout, QLabel, QMenu
     from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QComboBox, QGridLayout
     from PyQt5.QtWidgets import QAction, QSlider, QPushButton, QDockWidget, QSpacerItem
-
-from pytch.two_channel_tuner import cross_spectrum
-from pytch.data import getaudiodevices, sampling_rate_options
-from pytch.core import Core
-from pytch.gui_util import AutoScaler
 
 
 logger = logging.getLogger(__name__)
@@ -128,31 +128,7 @@ class GaugeWidget(QWidget):
             self._val = min(math.log(val)/math.log(self.clip)*2880., 2880)  # 2880=16*180 (half circle)
         else:
             self._val = math.log(val) * 100
-        #self.repaint()
 
-    #def sizeHint(self):
-    #    return qc.QSize(200, 200)
-
-
-class MainWindow(QMainWindow):
-    ''' Top level Window. The entry point of the gui.'''
-    def __init__(self, *args, **kwargs):
-        QMainWindow.__init__(self, *args, **kwargs)
-        self.show()
-
-    def keyPressEvent(self, key_event):
-        ''' react on keyboard keys when they are pressed.'''
-        key_text = key_event.text()
-        if key_text == 'q':
-            self.close()
-
-        elif key_text == 'f':
-            self.showMaximized()
-
-        QMainWindow.keyPressEvent(self, key_event)
-
-    def sizeHint(self):
-        return qc.QSize(900, 600)
 
 class MenuWidget(QWidget):
     ''' Contains all widget of left-side panel menu'''
@@ -234,7 +210,38 @@ class CanvasWidget(QWidget):
 
 tfollow = 3.
 
+
+class MainWindow(QMainWindow):
+    ''' Top level Window. The entry point of the gui.'''
+    def __init__(self, *args, **kwargs):
+        QMainWindow.__init__(self, *args, **kwargs)
+        self.main_widget = MainWidget()
+        self.setCentralWidget(self.main_widget)
+
+        controls_dock_widget = QDockWidget()
+        controls_dock_widget.setWidget(self.main_widget.menu)
+        self.addDockWidget(qc.Qt.LeftDockWidgetArea, controls_dock_widget)
+        #top_layout.addWidget(self.menu)
+
+        self.show()
+
+    def keyPressEvent(self, key_event):
+        ''' react on keyboard keys when they are pressed.'''
+        key_text = key_event.text()
+        if key_text == 'q':
+            self.close()
+
+        elif key_text == 'f':
+            self.showMaximized()
+
+        QMainWindow.keyPressEvent(self, key_event)
+
+    def sizeHint(self):
+        return qc.QSize(900, 600)
+
+
 class MainWidget(QWidget):
+#class MainWidget(MainWindow):
     ''' top level widget covering the central widget in the MainWindow.'''
 
     processingFinished = qc.pyqtSignal()
@@ -242,6 +249,7 @@ class MainWidget(QWidget):
     def __init__(self, *args, **kwargs):
         #tstart = time.time()
         QWidget.__init__(self, *args, **kwargs)
+        #MainWindow.__init__(self, *args, **kwargs)
 
         self.setMouseTracking(True)
         top_layout = QHBoxLayout()
@@ -249,9 +257,6 @@ class MainWidget(QWidget):
 
         self.menu = MenuWidget()
 
-        dock_widget_area = QDockWidget()
-        dock_widget_area.setWidget(self.menu)
-        top_layout.addWidget(self.menu)
 
         self.core = Core()
         self.core.device_no = self.menu.select_input.currentIndex()
@@ -296,13 +301,10 @@ class MainWidget(QWidget):
         top_layout.addWidget(canvas)
 
         self.cross_spectrum = PlotWidget(parent=canvas)
-        #canvas.layout.addWidget(self.cross_spectrum, 4, 0, 1, 2)
         canvas.layout.addWidget(self.cross_spectrum, 3, 0)
 
         self.make_connections()
         self.core.start()
-
-        #self.worker.start_new_stream()
 
     def make_connections(self):
         self.refresh_timer = qc.QTimer()
@@ -310,7 +312,6 @@ class MainWidget(QWidget):
         self.refresh_timer.start(50)
         self.menu.noise_thresh_slider.valueChanged.connect(self.core.worker.set_pmin)
         self.menu.nfft_slider.activated.connect(self.set_worker_nfft)
-        #self.menu..activated.connect(self.core.worker.set_fft_length)
         self.menu.pause_button.clicked.connect(self.core.data_input.stop)
         self.menu.play_button.clicked.connect(self.core.data_input.start)
         logger.debug('connections made')
@@ -327,7 +328,7 @@ class MainWidget(QWidget):
                             color=channel_to_color[1])
         self.spectrum1.set_ylim(num.log(10.), num.log(100000.))
         self.spectrum2.set_ylim(num.log(10.), num.log(100000.))
-        
+
         self.spectrum1.set_xlim(0., 5000.)
         self.spectrum2.set_xlim(0., 5000.)
 
@@ -419,7 +420,7 @@ class PlotWidget(QWidget):
 
         self.yticks = None
         self.xticks = None
-        
+
         self.__show_grid = False
         self.yscaler = AutoScaler(
             no_exp_interval=(-3, 2), approx_ticks=7,
@@ -481,7 +482,7 @@ class PlotWidget(QWidget):
         elif key_text == 'f':
             self.showMaximized()
 
-        QMainWindow.keyPressEvent(self, key_event)
+        QWidget.keyPressEvent(self, key_event)
 
     def set_pen_color(self, color):
         '''
@@ -786,8 +787,6 @@ def from_command_line(close_after=None):
     ''' Start the GUI from comamand line'''
     app = QApplication(sys.argv)
     window = MainWindow()
-    main_widget = MainWidget()
-    window.setCentralWidget(main_widget)
 
     if close_after:
         close_timer = qc.QTimer()
