@@ -30,11 +30,14 @@ class Worker():
         self.provider = provider
         self.buffer_length = buffer_length     # seconds
         self.fftsize = fft_size
+        self.pitch_algorithms = ['default', 'schmitt', 'fcomb', 'mcomb',
+                                 'specacf', 'yin', 'yinfft']
         #self.cross_spectra_combinations = [(0, 1), ]
         self.cross_spectra_combinations = []
         self.setup_buffers()
         self.pmin = 1000.
         self.spectral_smoothing = False
+        self.set_pitch_algorithm(0)
 
     def set_spectral_smoothing(self, state):
         self.spectral_smoothing = state
@@ -64,10 +67,6 @@ class Worker():
 
         self.ffts = num.ones((self.nchannels, len(self.freqs)))
 
-        #self.pitchlog_vect1 = num.ones(PITCHLOGLEN, dtype=num.int)
-        #self.pitchlog_vect2 = num.ones(PITCHLOGLEN, dtype=num.int)
-
-        # get sampling rate from refresh rate
         n_pitch = int(p.sampling_rate/self.fftsize)
         self.pitchlogs = []
         for i in range(self.nchannels):
@@ -75,13 +74,16 @@ class Worker():
         self.cross_spectra = [Buffer(n_pitch, self.buffer_length*n_pitch)] * len(self.cross_spectra_combinations)
         self.cross_phases = [Buffer(n_pitch, self.buffer_length*n_pitch)] * len(self.cross_spectra_combinations)
 
-        # keeps reference to mic
-        # Pitch
+    def set_pitch_algorithm(self, ialgorithm):
+        '''
+        :param ialgorithm:
+        index of desired algorithm'''
         tolerance = 0.8
-        downsample = 1
-        win_s = self.fftsize // downsample # fft size
-        hop_s = self.fftsize  // downsample # hop size
-        self.pitch_o = pitch("yin", win_s, hop_s, p.sampling_rate)
+        #win_s = self.fftsize
+        #hop_s = self.fftsize
+        win_s = 1024*4
+        hop_s = 1024*4
+        self.pitch_o = pitch(self.pitch_algorithms[ialgorithm], win_s, hop_s, self.provider.sampling_rate)
         self.pitch_o.set_unit("Hz")
         self.pitch_o.set_tolerance(tolerance)
 
@@ -108,9 +110,9 @@ class Worker():
             for i in range(self.nchannels):
                 frame_work = self.frames[i].latest_frame_data(self.fftsize)
 
-                fft_old = self.ffts[i, :]
                 if self.spectral_smoothing:
-                    self.ffts[i, :] = (num.abs(num.fft.rfft(frame_work)) + fft_old) /2.
+                    self.ffts[i, :] += num.abs(num.fft.rfft(frame_work))
+                    self.ffts[i, :] /= 2.
                 else:
                     self.ffts[i, :] = num.abs(num.fft.rfft(frame_work))
 

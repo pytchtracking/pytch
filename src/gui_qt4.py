@@ -42,6 +42,7 @@ colors = {
     'red': (255, 0, 0),
     'green': (0, 255, 0),
     'blue': (0, 0, 255),
+    'transparent': (0, 0, 0, 0),
 }
 
 channel_to_color = [ 'blue', 'red', 'green', 'black']
@@ -147,14 +148,14 @@ class MenuWidget(QWidget):
         layout.addWidget(QLabel('Select Input Device'), 1, 0)
         self.select_input = QComboBox()
         layout.addWidget(self.select_input, 1, 1)
-        self.set_input_devices(self.select_input)
+        self.set_input_devices()
 
         layout.addWidget(QLabel('Sampling rate'), 2, 0)
         self.select_sampling_rate = QComboBox()
         layout.addWidget(self.select_sampling_rate, 2, 1)
         self.set_input_sampling_rates()
 
-        self.nfft_options = [f*512 for f in [1,2,4,8]]
+        self.nfft_options = [f*512 for f in [1, 2, 4, 8]]
         layout.addWidget(QLabel('NFFT'), 3, 0)
         self.nfft_slider = self.get_nfft_box()
         layout.addWidget(self.nfft_slider, 3, 1)
@@ -168,9 +169,13 @@ class MenuWidget(QWidget):
 
         self.spectral_smoothing = QCheckBox('Spectral smoothing')
         self.spectral_smoothing.setCheckable(True)
-        layout.addWidget(self.spectral_smoothing)
+        layout.addWidget(self.spectral_smoothing, 5, 0)
 
-        layout.addItem(QSpacerItem(40, 20), 5, 1, qc.Qt.AlignTop)
+        layout.addWidget(QLabel('Select Algorithm'), 6, 0)
+        self.select_algorithm = QComboBox()
+        layout.addWidget(self.select_algorithm, 6, 1)
+
+        layout.addItem(QSpacerItem(40, 20), 7, 1, qc.Qt.AlignTop)
 
     def get_nfft_box(self):
         ''' Return a QSlider for modifying FFT width'''
@@ -182,16 +187,24 @@ class MenuWidget(QWidget):
         b.setCurrentIndex(0)
         return b
 
-    def set_input_devices(self, box):
+    def set_algorithms(self, algorithms, default=None):
+        ''' Query device list and set the drop down menu'''
+        for alg in algorithms:
+            self.select_algorithm.addItem('%s' % alg)
+
+        if default:
+            self.select_algorithm.setCurrentIndex(algorithms.index(default))
+
+    def set_input_devices(self):
         ''' Query device list and set the drop down menu'''
         devices = getaudiodevices()
         curr = 0
         for idevice, device in enumerate(devices):
-            box.addItem('%s: %s' % (idevice, device))
+            self.select_input.addItem('%s: %s' % (idevice, device))
             if 'default' in device:
                 curr = idevice
 
-        box.setCurrentIndex(idevice)
+        self.select_input.setCurrentIndex(idevice)
 
     def set_input_sampling_rates(self):
         ''' Set input sampling rates in drop down menu'''
@@ -262,10 +275,10 @@ class MainWidget(QWidget):
 
         self.menu = MenuWidget()
 
-
         self.core = Core()
         self.core.device_no = self.menu.select_input.currentIndex()
         self.core.worker.processingFinished = self.processingFinished
+
         self.menu.select_input.activated.connect(self.core.set_device_no)
 
         canvas = CanvasWidget(parent=self)
@@ -295,10 +308,12 @@ class MainWidget(QWidget):
             canvas.layout.addWidget(self.trace2, 2, 1)
 
         self.pitch0 = PlotWidget(parent=canvas)
-        canvas.layout.addWidget(self.pitch0, 4, 0)
+        self.pitch0.setAttribute(qc.Qt.WA_NoSystemBackground)
+        canvas.layout.addWidget(self.pitch0, 3, 1)
 
         self.pitch1 = PlotWidget(parent=canvas)
-        canvas.layout.addWidget(self.pitch1, 4, 1)
+        self.pitch1.set_background_color('transparent')
+        canvas.layout.addWidget(self.pitch1, 3, 1)
 
         self.pitch0.show_grid = True
         self.pitch1.show_grid = True
@@ -323,7 +338,8 @@ class MainWidget(QWidget):
         self.menu.play_button.clicked.connect(self.core.data_input.start)
         self.menu.spectral_smoothing.stateChanged.connect(worker.set_spectral_smoothing)
         self.menu.spectral_smoothing.setChecked(worker.spectral_smoothing)
-
+        self.menu.set_algorithms(worker.pitch_algorithms, default='yin')
+        self.menu.select_algorithm.activated.connect(worker.set_pitch_algorithm)
         logger.debug('connections made')
 
     def set_worker_nfft(self, index):
@@ -339,8 +355,9 @@ class MainWidget(QWidget):
         self.spectrum1.set_ylim(num.log(10.), num.log(100000.))
         self.spectrum2.set_ylim(num.log(10.), num.log(100000.))
 
-        self.spectrum1.set_xlim(0., 5000.)
-        self.spectrum2.set_xlim(0., 5000.)
+        fmax = 2000.
+        self.spectrum1.set_xlim(0., fmax)
+        self.spectrum2.set_xlim(0., fmax)
 
         if use_pyqtgraph:
             self.trace1_qtgraph.clear()
@@ -367,13 +384,13 @@ class MainWidget(QWidget):
             color=channel_to_color[1],
             ignore_nan=True)
 
-        self.pitch0.set_ylim(-1000., 4000.)
-        self.pitch1.set_ylim(-1000., 4000.)
+        self.pitch0.set_ylim(-1000., 2500.)
+        self.pitch1.set_ylim(-1000., 2500.)
         self.cross_spectrum.plotlog(w.freqs, cross_spectrum(w.ffts[0], w.ffts[1])[0])
         #self.cross_spectrum.plot(w.freqs, cross_spectrum(w.ffts[0], w.ffts[1])[0])
         #self.cross_spectrum.set_ylim(0, 1E7)
-        self.cross_spectrum.set_ylim(0.0001, num.log(1E8))
-
+        self.cross_spectrum.set_ylim(0.0001, 25)
+        self.cross_spectrum.set_xlim(0., fmax)
         self.repaint()
         #tstop = time.time()
         #logger.debug('refreshing widgets took %s seconds' % (tstop-tstart))
@@ -432,6 +449,7 @@ class PlotWidget(QWidget):
         self.xticks = None
 
         self.__show_grid = False
+        self.set_background_color('white')
         self.yscaler = AutoScaler(
             no_exp_interval=(-3, 2), approx_ticks=7,
             snap=True
@@ -503,7 +521,7 @@ class PlotWidget(QWidget):
     @property
     def show_grid(self):
         return self.__show_grid
-    
+
     @show_grid.setter
     def show_grid(self, show):
         self.__show_grid = show
@@ -591,6 +609,12 @@ class PlotWidget(QWidget):
             h*self.bottom,)#)
              #h*self.top)
 
+    def set_background_color(self, color):
+        '''
+        :param color: color as string
+        '''
+        self.background_color = qg.QColor(*colors[color])
+
     def set_xlim(self, xmin, xmax):
         ''' Set x data range. If unset scale to min|max of ydata range '''
         self.xmin = xmin
@@ -619,7 +643,9 @@ class PlotWidget(QWidget):
 
         xmin, xmax = self.xproj.get_out_range()
         ymin, ymax = self.yproj.get_out_range()
-        painter.fillRect(self.rect(), qg.QBrush(qc.Qt.white))
+
+        #painter.fillRect(self.rect(), qg.QBrush(qc.Qt.white))
+        painter.fillRect(self.rect(), qg.QBrush(self.background_color))
 
         if self.symbol == '--':
             painter.save()
@@ -629,7 +655,7 @@ class PlotWidget(QWidget):
             painter.restore()
 
         elif self.symbol == 'o':
-            pen = qg.QPen(self.color, 10, qc.Qt.SolidLine)
+            pen = qg.QPen(self.color, 4, qc.Qt.SolidLine)
             painter.save()
             painter.setPen(pen)
             painter.drawPoints(qpoints)
@@ -639,7 +665,7 @@ class PlotWidget(QWidget):
         #self.draw_labels(painter)
         self.draw_y_ticks(painter)
         self.draw_x_ticks(painter)
-        
+
         if self.show_grid:
             self.draw_grid_lines(painter)
 
