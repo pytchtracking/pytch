@@ -1,4 +1,5 @@
 # Vocal Trainer
+[![Build Status](https://travis-ci.org/HerrMuellerluedenscheid/pytch.svg?branch=master)](https://travis-ci.org/HerrMuellerluedenscheid/pytch)
 
 # Prerequisites
 
