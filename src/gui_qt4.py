@@ -36,6 +36,7 @@ else:
 
 colors = {
     'black': (0, 0, 0),
+    'grey': (10, 10, 10),
     'white': (255, 255, 255),
     'red': (255, 0, 0),
     'green': (0, 255, 0),
@@ -154,7 +155,7 @@ class MainWindow(QMainWindow):
         return qc.QSize(900, 600)
 
 class MenuWidget(QWidget):
-    ''' todo: blocks keypressevents!'''
+    ''' Contains all widget of left-side panel menu'''
     def __init__(self, *args, **kwargs):
         QWidget.__init__(self, *args, **kwargs)
         layout = QGridLayout()
@@ -289,6 +290,9 @@ class MainWidget(QWidget):
         self.pitch1 = PlotWidget(parent=canvas)
         canvas.layout.addWidget(self.pitch1, 4, 1)
 
+        self.pitch0.show_grid = True
+        self.pitch1.show_grid = True
+
         top_layout.addWidget(canvas)
 
         self.cross_spectrum = PlotWidget(parent=canvas)
@@ -323,6 +327,9 @@ class MainWidget(QWidget):
                             color=channel_to_color[1])
         self.spectrum1.set_ylim(num.log(10.), num.log(100000.))
         self.spectrum2.set_ylim(num.log(10.), num.log(100000.))
+        
+        self.spectrum1.set_xlim(0., 5000.)
+        self.spectrum2.set_xlim(0., 5000.)
 
         if use_pyqtgraph:
             self.trace1_qtgraph.clear()
@@ -412,7 +419,8 @@ class PlotWidget(QWidget):
 
         self.yticks = None
         self.xticks = None
-
+        
+        self.__show_grid = False
         self.yscaler = AutoScaler(
             no_exp_interval=(-3, 2), approx_ticks=7,
             snap=True
@@ -481,6 +489,14 @@ class PlotWidget(QWidget):
         '''
         self.color = qg.QColor(*colors[color])
 
+    @property
+    def show_grid(self):
+        return self.__show_grid
+    
+    @show_grid.setter
+    def show_grid(self, show):
+        self.__show_grid = show
+
     def plot(self, xdata=None, ydata=None, ndecimate=0, envelope=False,\
              symbol='--', color='black', ignore_nan=False):
         ''' plot data
@@ -546,9 +562,13 @@ class PlotWidget(QWidget):
         else:
             if not self.xmin:
                 self._xmin = num.min(self._xvisible)
+            else:
+                self._xmin = self.xmin
 
             if not self.xmax:
                 self._xmax = num.max(self._xvisible)
+            else:
+                self._xmax = self.xmax
 
         w, h = self.wh
         self.xproj.set_in_range(self._xmin, self._xmax)
@@ -608,6 +628,24 @@ class PlotWidget(QWidget):
         #self.draw_labels(painter)
         self.draw_y_ticks(painter)
         self.draw_x_ticks(painter)
+        
+        if self.show_grid:
+            self.draw_grid_lines(painter)
+
+    def draw_grid_lines(self, painter):
+        ''' draw semi transparent grid lines'''
+        w, h = self.wh
+        ymin, ymax, yinc = self.yscaler.make_scale(
+            (self._ymin, self._ymax)
+        )
+        ticks = num.arange(ymin, ymax, yinc)
+        ticks_proj = self.yproj(ticks)
+
+        lines = [qc.QLineF(w * self.left * 0.8, yval, w, yval) for yval in ticks_proj]
+        painter.save()
+        pen = qg.QPen(qg.QColor(*colors['grey']), 1, qc.Qt.SolidLine)
+        painter.drawLines(lines)
+        painter.restore()
 
     def draw_axes(self, painter):
         ''' draw x and y axis'''
