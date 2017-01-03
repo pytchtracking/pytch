@@ -34,6 +34,10 @@ class Worker():
         self.cross_spectra_combinations = []
         self.setup_buffers()
         self.pmin = 1000.
+        self.spectral_smoothing = False
+
+    def set_spectral_smoothing(self, state):
+        self.spectral_smoothing = state
 
     def set_data_provider(self, provider):
         self.provider = provider
@@ -103,7 +107,13 @@ class Worker():
 
             for i in range(self.nchannels):
                 frame_work = self.frames[i].latest_frame_data(self.fftsize)
-                self.ffts[i, :] = num.abs(num.fft.rfft(frame_work))
+
+                fft_old = self.ffts[i, :]
+                if self.spectral_smoothing:
+                    self.ffts[i, :] = (num.abs(num.fft.rfft(frame_work)) + fft_old) /2.
+                else:
+                    self.ffts[i, :] = num.abs(num.fft.rfft(frame_work))
+
                 total_power = num.sum(self.ffts[i, :])/len(self.freqs)
                 if total_power < self.pmin:
                     new_pitch_Cent = -9999999.

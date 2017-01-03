@@ -23,6 +23,7 @@ else:
     from PyQt5.QtWidgets import QApplication, QWidget, QHBoxLayout, QLabel, QMenu
     from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QComboBox, QGridLayout
     from PyQt5.QtWidgets import QAction, QSlider, QPushButton, QDockWidget, QSpacerItem
+    from PyQt5.QtWidgets import QCheckBox
 
 
 logger = logging.getLogger(__name__)
@@ -164,6 +165,10 @@ class MenuWidget(QWidget):
         self.noise_thresh_slider.setValue(1000)
         self.noise_thresh_slider.setOrientation(qc.Qt.Horizontal)
         layout.addWidget(self.noise_thresh_slider, 4, 1)
+
+        self.spectral_smoothing = QCheckBox('Spectral smoothing')
+        self.spectral_smoothing.setCheckable(True)
+        layout.addWidget(self.spectral_smoothing)
 
         layout.addItem(QSpacerItem(40, 20), 5, 1, qc.Qt.AlignTop)
 
@@ -310,10 +315,15 @@ class MainWidget(QWidget):
         self.refresh_timer = qc.QTimer()
         self.refresh_timer.timeout.connect(self.refreshwidgets)
         self.refresh_timer.start(50)
-        self.menu.noise_thresh_slider.valueChanged.connect(self.core.worker.set_pmin)
+
+        worker = self.core.worker
+        self.menu.noise_thresh_slider.valueChanged.connect(worker.set_pmin)
         self.menu.nfft_slider.activated.connect(self.set_worker_nfft)
         self.menu.pause_button.clicked.connect(self.core.data_input.stop)
         self.menu.play_button.clicked.connect(self.core.data_input.start)
+        self.menu.spectral_smoothing.stateChanged.connect(worker.set_spectral_smoothing)
+        self.menu.spectral_smoothing.setChecked(worker.spectral_smoothing)
+
         logger.debug('connections made')
 
     def set_worker_nfft(self, index):
