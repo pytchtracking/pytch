@@ -148,17 +148,14 @@ class MenuWidget(QWidget):
         layout.addWidget(QLabel('Select Input Device'), 1, 0)
         self.select_input = QComboBox()
         layout.addWidget(self.select_input, 1, 1)
-        self.set_input_devices()
 
-        layout.addWidget(QLabel('Sampling rate'), 2, 0)
-        self.select_sampling_rate = QComboBox()
-        layout.addWidget(self.select_sampling_rate, 2, 1)
-        self.set_input_sampling_rates()
+        #layout.addWidget(QLabel('Sampling rate'), 2, 0)
+        #self.select_sampling_rate = QComboBox()
+        #layout.addWidget(self.select_sampling_rate, 2, 1)
 
-        self.nfft_options = [f*512 for f in [1, 2, 4, 8]]
         layout.addWidget(QLabel('NFFT'), 3, 0)
-        self.nfft_slider = self.get_nfft_box()
-        layout.addWidget(self.nfft_slider, 3, 1)
+        self.nfft_choice = self.get_nfft_box()
+        layout.addWidget(self.nfft_choice, 3, 1)
 
         layout.addWidget(QLabel('Noise Threshold'), 4, 0)
         self.noise_thresh_slider = QSlider()
@@ -177,14 +174,38 @@ class MenuWidget(QWidget):
 
         layout.addItem(QSpacerItem(40, 20), 7, 1, qc.Qt.AlignTop)
 
+    def make_connections(self):
+        core = self.core
+        worker = core.worker
+        core.device_no = self.select_input.currentIndex()
+        self.select_input.activated.connect(core.set_device_no)
+
+        self.noise_thresh_slider.valueChanged.connect(worker.set_pmin)
+        self.nfft_choice.activated.connect(self.set_worker_nfft)
+        self.pause_button.clicked.connect(core.data_input.stop)
+        self.play_button.clicked.connect(core.data_input.start)
+        self.spectral_smoothing.stateChanged.connect(worker.set_spectral_smoothing)
+        self.spectral_smoothing.setChecked(worker.spectral_smoothing)
+        self.set_algorithms(worker.pitch_algorithms, default='yin')
+        self.select_algorithm.activated.connect(worker.set_pitch_algorithm)
+        logger.debug('connections made')
+
+        self.set_worker_nfft(3)
+        self.set_input_devices()
+        #self.set_input_sampling_rates()
+
+    def set_worker_nfft(self, index):
+        self.core.worker.set_fft_length(self.nfft_options[index])
+
     def get_nfft_box(self):
         ''' Return a QSlider for modifying FFT width'''
         b = QComboBox()
+        self.nfft_options = [f*512 for f in [1, 2, 4, 8]]
 
         for fft_factor in self.nfft_options:
             b.addItem('%s' % fft_factor)
 
-        b.setCurrentIndex(0)
+        b.setCurrentIndex(3)
         return b
 
     def set_algorithms(self, algorithms, default=None):
@@ -208,12 +229,13 @@ class MenuWidget(QWidget):
 
     def set_input_sampling_rates(self):
         ''' Set input sampling rates in drop down menu'''
-        print('TEST')
-        for sr in sampling_rate_options(self.select_input.currentIndex()):
-            print(sr)
+        p = self.core.worker.provider.p
+        opts = list(sampling_rate_options(5, p))
+        for sr in opts:
             #self.select_sampling_rate.addItem(str(sr))
             self.select_sampling_rate.addItem('ASDFASDF')
 
+        self.select_sampling_rate.setCurrentIndex(2)
 
 class CanvasWidget(QWidget):
     ''' Contains all visualizing elements'''
@@ -273,13 +295,11 @@ class MainWidget(QWidget):
         top_layout = QHBoxLayout()
         self.setLayout(top_layout)
 
-        self.menu = MenuWidget()
-
         self.core = Core()
-        self.core.device_no = self.menu.select_input.currentIndex()
         self.core.worker.processingFinished = self.processingFinished
 
-        self.menu.select_input.activated.connect(self.core.set_device_no)
+        self.menu = MenuWidget()
+        self.menu.core = self.core
 
         canvas = CanvasWidget(parent=self)
         canvas.dx = 1./self.core.data_input.sampling_rate
@@ -323,27 +343,12 @@ class MainWidget(QWidget):
         self.cross_spectrum = PlotWidget(parent=canvas)
         canvas.layout.addWidget(self.cross_spectrum, 3, 0)
 
-        self.make_connections()
+        self.menu.make_connections()
         self.core.start()
 
-    def make_connections(self):
         self.refresh_timer = qc.QTimer()
         self.refresh_timer.timeout.connect(self.refreshwidgets)
         self.refresh_timer.start(50)
-
-        worker = self.core.worker
-        self.menu.noise_thresh_slider.valueChanged.connect(worker.set_pmin)
-        self.menu.nfft_slider.activated.connect(self.set_worker_nfft)
-        self.menu.pause_button.clicked.connect(self.core.data_input.stop)
-        self.menu.play_button.clicked.connect(self.core.data_input.start)
-        self.menu.spectral_smoothing.stateChanged.connect(worker.set_spectral_smoothing)
-        self.menu.spectral_smoothing.setChecked(worker.spectral_smoothing)
-        self.menu.set_algorithms(worker.pitch_algorithms, default='yin')
-        self.menu.select_algorithm.activated.connect(worker.set_pitch_algorithm)
-        logger.debug('connections made')
-
-    def set_worker_nfft(self, index):
-        self.core.worker.set_fft_length(self.menu.nfft_options[index])
 
     def refreshwidgets(self):
         #tstart = time.time()
@@ -572,6 +577,7 @@ class PlotWidget(QWidget):
 
     def plotlog(self, xdata=None, ydata=None, ndecimate=0, envelope=False, **style_kwargs):
         self.plot(xdata, num.log(ydata), ndecimate, envelope, **style_kwargs)
+
 
     def update_datalims(self):
 
