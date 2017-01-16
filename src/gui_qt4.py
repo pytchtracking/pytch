@@ -218,7 +218,7 @@ class ColormapWidget(QWidget):
             painter.restore()
 
     def sizeHint(self):
-        return qc.QSize(100, 500)
+        return qc.QSize(60, 100)
 
 
 class Projection(object):
@@ -441,9 +441,9 @@ class ContentWidget(QWidget):
                            QSizePolicy.Minimum)
 
     def sizeHint(self):
-        return qc.QSize(1200, 1200)
+        return qc.QSize(800, 700)
 
-tfollow = 3.
+tfollow = 1.
 fmax = 2000.
 
 
@@ -506,25 +506,24 @@ class MainWidget(QWidget):
         canvas.layout.addWidget(self.spectrum1, 1, 0)
         canvas.layout.addWidget(self.spectrum2, 2, 0)
 
-        if use_pyqtgraph:
-            import pyqtgraph as pg
+        #if use_pyqtgraph:
+        #    import pyqtgraph as pg
 
-            trace1_widget = pg.PlotWidget()
-            self.trace1_qtgraph = trace1_widget.getPlotItem()
-            canvas.layout.addWidget(trace1_widget, 1, 1)
+        #    trace1_widget = pg.PlotWidget()
+        #    self.trace1_qtgraph = trace1_widget.getPlotItem()
+        #    canvas.layout.addWidget(trace1_widget, 1, 1)
 
-            trace2_widget = pg.PlotWidget()
-            self.trace2_qtgraph = trace2_widget.getPlotItem()
-            canvas.layout.addWidget(trace2_widget, 2, 1)
-        else:
-            self.trace1 = PlotWidget(parent=canvas)
-            self.trace2 = PlotWidget(parent=canvas)
-            self.trace1.tfollow = tfollow
-            self.trace2.tfollow = tfollow
-            canvas.layout.addWidget(self.trace1, 1, 1)
-            canvas.layout.addWidget(self.trace2, 2, 1)
-            self.trace1.set_ylim(-3000., 3000.)
-            self.trace2.set_ylim(-3000., 3000.)
+        #    trace2_widget = pg.PlotWidget()
+        #    self.trace2_qtgraph = trace2_widget.getPlotItem()
+        #    canvas.layout.addWidget(trace2_widget, 2, 1)
+        self.trace1 = PlotWidget(parent=canvas)
+        self.trace2 = PlotWidget(parent=canvas)
+        self.trace1.tfollow = tfollow
+        self.trace2.tfollow = tfollow
+        canvas.layout.addWidget(self.trace1, 1, 1)
+        canvas.layout.addWidget(self.trace2, 2, 1)
+        self.trace1.set_ylim(-3000., 3000.)
+        self.trace2.set_ylim(-3000., 3000.)
 
         self.pitch0 = PlotWidget(parent=canvas)
         self.pitch0.setAttribute(qc.Qt.WA_NoSystemBackground)
@@ -566,7 +565,7 @@ class MainWidget(QWidget):
 
         self.refresh_timer = qc.QTimer()
         self.refresh_timer.timeout.connect(self.refreshwidgets)
-        self.refresh_timer.start(50)
+        self.refresh_timer.start(100)
 
     def refreshwidgets(self):
         w = self.core.worker
@@ -843,7 +842,7 @@ class PlotWidget(QWidget):
 
         painter = qg.QPainter(self)
         painter.save()
-        painter.setRenderHint(qg.QPainter.Antialiasing)
+        #painter.setRenderHint(qg.QPainter.Antialiasing)
         painter.fillRect(self.rect(), qg.QBrush(self.background_color))
         painter.setPen(self.pen)
 
@@ -997,10 +996,11 @@ class PlotPitchWidget(PlotWidget):
         for i in range(len(self._xvisible[0])):
             lines.append(qc.QLineF(x[0][i], y[0][i], x[1][i], y[1][i]))
             pens.append(self.colormap.map_to_QPen(dy[i]))
+        
         # p.mark('start finished setup lines')
 
         painter = qg.QPainter(self)
-        painter.setRenderHint(qg.QPainter.Antialiasing)
+        #painter.setRenderHint(qg.QPainter.Antialiasing)
         painter.fillRect(self.rect(), qg.QBrush(self.background_color))
         # p.mark('start draw lines')
         for iline, line in enumerate(lines):
