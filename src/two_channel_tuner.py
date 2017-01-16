@@ -67,12 +67,13 @@ class Worker():
 
         self.ffts = num.ones((self.nchannels, len(self.freqs)))
 
-        n_pitch = int(p.sampling_rate/self.fftsize)
+        pitch_buffer_length = int(p.sampling_rate*self.buffer_length/self.fftsize)
+        pitch_sampling_rate = p.sampling_rate / self.fftsize
         self.pitchlogs = []
         for i in range(self.nchannels):
-            self.pitchlogs.append(RingBuffer(n_pitch, self.buffer_length*n_pitch))
-        self.cross_spectra = [RingBuffer(n_pitch, self.buffer_length*n_pitch)] * len(self.cross_spectra_combinations)
-        self.cross_phases = [RingBuffer(n_pitch, self.buffer_length*n_pitch)] * len(self.cross_spectra_combinations)
+            self.pitchlogs.append(RingBuffer(pitch_sampling_rate, pitch_buffer_length))
+        self.cross_spectra = [RingBuffer(pitch_sampling_rate, pitch_buffer_length)] * len(self.cross_spectra_combinations)
+        self.cross_phases = [RingBuffer(pitch_sampling_rate, pitch_buffer_length)] * len(self.cross_spectra_combinations)
 
     def set_pitch_algorithm(self, ialgorithm):
         '''
