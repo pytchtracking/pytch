@@ -13,8 +13,8 @@ class Core(qc.QObject):
 
     def __init__(self, *args, **kwargs):
         qc.QObject.__init__(self, *args, **kwargs)
-        buffer_length = 3 * 60.
-        fft_size = 512
+        buffer_length = 10 * 60.
+        fft_size = 4096
         self.data_input = MicrophoneRecorder(data_ready_signal=self.dataReady)
         self.worker = Worker(fft_size, self.data_input, buffer_length)
 
