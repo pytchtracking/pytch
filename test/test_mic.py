@@ -21,7 +21,13 @@ class MicTestCase(unittest.TestCase):
         print('OPTIONS', mic.sampling_rate_options)
         mic.terminate()
 
-
+    def test_zoom(self):
+        ''' works with the zoom interface.'''
+        mic = MicrophoneRecorder(chunksize=512, sampling_rate=44100, nchannels=8)
+        mic.device_no = 5
+        mic.start()
+        time.sleep(1)
+        mic.stop()
 
 if __name__=='__main__':
     unittest.main()
