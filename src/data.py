@@ -170,19 +170,19 @@ class SamplingRateException(Exception):
 
 class MicrophoneRecorder(DataProvider):
 
-    def __init__(self, chunksize=512, data_ready_signal=None):
+    def __init__(self, chunksize=512, sampling_rate=None, nchannels=2, data_ready_signal=None):
         DataProvider.__init__(self)
         self.stream = None
         self.p = pyaudio.PyAudio()
         default = self.p.get_default_input_device_info()
 
         self.device_no = default['index']
-        #self.__sampling_rate = int(default['defaultSampleRate'])
-        self.__sampling_rate = int(16000)
+
+        self.__sampling_rate = sampling_rate or int(default['defaultSampleRate'])
 
         self.chunksize = chunksize
         self.data_ready_signal = data_ready_signal or DummySignal()
-        self.nchannels = 2
+        self.nchannels = nchannels
 
     @property
     def sampling_rate_options(self):
@@ -193,6 +193,7 @@ class MicrophoneRecorder(DataProvider):
         #logger.debug('new data. frame count: %s, time_info:%s' % (frame_count,
         #                                                          time_info))
         data = num.fromstring(data, 'int16')
+
         with _lock:
             self.frames.append(data)
             if self._stop:
@@ -210,7 +211,8 @@ class MicrophoneRecorder(DataProvider):
 
     def start(self):
         if self.stream is None:
-            raise Exception('cannot start stream which is None')
+            self.start_new_stream()
+
         self.stream.start_stream()
         self._stop = False
 
