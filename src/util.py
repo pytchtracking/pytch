@@ -1,6 +1,7 @@
 import logging
 import time
 import numpy as num
+from scipy import signal
 
 logger = logging.getLogger(__name__)
 
@@ -29,11 +30,14 @@ class Profiler():
     def mark(self, m):
         self.times.append((m, time.time()))
 
+    def start(self):
+        self.mark('')
+
     def __str__(self):
         tstart = self.times[0][1]
         s = ''
-        for markt in self.times:
-            s += '%s: %s\n' % (markt[0], markt[1]-tstart)
+        for imark, mark in enumerate(self.times[1:]):
+            s += '%s: %s\n' % (mark[0], mark[1]-self.times[imark][1])
 
         s += 'total: %s' % (self.times[-1][1]-self.times[0][1])
         return s
@@ -76,10 +80,11 @@ def smooth(x,window_len=11,window='hanning'):
     """
 
     if x.ndim != 1:
-        raise ValueError, "smooth only accepts 1 dimension arrays."
+        raise ValueError("smooth only accepts 1 dimension arrays.")
 
     if x.size < window_len:
-        raise ValueError, "Input vector needs to be bigger than window size."
+        return x
+        #raise ValueError("Input vector needs to be bigger than window size.")
 
 
     if window_len<3:
@@ -87,7 +92,7 @@ def smooth(x,window_len=11,window='hanning'):
 
 
     if not window in ['flat', 'hanning', 'hamming', 'bartlett', 'blackman']:
-        raise ValueError, "Window is on of 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'"
+        raise ValueError("Window is on of 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'")
 
 
     s=num.r_[x[window_len-1:0:-1],x,x[-1:-window_len:-1]]
@@ -97,7 +102,8 @@ def smooth(x,window_len=11,window='hanning'):
     else:
         w=eval('num.'+window+'(window_len)')
 
-    y=num.convolve(w/w.sum(),s,mode='valid')
-    return y
+    #y=num.convolve(w/w.sum(),s,mode='valid')
+    #return num.convolve(w/w.sum(),s,mode='valid')
+    return signal.fftconvolve(w/w.sum(),s,mode='valid')
 
 

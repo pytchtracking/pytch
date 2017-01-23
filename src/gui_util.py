@@ -1,7 +1,16 @@
 import math
+import numpy as num
+import sys
+
+import PyQt5.QtGui as qg
 
 
-def nice_value(x):                                                                               
+if sys.version_info < (3, 0):
+    _buffer = buffer
+else:
+    _buffer = memoryview
+
+def nice_value(x):
     '''Round x to nice value.'''
 
     exp = 1.0
@@ -25,6 +34,11 @@ def nice_value(x):
 
     return sign * 0.1 * exp
 
+
+def normalized_to01(d):
+    ''' normalize data vector *d* between 0 and 1'''
+    dmin = num.min(d)
+    return (d-dmin)/(num.max(d)-dmin)
 
 
 
@@ -180,3 +194,75 @@ class AutoScaler():
             else:
                 a = 'min-max'
         return a
+
+
+
+class Projection(object):
+    def __init__(self):
+        self.xr = 0., 1.
+        self.ur = 0., 1.
+
+    def set_in_range(self, xmin, xmax):
+        if xmax == xmin:
+            xmax = xmin + 1.
+
+        self.xr = xmin, xmax
+
+    def get_in_range(self):
+        return self.xr
+
+    def set_out_range(self, umin, umax):
+        if umax == umin:
+            umax = umin + 1.
+
+        self.ur = umin, umax
+
+    def get_out_range(self):
+        return self.ur
+
+    def __call__(self, x):
+        umin, umax = self.ur
+        xmin, xmax = self.xr
+        return umin + (x-xmin)*((umax-umin)/(xmax-xmin))
+
+    def clipped(self, x):
+        umin, umax = self.ur
+        xmin, xmax = self.xr
+        return min(umax, max(umin, umin + (x-xmin)*((umax-umin)/(xmax-xmin))))
+
+    def rev(self, u):
+        umin, umax = self.ur
+        xmin, xmax = self.xr
+        return xmin + (u-umin)*((xmax-xmin)/(umax-umin))
+
+    def copy(self):
+        return copy.copy(self)
+
+
+def make_QPolygonF(xdata, ydata):
+    '''Create a :py:class:`qg.QPolygonF` instance from xdata and ydata, both
+    numpy arrays.'''
+    assert len(xdata) == len(ydata)
+
+    nydata = len(ydata)
+    qpoints = qg.QPolygonF(nydata)
+    vptr = qpoints.data()
+    vptr.setsize(int(nydata*8*2))
+    aa = num.ndarray(
+        shape=(nydata, 2),
+        dtype=num.float64,
+        buffer=_buffer(vptr))
+    aa.setflags(write=True)
+    aa[:, 0] = xdata
+    aa[:, 1] = ydata
+
+    return qpoints
+
+
+def mean_decimation(d, ndecimate):
+    ''' Decimate signal by factor (int) *ndecimate* using averaging.'''
+    pad_size = int(math.ceil(float(d.size)/ndecimate)*ndecimate - d.size)
+    d = num.append(d, num.zeros(pad_size)*num.nan)
+    return num.nanmean(d.reshape(-1, ndecimate), axis=1)
+
+

@@ -1,17 +1,27 @@
 import unittest
 import numpy as num
-from PyQt5.QtWidgets import QApplication, QMainWindow
+from PyQt5.QtWidgets import QApplication, QMainWindow, QHBoxLayout
+
+from PyQt5 import QtGui as qg
 #from PyQt4.QtGui import QApplication, QMainWindow
+import PyQt5 as qt
 import sys
 from pytch import gui_qt4 as gui
 #from pytch import gui
 import time
 
 
+
 #class GUITestCase(unittest.TestCase):
 class MainWindowQClose(QMainWindow):
     def __init__(self, *args, **kwargs):
         QMainWindow.__init__(self, *args, **kwargs)
+        self.layout = QHBoxLayout()
+        self.setLayout(self.layout)
+        print(qg.QOpenGLContext)
+        print(qt.QtOpenGL.QGLWidget)
+        w = qt.QtOpenGL.QGLWidget
+        self.layout.addWidget(w)
 
     def keyPressEvent(self, key_event):
         ''' react on keyboard keys when they are pressed.'''
@@ -76,11 +86,26 @@ class GUITestCase():
         main_window.repaint()
         sys.exit(app.exec_())
 
+    def test_opengl(self):
+        app = QApplication(sys.argv)
+        #main_window = MainWindowQClose()
+
+        window = qg.QWindow()
+        #main_window.layout.addWidget(window)
+        #main_window.setCentralWidget(window)
+
+        window.show()
+
+
+        sys.exit(app.exec_())
+
+
 if __name__=='__main__':
     #unittest.main()
     t = GUITestCase()
     #t.test_scaling()
     #t.test_PitchWidget()
     t.test_ColormapWidget()
+    #t.test_opengl()
 
 
