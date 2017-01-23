@@ -5,10 +5,9 @@ import numpy as num
 import logging
 
 from pytch.util import DummySignal
-
 _lock = threading.Lock()
 
-# class taken from the SciPy 2015 Vispy talk opening example
+# class taken from the scipy 2015 vispy talk opening example
 # see https://github.com/vispy/vispy/pull/928
 
 logger = logging.getLogger(__name__)
@@ -29,7 +28,7 @@ def prepend_to_frame(f, d):
 
 
 def getaudiodevices():
-    ''' Returns a list of device descriptions'''
+    ''' returns a list of device descriptions'''
     p = pyaudio.PyAudio()
     devices = []
     for i in range(p.get_device_count()):
@@ -39,15 +38,14 @@ def getaudiodevices():
 
 
 def sampling_rate_options(device_no, audio=None):
-    ''' List of supported sampling rates.'''
+    ''' list of supported sampling rates.'''
     candidates = [8000., 11.025, 123123123123., 16000., 22050., 32000., 37.800, 44100.,
                   48000.]
-    print(candidates)
     supported_sampling_rates = []
     for c in candidates:
         print(c)
         if check_sampling_rate(device_no, int(c), audio=audio):
-            print('GREAT')
+            print('great')
             supported_sampling_rates.append(c)
 
     return supported_sampling_rates
@@ -61,8 +59,8 @@ def check_sampling_rate(device_index, sampling_rate, audio=None):
         p.is_format_supported(
             sampling_rate,
             input_device=devinfo['index'],
-            input_channels=devinfo['maxInputChannels'],
-            input_format=pyaudio.paInt16)
+            input_channels=devinfo['maxinputchannels'],
+            input_format=pyaudio.paint16)
     except ValueError as e:
         print(e)
         logger.debug(e)
@@ -76,9 +74,9 @@ def check_sampling_rate(device_index, sampling_rate, audio=None):
 
 class Buffer():
 
-    ''' Data container
+    ''' data container
 
-    New data is prepended, so that the latest data point is in self.data[0]'''
+    new data is prepended, so that the latest data point is in self.data[0]'''
     def __init__(self, sampling_rate, buffer_length_seconds, dtype=num.float, tmin=0):
         self.tmin = tmin
         self.tmax = self.tmin + buffer_length_seconds
@@ -100,7 +98,7 @@ class Buffer():
 
     @property
     def t_filled(self):
-        ''' The time to which the data buffer contains data.'''
+        ''' the time to which the data buffer contains data.'''
         return self.tmin + self.i_filled*self.delta
 
     @property
@@ -177,21 +175,53 @@ class SamplingRateException(Exception):
     pass
 
 
+class Channel(Buffer):
+    def __init__(self, sampling_rate):
+        self.buffer_length_seconds = 100
+        Buffer.__init__(self, sampling_rate, self.buffer_length_seconds)
+        self.name = ''
+        self.fftsize = 1024*4
+        self.update()
+
+    def update(self):
+        nfft = (int(self.fftsize), self.delta)
+        self.freqs = num.fft.rfftfreq(*nfft)
+        self.fft = num.ones(self.fftsize)
+
+        self.pitch = RingBuffer(
+            self.sampling_rate/self.fftsize,
+            self.sampling_rate*self.buffer_length_seconds/self.fftsize)
+
+    @property
+    def fftsize(self):
+        return self.__fftsize
+
+    @fftsize.setter
+    def fftsize(self, size):
+        self.__fftsize = size
+        self.update()
+
+
 class MicrophoneRecorder(DataProvider):
 
-    def __init__(self, chunksize=512, data_ready_signal=None):
+    def __init__(self, chunksize=512, device_no=None, sampling_rate=None, nchannels=2, data_ready_signal=None):
         DataProvider.__init__(self)
+
         self.stream = None
         self.p = pyaudio.PyAudio()
+        self.nchannels = nchannels
         default = self.p.get_default_input_device_info()
 
-        self.device_no = default['index']
-        #self.__sampling_rate = int(default['defaultSampleRate'])
-        self.__sampling_rate = int(16000)
+        self.device_no = device_no or default['index']
+        self.sampling_rate = sampling_rate or int(default['defaultSampleRate'])
+
+        self.channels = []
+        for i in range(self.nchannels):
+            c = Channel(self.sampling_rate)
+            self.channels.append(Channel(self.sampling_rate))
 
         self.chunksize = chunksize
         self.data_ready_signal = data_ready_signal or DummySignal()
-        self.nchannels = 2
 
     @property
     def sampling_rate_options(self):
@@ -202,6 +232,7 @@ class MicrophoneRecorder(DataProvider):
         #logger.debug('new data. frame count: %s, time_info:%s' % (frame_count,
         #                                                          time_info))
         data = num.fromstring(data, 'int16')
+
         with _lock:
             self.frames.append(data)
             if self._stop:
@@ -219,7 +250,8 @@ class MicrophoneRecorder(DataProvider):
 
     def start(self):
         if self.stream is None:
-            raise Exception('cannot start stream which is None')
+            self.start_new_stream()
+
         self.stream.start_stream()
         self._stop = False
 
@@ -229,7 +261,7 @@ class MicrophoneRecorder(DataProvider):
 
     @sampling_rate.setter
     def sampling_rate(self, rate):
-        check_sampling_rate(rate, self.device_no, audio=self.p)
+        check_sampling_rate(self.device_no, rate, audio=self.p)
         self.__sampling_rate = rate
 
     def start_new_stream(self):
@@ -269,3 +301,15 @@ class MicrophoneRecorder(DataProvider):
     @property
     def deltat(self):
         return 1./self.sampling_rate
+
+    def flush(self):
+        ''' read data and put it into channels' track_data'''
+        # make this entirely numpy:
+        frames = num.array(self.get_frames())
+        for frame in frames:
+            r = num.reshape(frame, (self.chunksize,
+                                    self.nchannels)).T
+            for i, channel in enumerate(self.channels):
+                channel.append(r[i])
+
+

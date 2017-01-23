@@ -10,6 +10,16 @@ Both, python2 and python3 are supported
 - aubio
 - pyaudio
 
+
+or
+```
+qt5-default
+```
+follow these instructions: http://pyqt.sourceforge.net/Docs/PyQt5/installation.html
+download sip, python configure.py, make, make install
+download pyqt5 src, python configure.py, make, make install
+
+
 ```
 pip3 install pyqt5, pyaudio, git+git://git.aubio.org/git/aubio
 ```
