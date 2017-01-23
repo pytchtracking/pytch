@@ -299,12 +299,12 @@ class DeviceMenu(QDialog):
 
         self.select_input.setCurrentIndex(curr)
 
-        #self.edit_sampling_rate = QLineEdit()
-        self.edit_sampling_rate = LineEditWithLabel('Sampling rate', default=44100)
+        self.edit_sampling_rate = LineEditWithLabel(
+            'Sampling rate', default=44100)
         layout.addWidget(self.edit_sampling_rate)
 
-        #self.edit_nchannels = QLineEdit()
-        self.edit_nchannels = LineEditWithLabel('Number of Channels', default=2)
+        self.edit_nchannels = LineEditWithLabel(
+            'Number of Channels', default=2)
         layout.addWidget(self.edit_nchannels)
 
         buttons = QWidget()
@@ -436,6 +436,7 @@ class ChannelViews(QWidget):
 
         for c_view in self.channel_views:
             self.layout.addWidget(c_view)
+        self.show_trace_widgets(False)
 
     def show_trace_widgets(self, show):
         for c_view in self.channel_views:
@@ -529,8 +530,6 @@ class ContentWidget(QWidget):
 class MainWidget(QWidget):
     ''' top level widget covering the central widget in the MainWindow.'''
 
-    dataReady = qc.pyqtSignal()
-
     def __init__(self, *args, **kwargs):
         QWidget.__init__(self, *args, **kwargs)
 
@@ -548,6 +547,8 @@ class MainWidget(QWidget):
         self.data_input = None
 
         self.make_connections()
+        
+        qc.QTimer().singleShot(0, self.set_input_dialog)
 
     def make_connections(self):
         menu = self.menu
@@ -568,7 +569,6 @@ class MainWidget(QWidget):
         #menu.select_algorithm.activated.connect(worker.set_pitch_algorithm)
 
         self.set_fftsize(3)
-        self.set_input_dialog()
 
     def cleanup(self):
         ''' clear all widgets. '''
@@ -786,16 +786,16 @@ class PlotWidget(QWidget):
             #index = num.arange(0, len(self._xvisible), ndecimate)
             #self._yvisible = self._yvisible[index]
             #self._xvisible = xdata[index]
-            #if self._yvisible.size == 0:
-            #    return
             #p.mark('stop smooth')
             #print(p)
         else:
             self._xvisible = xdata
             self._yvisible = ydata
+        
+        if self._yvisible.size == 0:
+            logger.warn('ydata array empty')
+            return
 
-        self.colormap.set_vlim(num.min(self._yvisible),
-                               num.max(self._yvisible))
         self.update_datalims()
 
     def plotlog(self, xdata=None, ydata=None, ndecimate=0, envelope=False,
@@ -812,6 +812,8 @@ class PlotWidget(QWidget):
             self._ymax = num.max(self._yvisible)
         else:
             self._ymax = self.ymax
+        
+        self.colormap.set_vlim(self._ymin, self._ymax)
 
         if self.tfollow:
             self._xmin = num.max((num.max(self._xvisible) - self.tfollow, 0))
@@ -1077,8 +1079,8 @@ def from_command_line(close_after=None):
         close_timer = qc.QTimer()
         close_timer.timeout.connect(window.close)
         close_timer.start(close_after)
-
-    sys.exit(app.exec_())
+    
+    app.exec_()
 
 
 if __name__ == '__main__':
