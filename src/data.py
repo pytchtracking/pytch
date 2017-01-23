@@ -119,16 +119,19 @@ class Buffer():
         ''' Get the index of the sample (closest) defined by *t* '''
         return int((t-self.tmin) * self.sampling_rate)
 
+    def latest_indices(self, seconds):
+        n = int(min(seconds * self.sampling_rate, self.i_filled))
+        return num.arange(self.i_filled-n, self.i_filled) % self.data.size
+
     def latest_frame(self, seconds):
         ''' Return the latest *seconds* data from buffer as x and y data tuple.'''
-        n = int(min(seconds * self.sampling_rate, self.i_filled))
-        xi = num.arange(self.i_filled-n, self.i_filled) % self.data.size
+        xi = self.latest_indices(seconds)
         return (self._x[xi], self.data[xi])
 
     def latest_frame_data(self, n):
         ''' Return the latest n samples data from buffer as array.'''
-        xi = num.arange(self.i_filled-n, self.i_filled) % self.data.size
-        return self.data[xi]
+        return self.data[num.arange(self.i_filled-n, self.i_filled) %
+                         self.data.size]
 
     def append(self, d):
         ''' Append data frame *d* to Buffer'''
@@ -137,6 +140,12 @@ class Buffer():
             raise Exception('data overflow')
         self.data[self.i_filled:self.i_filled+n] = d
         self.i_filled += n
+
+    def energy(self, nsamples_total, nsamples_sum=1):
+        xi = num.arange(self.i_filled-nsamples_total, self.i_filled)
+        y = self.data[xi].reshape((int(len(xi)/nsamples_sum), nsamples_sum))
+        y = num.sum(y**2, axis=1)
+        return self._x[xi[::nsamples_sum]], y
 
 
 class RingBuffer(Buffer):
