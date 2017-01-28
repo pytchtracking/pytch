@@ -1,14 +1,11 @@
 import unittest
-import numpy as num
-from PyQt5.QtWidgets import QApplication, QMainWindow, QHBoxLayout
-
-from PyQt5 import QtGui as qg
-#from PyQt4.QtGui import QApplication, QMainWindow
-import PyQt5 as qt
 import sys
-from pytch import gui_qt4 as gui
-#from pytch import gui
 import time
+import numpy as num
+
+from PyQt5.QtWidgets import QApplication, QMainWindow, QHBoxLayout
+from PyQt5 import QtGui as qg
+from pytch import gui, plot
 
 
 
@@ -18,10 +15,6 @@ class MainWindowQClose(QMainWindow):
         QMainWindow.__init__(self, *args, **kwargs)
         self.layout = QHBoxLayout()
         self.setLayout(self.layout)
-        print(qg.QOpenGLContext)
-        print(qt.QtOpenGL.QGLWidget)
-        w = qt.QtOpenGL.QGLWidget
-        self.layout.addWidget(w)
 
     def keyPressEvent(self, key_event):
         ''' react on keyboard keys when they are pressed.'''
@@ -86,26 +79,24 @@ class GUITestCase():
         main_window.repaint()
         sys.exit(app.exec_())
 
-    def test_opengl(self):
+    def test_gauge(self):
         app = QApplication(sys.argv)
-        #main_window = MainWindowQClose()
+        main_window = MainWindowQClose()
+        gauge = plot.GaugeWidget()
+        gauge.set_data(3000.)
+        main_window.setCentralWidget(gauge)
 
-        window = qg.QWindow()
-        #main_window.layout.addWidget(window)
-        #main_window.setCentralWidget(window)
-
-        window.show()
-
-
+        main_window.show()
+        main_window.repaint()
         sys.exit(app.exec_())
-
 
 if __name__=='__main__':
     #unittest.main()
     t = GUITestCase()
     #t.test_scaling()
     #t.test_PitchWidget()
-    t.test_ColormapWidget()
-    #t.test_opengl()
+    #t.test_ColormapWidget()
+    t.test_gauge()
+
 
 
