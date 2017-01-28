@@ -3,6 +3,55 @@ import numpy as num
 import sys
 
 import PyQt5.QtGui as qg
+import PyQt5.QtCore as qc
+
+
+
+
+_color_names = [
+    'butter1', 'butter2', 'butter3',
+    'chameleon1', 'chameleon2', 'chameleon3',
+    'orange1', 'orange2', 'orange3',
+    'skyblue1', 'skyblue2', 'skyblue3',
+    'plum1', 'plum2', 'plum3',
+    'chocolate1', 'chocolate2', 'chocolate3',
+    'scarletred1', 'scarletred2', 'scarletred3',
+    'aluminium1', 'aluminium2', 'aluminium3',
+    'aluminium4', 'aluminium5', 'aluminium6',
+    'black', 'grey', 'white',
+    'red', 'green', 'blue',
+    'transparent',
+]
+
+_color_values = [
+    (252, 233,  79), (237, 212,   0), (196, 160,   0),
+    (138, 226,  52), (115, 210,  22), (78,  154,   6),
+    (252, 175,  62), (245, 121,   0), (206,  92,   0),
+    (114, 159, 207), (52,  101, 164), (32,   74, 135),
+    (173, 127, 168), (117,  80, 123), (92,  53, 102),
+    (233, 185, 110), (193, 125,  17), (143,  89,   2),
+    (239,  41,  41), (204,   0,   0), (164,   0,   0),
+    (238, 238, 236), (211, 215, 207), (186, 189, 182),
+    (136, 138, 133), (85,   87,  83), (46,   52,  54),
+    (0, 0, 0), (10, 10, 10), (255, 255, 255),
+    (255, 0, 0), (0, 255, 0), (0, 0, 255),
+    (0, 0, 0, 0),
+]
+
+_colors = dict(
+    zip(_color_names, _color_values))
+
+_pen_styles = {
+    'solid': qc.Qt.SolidLine,
+    'dashed': qc.Qt.DashLine,
+    'dashdot': qc.Qt.DashDotLine,
+    'dotted': qc.Qt.DotLine,
+    '-': qc.Qt.SolidLine,
+    '--': qc.Qt.DashLine,
+    '-.': qc.Qt.DashDotLine,
+    ':': qc.Qt.DotLine,
+    'o': qc.Qt.SolidLine,
+}
 
 
 if sys.version_info < (3, 0):

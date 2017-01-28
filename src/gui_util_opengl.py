@@ -7,7 +7,7 @@
 ## Copyright (C) 2010 Nokia Corporation and/or its subsidiary(-ies).
 ## All rights reserved.
 ##
-## This file is part of the examples of PyQt.
+## This file is part of the examples of PyQt. (Modified)
 ##
 ## $QT_BEGIN_LICENSE:BSD$
 ## You may use this file under the terms of the BSD license as follows:
@@ -43,13 +43,10 @@
 
 
 import sys
-import math, random
 import numpy as num
 
-from PyQt5.QtCore import (QPoint, QPointF, QRect, QRectF, QSize, Qt, QTime,
-        QTimer)
-from PyQt5.QtGui import (QBrush, QColor, QFontMetrics, QImage, QPainter,
-        QRadialGradient, QSurfaceFormat)
+from PyQt5.QtCore import (QSize, QTimer)
+from PyQt5.QtGui import (QBrush, QPainter, QSurfaceFormat)
 from PyQt5 import QtGui as qg
 from PyQt5.QtWidgets import QApplication, QOpenGLWidget, QMainWindow, QHBoxLayout, QWidget
 from pytch.gui_util import make_QPolygonF
@@ -64,7 +61,7 @@ class GLWidget(QOpenGLWidget):
 
         self.canvas = False
 
-        self.setAutoFillBackground(False)
+        self.setAutoFillBackground(True)
         self.setMinimumSize(200, 200)
         self.setWindowTitle("Overpainting a Scene")
 
@@ -80,47 +77,19 @@ class GLWidget(QOpenGLWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
 
-        if self.canvas:
-            self.draw_line(painter, self._xvisible, self._yvisible)
+        #if self.canvas:
+        self.do_draw(painter)
         
         painter.end()
 
     def resizeGL(self, width, height):
         self.setupViewport(width, height)
 
-    def draw_line(self, painter, x, y):
-        ''' this is executed e.g. when self.repaint() is called. Draws the
-        underlying data and scales the content to fit into the widget.'''
+    def do_draw(self, painter):
+        raise Exception('to be implemented in subclass')
 
-        if len(self._xvisible) == 0:
-            return
-
-        qpoints = make_QPolygonF(self.xproj(x), self.yproj(y))
-
-        painter.save()
-        painter.setRenderHint(qg.QPainter.Antialiasing)
-        painter.fillRect(self.rect(), qg.QBrush(self.background_color))
-        painter.setPen(self.pen)
-
-        if not self.draw_fill and not self.draw_points:
-            painter.drawPolyline(qpoints)
-
-        elif self.draw_fill and not self.draw_points:
-            painter.drawPolygon(qpoints)
-            qpath = qg.QPainterPath()
-            qpath.addPolygon(qpoints)
-            painter.fillPath(qpath, self.brush)
-
-        elif self.draw_points:
-            painter.drawPoints(qpoints)
-
-        else:
-            raise Exception('dont know what to draw')
-
-        painter.restore()
-
-    def showEvent(self, event):
-        self.canvas = True
+    #def showEvent(self, event):
+    #    self.canvas = True
 
     def sizeHint(self):
         return QSize(400, 400)
@@ -147,7 +116,7 @@ if __name__ == '__main__':
     glwindow = GLWidget()
     animationTimer = QTimer()
     animationTimer.setSingleShot(False)
-    animationTimer.timeout.connect(glwindow.animate)
+    animationTimer.timeout.connect(glwindow.repaint)
     animationTimer.start(25)
 
     #window.show()

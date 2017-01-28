@@ -1,5 +1,6 @@
 import threading
 import pyaudio
+from aubio import pitch
 import atexit
 import numpy as num
 import logging
@@ -43,9 +44,7 @@ def sampling_rate_options(device_no, audio=None):
                   48000.]
     supported_sampling_rates = []
     for c in candidates:
-        print(c)
         if check_sampling_rate(device_no, int(c), audio=audio):
-            print('great')
             supported_sampling_rates.append(c)
 
     return supported_sampling_rates
@@ -62,7 +61,6 @@ def check_sampling_rate(device_index, sampling_rate, audio=None):
             input_channels=devinfo['maxinputchannels'],
             input_format=pyaudio.paint16)
     except ValueError as e:
-        print(e)
         logger.debug(e)
         valid = False
 
@@ -77,7 +75,7 @@ class Buffer():
     ''' data container
 
     new data is prepended, so that the latest data point is in self.data[0]'''
-    def __init__(self, sampling_rate, buffer_length_seconds, dtype=num.float, tmin=0):
+    def __init__(self, sampling_rate, buffer_length_seconds, dtype=num.float32, tmin=0):
         self.tmin = tmin
         self.tmax = self.tmin + buffer_length_seconds
         self.sampling_rate = sampling_rate
@@ -87,7 +85,7 @@ class Buffer():
 
         self.i_filled = 0
 
-        self._x = num.arange(self.data_len, dtype=num.float64) *self.delta + self.tmin
+        self._x = num.arange(self.data_len, dtype=self.dtype) *self.delta + self.tmin
 
     def empty(self):
         self.data = num.empty((int(self.data_len)),
@@ -107,7 +105,7 @@ class Buffer():
 
     @property
     def xdata(self):
-        return self.tmin + num.arange(self.i_filled, dtype=num.float64) * self.delta
+        return self._x
 
     @property
     def ydata(self):
@@ -118,13 +116,13 @@ class Buffer():
         return int((t-self.tmin) * self.sampling_rate)
 
     def latest_indices(self, seconds):
-        n = int(min(seconds * self.sampling_rate, self.i_filled))
-        return num.arange(self.i_filled-n, self.i_filled) % self.data.size
+        return self.i_filled-int(min(
+            seconds * self.sampling_rate, self.i_filled)), self.i_filled
 
     def latest_frame(self, seconds):
         ''' Return the latest *seconds* data from buffer as x and y data tuple.'''
-        xi = self.latest_indices(seconds)
-        return (self._x[xi], self.data[xi])
+        istart, istop = self.latest_indices(seconds)
+        return (self._x[istart: istop], self.data[istart: istop])
 
     def latest_frame_data(self, n):
         ''' Return the latest n samples data from buffer as array.'''
@@ -176,11 +174,13 @@ class SamplingRateException(Exception):
 
 
 class Channel(Buffer):
-    def __init__(self, sampling_rate):
+    def __init__(self, sampling_rate, fftsize=8192):
         self.buffer_length_seconds = 100
         Buffer.__init__(self, sampling_rate, self.buffer_length_seconds)
         self.name = ''
-        self.fftsize = 1024*4
+        self.pitch_o = False
+        self.fftsize = fftsize
+        self.setup_pitch()
         self.update()
 
     def update(self):
@@ -201,10 +201,20 @@ class Channel(Buffer):
         self.__fftsize = size
         self.update()
 
+    def setup_pitch(self):
+        tolerance = 0.8
+        win_s = self.fftsize
+        #self.pitch_o = pitch(self.pitch_algorithms[ialgorithm],
+        self.pitch_o = pitch('yin',
+          win_s, win_s, self.sampling_rate)
+        self.pitch_o.set_unit("Hz")
+        self.pitch_o.set_tolerance(tolerance)
+
 
 class MicrophoneRecorder(DataProvider):
 
-    def __init__(self, chunksize=512, device_no=None, sampling_rate=None, nchannels=2, data_ready_signal=None):
+    def __init__(self, chunksize=512, device_no=None, sampling_rate=None, fftsize=1024,
+                 nchannels=2, data_ready_signal=None):
         DataProvider.__init__(self)
 
         self.stream = None
@@ -217,8 +227,8 @@ class MicrophoneRecorder(DataProvider):
 
         self.channels = []
         for i in range(self.nchannels):
-            c = Channel(self.sampling_rate)
-            self.channels.append(Channel(self.sampling_rate))
+            c = Channel(self.sampling_rate, fftsize=fftsize)
+            self.channels.append(c)
 
         self.chunksize = chunksize
         self.data_ready_signal = data_ready_signal or DummySignal()
@@ -229,9 +239,7 @@ class MicrophoneRecorder(DataProvider):
         return sampling_rate_options(self.device_no, audio=self.p)
 
     def new_frame(self, data, frame_count, time_info, status):
-        #logger.debug('new data. frame count: %s, time_info:%s' % (frame_count,
-        #                                                          time_info))
-        data = num.fromstring(data, 'int16')
+        data = num.asarray(num.fromstring(data, 'int16'), num.float32)
 
         with _lock:
             self.frames.append(data)

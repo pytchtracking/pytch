@@ -1,15 +1,34 @@
 #!/usr/bin/env python
 
-import logging
 import argparse
 
 from pytch.gui import from_command_line
+import logging
+#logging.basicConfig(level=args.loglevel)
+#logger = logging.getLogger()
+#logger_stream_handler = logging.StreamHandler()
+#logger_stream_handler.setLevel(logging.DEBUG)
+#logger = logging.getLogger(__name__)
+#logger.addHandler(logger_stream_handler)
+
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser('pytch')
     parser.add_argument(
         '--loglevel', required=False, default='INFO',
         help='Set logging level.')
+
+    parser.add_argument('--check-opengl', required=False,
+                        dest='check_opengl',
+                        default=False,
+                        action='store_true',
+                        help='Test if opengl is supported.')
+
+    parser.add_argument('--no-opengl', required=False,
+                        dest='use_opengl',
+                        default=False,
+                        action='store_false',
+                        help='Do not use opengl')
 
     parser.add_argument('--close-after', required=False,
                         dest='close_after',
@@ -19,10 +38,11 @@ if __name__=='__main__':
                         help='Close after N seconds. Utility option for\
                         performance tests.')
 
-    args = parser.parse_args()
-    logging.basicConfig(level=args.loglevel)
-    logger = logging.getLogger()
+    logging.basicConfig(level=logging.DEBUG)
+    logger = logging.getLogger(__name__)
     logger.info('starting pytch')
-    logger.debug('debug pytch')
 
-    from_command_line(args.close_after)
+    args = parser.parse_args()
+    from_command_line(args.close_after,
+                      args.check_opengl,
+                      args.use_opengl)

@@ -19,7 +19,7 @@ class Worker():
         :param buffer_length: in seconds'''
 
         self.ndata_scale = 16*2
-        self.processingFinished = DummySignal()
+        #self.processingFinished = DummySignal()
         self.buffer_length = buffer_length     # seconds
         self.pitch_algorithms = ['default', 'schmitt', 'fcomb', 'mcomb',
                                  'specacf', 'yin', 'yinfft']
@@ -42,12 +42,12 @@ class Worker():
             tolerance = 0.8
             win_s = channel.fftsize
 
-            p = pitch(self.pitch_algorithms[ialgorithm],
-                      win_s, win_s, channel.sampling_rate)
-            p.set_unit("Hz")
-            p.set_tolerance(tolerance)
+            #p = pitch(self.pitch_algorithms[ialgorithm],
+            #          win_s, win_s, channel.sampling_rate)
+            #p.set_unit("Hz")
+            #p.set_tolerance(tolerance)
 
-            channel.pitch_o = p
+            #channel.pitch_o = p
 
     def set_pmin(self, v):
         self.pmin = v
@@ -68,8 +68,9 @@ class Worker():
             if total_power < self.pmin:
                 new_pitch_Cent = -9999999.
             else:
-                pitch = channel.pitch_o(frame_work.astype(num.float32))[0]
-                new_pitch_Cent = 1200. * math.log((pitch + .1)/120., 2)
+                #pitch = channel.pitch_o(frame_work.astype(num.float32))[0]
+                new_pitch_Cent = 1200. * math.log((
+                    channel.pitch_o(frame_work)[0] + .1)/120., 2)
             channel.pitch.append(num.array([new_pitch_Cent]))
 
         #    #pitch_confidence2 = pitch_o.get_confidence()
@@ -89,7 +90,7 @@ class Worker():
 
         #    # plot self.new_pitcj1Cent - self.newptch2Cent und anders rum
         #    #self.signalReady.emit()
-        self.processingFinished.emit()
+        #self.processingFinished.emit()
 
         logger.debug('finished processing')
 

@@ -10,7 +10,7 @@ from pytch.data import MicrophoneRecorder, getaudiodevices, sampling_rate_option
 from pytch.gui_util import AutoScaler, Projection, mean_decimation
 from pytch.gui_util import make_QPolygonF, _color_names, _colors, _pen_styles    # noqa
 from pytch.util import Profiler, smooth
-from pytch.gui_util_opengl import GLWidget#:, #Canvas#Bubble
+
 
 if False:
     from PyQt4 import QtCore as qc
@@ -28,6 +28,25 @@ else:
     from PyQt5.QtWidgets import QGridLayout, QSpacerItem, QDialog, QLineEdit
 
 logger = logging.getLogger(__name__)
+
+try:
+    from pytch.gui_util_opengl import GLWidget
+    __PlotSuperClass = GLWidget
+except ImportError:
+    logger.warn('no opengl support')
+    
+    class PlotWidgetBase(QWidget):
+
+        def paintEvent(self, e):
+            painter = qg.QPainter(self)
+            self.do_draw(painter)
+
+        def do_draw(self, painter):
+            raise Exception('to be implemented in subclass')
+
+    __PlotSuperClass = PlotWidgetBase
+
+
 use_pyqtgraph = False
 tfollow = 3.
 fmax = 2000.
@@ -163,7 +182,7 @@ class ColormapWidget(QWidget):
             patch = qc.QRect(qc.QPoint(rect.left(), yvals[i]),
                              qc.QPoint(rect.right(), yvals[i+1]))
             painter.save()
-            painter.fillRect(patch, qg.QBrush(self.colors[i]))
+            #painter.fillRect(patch, qg.QBrush(self.colors[i]))
             painter.restore()
 
     def sizeHint(self):
@@ -212,13 +231,12 @@ class GaugeWidget(QWidget):
             self._val = math.log(val) * 100
 
 
-#class PlotWidget(QWidget):
-class PlotWidget(GLWidget):
+
+class PlotWidget(__PlotSuperClass):
     ''' a plotwidget displays data (x, y coordinates). '''
 
-    def __init__(self, buffer=None, *args, **kwargs):
-        #QWidget.__init__(self, *args, **kwargs)
-        GLWidget.__init__(self, *args, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super(PlotWidget, self).__init__(*args, **kwargs)
         layout = QVBoxLayout()
         self.setLayout(layout)
         self.setContentsMargins(1, 1, 1, 1)
@@ -360,7 +378,8 @@ class PlotWidget(GLWidget):
 
     def set_data(self, xdata=None, ydata=None, ndecimate=0):
         #p = Profiler()
-        if ndecimate != 0.:
+        if ndecimate != 0:
+            #if True:
             #p.start()
             self._xvisible = mean_decimation(xdata, ndecimate)
             self._yvisible = mean_decimation(ydata, ndecimate)
@@ -441,7 +460,7 @@ class PlotWidget(GLWidget):
         self.ymin = ymin
         self.ymax = ymax
 
-    def oldpaintEvent(self, e):
+    def do_draw(self, painter):
         ''' this is executed e.g. when self.repaint() is called. Draws the
         underlying data and scales the content to fit into the widget.'''
 
@@ -451,7 +470,6 @@ class PlotWidget(GLWidget):
         qpoints = make_QPolygonF(self.xproj(self._xvisible),
                                  self.yproj(self._yvisible))
 
-        painter = qg.QPainter(self)
         painter.save()
         painter.setRenderHint(qg.QPainter.Antialiasing)
         painter.fillRect(self.rect(), qg.QBrush(self.background_color))
@@ -476,6 +494,7 @@ class PlotWidget(GLWidget):
         self.draw_deco(painter)
 
     def draw_deco(self, painter):
+        painter.save()
         self.draw_axes(painter)
         # self.draw_labels(painter)
         self.draw_y_ticks(painter)
@@ -483,7 +502,8 @@ class PlotWidget(GLWidget):
 
         if self.show_grid:
             self.draw_grid_lines(painter)
-
+        painter.restore()
+    
     def draw_grid_lines(self, painter):
         ''' draw semi transparent grid lines'''
         w, h = self.wh
@@ -611,7 +631,7 @@ class PlotPitchWidget(PlotWidget):
 
         painter = qg.QPainter(self)
         painter.setRenderHint(qg.QPainter.Antialiasing)
-        painter.fillRect(self.rect(), qg.QBrush(self.background_color))
+        #painter.fillRect(self.rect(), qg.QBrush(self.background_color))
         # p.mark('start draw lines')
         for iline, line in enumerate(lines):
             painter.save()

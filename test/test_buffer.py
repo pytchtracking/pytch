@@ -65,13 +65,9 @@ class BufferTestCase(unittest.TestCase):
         r = RingBuffer(1, 10) 
         d = num.arange(3)
         r.append(d)
-        print r.data
         r.append(d)
-        print r.data
         r.append(d)
-        print r.data
         r.append(d)
-        print r.data
 
 if __name__=='__main__':
     unittest.main()
