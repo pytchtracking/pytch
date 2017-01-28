@@ -7,7 +7,7 @@ import logging
 from pytch.two_channel_tuner import cross_spectrum, Worker
 
 from pytch.data import MicrophoneRecorder, getaudiodevices, sampling_rate_options
-from pytch.gui_util import AutoScaler, Projection, mean_decimation
+from pytch.gui_util import AutoScaler, Projection, mean_decimation, minmax_decimation
 from pytch.gui_util import make_QPolygonF, _color_names, _colors, _pen_styles    # noqa
 from pytch.util import Profiler, smooth
 
@@ -26,6 +26,7 @@ else:
     from PyQt5.QtWidgets import QAction, QSlider, QPushButton, QDockWidget
     from PyQt5.QtWidgets import QCheckBox, QSizePolicy, QFrame, QMenu
     from PyQt5.QtWidgets import QGridLayout, QSpacerItem, QDialog, QLineEdit
+
 
 logger = logging.getLogger(__name__)
 
@@ -255,6 +256,7 @@ class PlotWidget(__PlotSuperClass):
         self._ymax = 1.
         self._xmin = 0.
         self._xmax = 1.
+        self._xinc = None
 
         self.left = 0.15
         self.right = 1.
@@ -381,8 +383,9 @@ class PlotWidget(__PlotSuperClass):
         if ndecimate != 0:
             #if True:
             #p.start()
-            self._xvisible = mean_decimation(xdata, ndecimate)
-            self._yvisible = mean_decimation(ydata, ndecimate)
+            #self._xvisible = minmax_decimation(xdata, ndecimate)
+            self._xvisible = xdata[::ndecimate]
+            self._yvisible = minmax_decimation(ydata, ndecimate)
             #p.mark('finisehd mean')
             #self._yvisible = smooth(ydata, window_len=ndecimate*2)[::ndecimate]
             #index = num.arange(0, len(self._xvisible), ndecimate)
@@ -528,18 +531,22 @@ class PlotWidget(__PlotSuperClass):
                   qc.QPoint(w*self.right, h*(1.-self.top))]
         painter.drawPoints(qg.QPolygon(points))
 
+    def set_xtick_increment(self, increment):
+        self._xinc = increment
+
     def draw_x_ticks(self, painter):
         w, h = self.wh
         xmin, xmax, xinc = self.xscaler.make_scale((self._xmin, self._xmax))
-        ticks = num.arange(xmin, xmax, xinc)
+        _xinc = self._xinc or xinc
+        ticks = num.arange(xmin, xmax, _xinc)
         ticks_proj = self.xproj(ticks)
         tick_anchor = self.top*h
         lines = [qc.QLineF(xval, tick_anchor * 0.8, xval, tick_anchor)
                  for xval in ticks_proj]
 
         painter.drawLines(lines)
-        for i, xval in enumerate(ticks):
-            painter.drawText(qc.QPointF(ticks_proj[i], tick_anchor), str(xval))
+        #for i, xval in enumerate(ticks):
+        #    painter.drawText(qc.QPointF(ticks_proj[i], tick_anchor), str(xval))
 
     def draw_y_ticks(self, painter):
         w, h = self.wh

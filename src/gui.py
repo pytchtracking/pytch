@@ -271,6 +271,7 @@ class ChannelView(QWidget):
         self.setLayout(layout)
 
         self.trace_widget = PlotWidget()#parent=self)
+        #self.trace_widget.set_xtick_increment(1.)
         layout.addWidget(self.trace_widget)
         self.trace_widget.set_ylim(-1000., 1000.)
 
@@ -282,10 +283,10 @@ class ChannelView(QWidget):
     def draw(self):
         c = self.channel
         self.trace_widget.plot(*c.latest_frame(
-            tfollow), ndecimate=2, color=self.color)
+            tfollow), ndecimate=20, color=self.color)
 
         self.spectrum.plotlog(c.freqs, num.abs(c.fft), color=self.color,
-                              ignore_nan=True)
+                              ignore_nan=True)#, ndecimate=2)
         self.trace_widget.update()
         self.spectrum.update()
 
@@ -397,7 +398,7 @@ class MainWidget(QWidget):
         self.top_layout.addWidget(self.pitch_view_widget)
         self.menu.connect_pitch_view(self.pitch_view_widget)
         self.menu.connect_channel_views(self.channel_views_widget)
-        self.refresh_timer.start(50)
+        self.refresh_timer.start(57)
 
     def set_input(self, input):
 
