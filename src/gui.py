@@ -307,17 +307,20 @@ class PitchLevelDifferenceViews(QWidget):
                 if i1>=i2:
                     continue
                 w = GaugeWidget(parent=self)
-                w.set_title('%s %s' % (i1, i2))
+                w.set_title('Channels: %s %s' % (i1, i2))
                 self.widgets.append((cv1, cv2, w))
                 layout.addWidget(w, i1, i2)
 
     def draw(self):
         for cv1, cv2, w in self.widgets:
             #w.set_data(
-            #    cv1.channel.pitch.latest_frame_data(1) -
-            #    cv2.channel.pitch.latest_frame_data(1))
-            w.set_data(cv1.channel.pitch.latest_frame_data(1))
-        self.repaint()
+            #    abs(cv1.channel.pitch.latest_frame_data(1) -
+            #    cv2.channel.pitch.latest_frame_data(1)))
+            w.set_data(
+                abs(cv1.channel.pitch.latest_frame_data(1)))
+
+        for cv1, cv2, w in self.widgets:
+            w.repaint()
 
 class PitchWidget(QWidget):
     def __init__(self, channel_views, *args, **kwargs):
@@ -440,7 +443,12 @@ class MainWidget(QWidget):
         self.cleanup()
 
         self.data_input = input
-        self.data_input.start_new_stream()
+        try:
+            self.data_input.start_new_stream()
+        except OSError as e:
+            # to be caught!
+            raise e
+            #self.set_input_dialog()
 
         self.reset()
 
@@ -494,8 +502,8 @@ class MainWindow(QMainWindow):
         return qc.QSize(900, 600)
 
 
-def from_command_line(close_after=None, check_opengl=False,
-                      disable_opengl=False, settings=None):
+def from_command_line(close_after=None, settings=None, check_opengl=False,
+                      disable_opengl=False):
     ''' Start the GUI from command line'''
     if check_opengl:
         try:
@@ -508,8 +516,16 @@ def from_command_line(close_after=None, check_opengl=False,
             sys.exit()
 
     app = QApplication(sys.argv)
+    
+    if settings is None:
+        settings = DeviceMenuSetting()
+        settings.accept = False
+    else:
+        # for debugging!
+        # settings file to be loaded in future
+        settings = DeviceMenuSetting()
+        settings.accept = True
 
-    settings = settings or DeviceMenuSetting()
     window = MainWindow(settings=settings)
 
     if close_after:

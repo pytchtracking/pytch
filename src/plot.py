@@ -194,18 +194,35 @@ class ColormapWidget(QWidget):
 class GaugeWidget(__PlotSuperClass):
     def __init__(self, *args, **kwargs):
         super(GaugeWidget, self).__init__(*args, **kwargs)
-
+        
+        self._painter = None
         self.color = qg.QColor(0, 100, 100)
         self._val = 0
-        self.title = ''  # to be writen as qstatictext
+        self.set_title('')
 
         self.proj = Projection()
-        self.proj.set_out_range(0, 2880.)
+        self.proj.set_out_range(0., 2880)
         self.proj.set_in_range(0, 1500.)
+        
+        self.scaler = AutoScaler(
+            no_exp_interval=(-3, 2), approx_ticks=7,
+            snap=True
+        )
 
         size_policy = QSizePolicy()
         size_policy.setHorizontalPolicy(QSizePolicy.Minimum)
         self.setSizePolicy(size_policy)
+        self._f = -180./2880.
+    
+    #def resizeEvent(self, e):
+    #    print(e)
+    #    print(self._painter)
+    #    if self._painter is not None:
+    #        self.draw_deco(self._painter)
+    #    #painter = qg.QPainter(self)
+    #    #pen = qg.QPen(self.color, 20, qc.Qt.SolidLine)
+    #    #painter.setPen(pen)
+    #    super(GaugeWidget, self).resizeEvent(e)
 
     def do_draw(self, painter):
         ''' This is executed when self.repaint() is called'''
@@ -214,9 +231,40 @@ class GaugeWidget(__PlotSuperClass):
         painter.setPen(pen)
         painter.drawArc(self.rect(), 2880., -self.proj.clipped(self._val))
         painter.restore()
+        self._painter = painter
+
+        self.draw_deco(painter)
+
+    def draw_deco(self, painter):
+        self.draw_ticks(painter)
+        self.draw_title(painter)
+    
+    def draw_title(self, painter):
+        painter.save()
+        w, h = self.width(), self.height()
+        painter.translate(w/2, h/2)
+        painter.drawStaticText(1, 2, self.title)
+        painter.restore()
+
+    def draw_ticks(self, painter):
+        # needs some performance polishing !!!
+        painter.save()
+        painter.translate(self.width()/2, self.height()/2)
+        xmin, xmax, xinc = self.scaler.make_scale(self.proj.get_in_range())
+        ticks = num.arange(xmin, xmax, xinc)
+        ticks_proj = self.proj(ticks)
+        # expensive. can be made cheaper. By creating list of lines first.
+        for i, degree in enumerate(ticks_proj):
+            painter.save()
+            painter.rotate(degree * self._f)
+            painter.drawLine(180, 0, 196, 0)
+            painter.drawText(180, 0, str(ticks[-i]))
+            painter.restore()
+        
+        painter.restore()
 
     def set_title(self, title):
-        self.title = title
+        self.title = qg.QStaticText(title)
 
     def set_data(self, val):
         '''
