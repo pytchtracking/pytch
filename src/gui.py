@@ -8,7 +8,7 @@ from pytch.data import MicrophoneRecorder, getaudiodevices, sampling_rate_option
 from pytch.gui_util import AutoScaler, Projection, mean_decimation
 from pytch.gui_util import make_QPolygonF, _color_names, _colors # noqa
 from pytch.util import Profiler, smooth
-from pytch.plot import PlotWidget
+from pytch.plot import PlotWidget, GaugeWidget
 
 if False:
     from PyQt4 import QtCore as qc
@@ -24,7 +24,7 @@ else:
     from PyQt5.QtWidgets import QAction, QSlider, QPushButton, QDockWidget
     from PyQt5.QtWidgets import QCheckBox, QSizePolicy, QFrame, QMenu
     from PyQt5.QtWidgets import QGridLayout, QSpacerItem, QDialog, QLineEdit
-    from PyQt5.QtWidgets import QDialogButtonBox
+    from PyQt5.QtWidgets import QDialogButtonBox, QTabWidget
 
 
 logger = logging.getLogger(__name__)
@@ -93,7 +93,7 @@ class DeviceMenu(QDialog):
         self.edit_nchannels = LineEditWithLabel(
             'Number of Channels', default=2)
         layout.addWidget(self.edit_nchannels)
-        
+
         layout.addWidget(QLabel('NFFT'))
         self.nfft_choice = self.get_nfft_box()
         layout.addWidget(self.nfft_choice)
@@ -137,7 +137,7 @@ class DeviceMenu(QDialog):
 
         if settings.device_index is not None:
             menu.select_input.setCurrentIndex(settings.device_index)
-        
+
         if accept:
             qc.QTimer().singleShot(10, menu.on_ok_clicked)
 
@@ -237,7 +237,7 @@ class ChannelViews(QWidget):
 
         for c_view in self.channel_views:
             self.layout.addWidget(c_view)
-        
+
         self.show_trace_widgets(False)
 
     def show_trace_widgets(self, show):
@@ -293,6 +293,31 @@ class ChannelView(QWidget):
     def show_trace_widget(self, show=True):
         self.trace_widget.setVisible(show)
 
+
+class PitchLevelDifferenceViews(QWidget):
+    def __init__(self, channel_views, *args, **kwargs):
+        QWidget.__init__(self, *args, **kwargs)
+        self.channel_views = channel_views
+        layout = QGridLayout()
+        self.setLayout(layout)
+        self.widgets = []
+
+        for i1, cv1 in enumerate(self.channel_views):
+            for i2, cv2 in enumerate(self.channel_views):
+                if i1>=i2:
+                    continue
+                w = GaugeWidget(parent=self)
+                w.set_title('%s %s' % (i1, i2))
+                self.widgets.append((cv1, cv2, w))
+                layout.addWidget(w, i1, i2)
+
+    def draw(self):
+        for cv1, cv2, w in self.widgets:
+            #w.set_data(
+            #    cv1.channel.pitch.latest_frame_data(1) -
+            #    cv2.channel.pitch.latest_frame_data(1))
+            w.set_data(cv1.channel.pitch.latest_frame_data(1))
+        self.repaint()
 
 class PitchWidget(QWidget):
     def __init__(self, channel_views, *args, **kwargs):
@@ -394,10 +419,20 @@ class MainWidget(QWidget):
         self.channel_views_widget = ChannelViews(channel_views)
         self.top_layout.addWidget(self.channel_views_widget)
 
-        self.pitch_view_widget = PitchWidget(channel_views)
-        self.top_layout.addWidget(self.pitch_view_widget)
-        self.menu.connect_pitch_view(self.pitch_view_widget)
+        tabbed_pitch_widget = QTabWidget()
+        tabbed_pitch_widget.setSizePolicy(QSizePolicy.Minimum,
+                                          QSizePolicy.Minimum)
+
+        self.top_layout.addWidget(tabbed_pitch_widget)
+
+        self.pitch_view = PitchWidget(channel_views)
+        self.menu.connect_pitch_view(self.pitch_view)
         self.menu.connect_channel_views(self.channel_views_widget)
+
+        self.pitch_diff_view = PitchLevelDifferenceViews(channel_views)
+
+        tabbed_pitch_widget.addTab(self.pitch_view, 'Pitches')
+        tabbed_pitch_widget.addTab(self.pitch_diff_view, 'Diff')
         self.refresh_timer.start(57)
 
     def set_input(self, input):
@@ -406,20 +441,21 @@ class MainWidget(QWidget):
 
         self.data_input = input
         self.data_input.start_new_stream()
-        
+
         self.reset()
 
     def refreshwidgets(self):
         self.data_input.flush()
         self.worker.process()
         self.channel_views_widget.draw()
-        self.pitch_view_widget.draw()
+        self.pitch_view.draw()
+        self.pitch_diff_view.draw()
 
     def set_fftsize(self, size):
         self.cleanup()
         for channel in self.data_input.channels:
             channel.fftsize = size
-        
+
         self.reset()
 
     def closeEvent(self, ev):

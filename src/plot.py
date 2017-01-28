@@ -35,11 +35,12 @@ try:
     __PlotSuperClass = GLWidget
 except ImportError:
     logger.warn('no opengl support')
-    
+
     class PlotWidgetBase(QWidget):
 
         def paintEvent(self, e):
             painter = qg.QPainter(self)
+
             self.do_draw(painter)
 
         def do_draw(self, painter):
@@ -190,47 +191,41 @@ class ColormapWidget(QWidget):
         return qc.QSize(100, 500)
 
 
-class GaugeWidget(QWidget):
+class GaugeWidget(__PlotSuperClass):
     def __init__(self, *args, **kwargs):
-        '''
-        '''
-        QWidget.__init__(self, *args, **kwargs)
-        hbox_fixedGain = QVBoxLayout()
-        fixedGain = QLabel('Gauge')
-        hbox_fixedGain.addWidget(fixedGain)
-        self.setLayout(hbox_fixedGain)
-        self.clip = None
-        self.rectf = qc.QRectF(10., 10., 100., 100.)
-        self.color = qg.QColor(0, 0, 0)
-        self.clip_color = qg.QColor(255, 0, 0)
+        super(GaugeWidget, self).__init__(*args, **kwargs)
+
+        self.color = qg.QColor(0, 100, 100)
         self._val = 0
+        self.title = ''  # to be writen as qstatictext
 
-    def set_clip(self, clip_value):
-        ''' Set a clip value'''
-        self.clip = clip_value
+        self.proj = Projection()
+        self.proj.set_out_range(0, 2880.)
+        self.proj.set_in_range(0, 1500.)
 
-    def paintEvent(self, e):
+        size_policy = QSizePolicy()
+        size_policy.setHorizontalPolicy(QSizePolicy.Minimum)
+        self.setSizePolicy(size_policy)
+
+    def do_draw(self, painter):
         ''' This is executed when self.repaint() is called'''
-        painter = qg.QPainter(self)
-        if self._val < self.clip and self.clip:
-            color = self.color
-        else:
-            color = self.clip_color
-        pen = qg.QPen(color, 20, qc.Qt.SolidLine)
+        painter.save()
+        pen = qg.QPen(self.color, 20, qc.Qt.SolidLine)
         painter.setPen(pen)
-        painter.drawArc(self.rectf, 2880., self._val)
-        # painter.drawPie(self.rectf, 2880., self._val)
+        painter.drawArc(self.rect(), 2880., -self.proj.clipped(self._val))
+        painter.restore()
 
-    def update_value(self, val):
+    def set_title(self, title):
+        self.title = title
+
+    def set_data(self, val):
         '''
         Call this method to update the arc
         '''
-        if self.clip:
-            # 2880=16*180 (half circle)
-            self._val = min(math.log(val)/math.log(self.clip)*2880., 2880)
-        else:
-            self._val = math.log(val) * 100
+        self._val = val
 
+    def sizeHint(self):
+        return qc.QSize(500, 500)
 
 
 class PlotWidget(__PlotSuperClass):
