@@ -315,3 +315,10 @@ def mean_decimation(d, ndecimate):
     return num.nanmean(d.reshape(-1, ndecimate), axis=1)
 
 
+def minmax_decimation(d, ndecimate):
+    pad_size = int(math.ceil(float(d.size)/ndecimate)*ndecimate - d.size)
+    d = num.append(d, num.zeros(pad_size)*num.nan).reshape(-1, ndecimate)
+    dout = num.nanmax(d, axis=1)
+    dout[::2] = num.nanmin(d[::2], axis=1)
+    return dout
+
