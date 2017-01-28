@@ -55,9 +55,6 @@ from pytch.gui_util import make_QPolygonF
 class GLWidget(QOpenGLWidget):
     def __init__(self, parent=None):
         super(GLWidget, self).__init__(parent)
-        
-        self._xvisible = num.arange(2)
-        self._yvisible = num.arange(2)
 
         self.canvas = False
 
@@ -79,7 +76,7 @@ class GLWidget(QOpenGLWidget):
 
         #if self.canvas:
         self.do_draw(painter)
-        
+
         painter.end()
 
     def resizeGL(self, width, height):
