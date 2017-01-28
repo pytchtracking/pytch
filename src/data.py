@@ -289,7 +289,8 @@ class MicrophoneRecorder(DataProvider):
     def stop(self):
         with _lock:
             self._stop = True
-        self.stream.stop_stream()
+        if self.stream is not None:
+            self.stream.stop_stream()
 
     def close(self):
         self.stop()
