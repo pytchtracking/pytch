@@ -1,15 +1,9 @@
-import sys
 import numpy as num
 import scipy.interpolate as interpolate
-import math
 import logging
 
-from pytch.two_channel_tuner import cross_spectrum, Worker
-
-from pytch.data import MicrophoneRecorder, getaudiodevices, sampling_rate_options
-from pytch.gui_util import AutoScaler, Projection, mean_decimation, minmax_decimation
+from pytch.gui_util import AutoScaler, Projection, minmax_decimation
 from pytch.gui_util import make_QPolygonF, _color_names, _colors, _pen_styles    # noqa
-from pytch.util import Profiler, smooth
 
 
 if False:
@@ -21,7 +15,7 @@ if False:
 else:
     from PyQt5 import QtCore as qc
     from PyQt5 import QtGui as qg
-    from PyQt5.QtWidgets import QApplication, QWidget, QHBoxLayout, QLabel
+    from PyQt5.QtWidgets import QApplication, QWidget, QLabel
     from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QComboBox
     from PyQt5.QtWidgets import QAction, QSlider, QPushButton, QDockWidget
     from PyQt5.QtWidgets import QCheckBox, QSizePolicy, QFrame, QMenu
@@ -92,8 +86,11 @@ class InterpolatedColormap:
         return qg.QColor(*self.map(val))
 
     def set_vlim(self, vmin, vmax):
-        self.proj.set_in_range(vmin, vmax)
-        self.update()
+        if (vmin, vmax) == self.proj.get_in_range():
+            return
+        else:
+            self.proj.set_in_range(vmin, vmax)
+            self.update()
 
     def get_incremented_values(self, n=40):
         ''' has to be implemented by every subclass. Needed for plotting.'''
@@ -127,6 +124,13 @@ class Colormap(InterpolatedColormap):
         InterpolatedColormap.__init__(self, name=name)
         self.n = n
         self.update()
+
+    def set_vlim(self, vmin, vmax):
+        if (vmin, vmax) == self.proj.get_in_range():
+            return
+        else:
+            self.proj.set_in_range(vmin, vmax)
+            self.update()
 
     def update(self):
         vals = self.get_incremented_values()
@@ -194,7 +198,7 @@ class ColormapWidget(QWidget):
 class GaugeWidget(__PlotSuperClass):
     def __init__(self, *args, **kwargs):
         super(GaugeWidget, self).__init__(*args, **kwargs)
-        
+
         self._painter = None
         self.color = qg.QColor(0, 100, 100)
         self._val = 0
@@ -203,7 +207,7 @@ class GaugeWidget(__PlotSuperClass):
         self.proj = Projection()
         self.proj.set_out_range(0., 2880)
         self.proj.set_in_range(0, 1500.)
-        
+
         self.scaler = AutoScaler(
             no_exp_interval=(-3, 2), approx_ticks=7,
             snap=True
@@ -213,7 +217,7 @@ class GaugeWidget(__PlotSuperClass):
         size_policy.setHorizontalPolicy(QSizePolicy.Minimum)
         self.setSizePolicy(size_policy)
         self._f = -180./2880.
-    
+
     #def resizeEvent(self, e):
     #    print(e)
     #    print(self._painter)
