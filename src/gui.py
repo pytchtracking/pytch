@@ -314,12 +314,9 @@ class PitchLevelMikadoViews(QWidget):
 
     def draw(self):
         for cv1, cv2, w in self.widgets:
-            #w.set_data(
-            #    abs(cv1.channel.pitch.latest_frame_data(1) -
-            #    cv2.channel.pitch.latest_frame_data(1)))
-            w.fill_between(
-                *cv1.channel.pitch.latest_frame(60),
-                *cv2.channel.pitch.latest_frame(60))
+            x1, y1 = cv1.channel.pitch.latest_frame(60)
+            x2, y2 = cv2.channel.pitch.latest_frame(60)
+            w.fill_between(x1, y1, x2, y2)
 
         for cv1, cv2, w in self.widgets:
             w.repaint()
