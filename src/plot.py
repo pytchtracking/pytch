@@ -272,6 +272,77 @@ class GaugeWidget(__PlotSuperClass):
         return qc.QSize(500, 500)
 
 
+class Grid():
+    def __init__(self, horizontal=True, vertical=True):
+        self.vertical = vertical
+        self.horizontal = horizontal
+
+    def draw_grid(self, widget, painter):
+        return
+
+
+class AutoGrid():
+    def __init__(self, *args, **kwargs):
+        Grid.__init__(self, *args, **kwargs)
+
+        pen_color = 'aluminium2'
+        pen_style = ':'
+        line_width = 1
+        
+        self.data_lims_v = (None, None)
+        self.data_lims_h = (None, None)
+        self.lines_h = []
+        self.lines_v = []
+        self.grid_pen = qg.QPen(qg.QColor(*_colors[pen_color]),
+                           line_width, _pen_styles[pen_style])
+    
+    def draw_grid(self, widget, painter):
+        lines = []
+        if self.horizontal:
+            lines.extend(self.lines_horizontal(widget, painter))
+
+        if self.vertical:
+            lines.extend(self.lines_vertical(widget, painter))
+        
+        painter.save()
+        painter.setPen(self.grid_pen)
+        painter.drawLines(lines)
+        painter.restore()
+
+    def lines_horizontal(self, widget, painter):
+        ''' setup horizontal grid lines'''
+        
+        if not (widget._ymin, widget._ymax) == self.data_lims_h:
+            ymin, ymax, yinc = widget.yscaler.make_scale(
+                (widget._ymin, widget._ymax)
+            )
+            ticks_proj = widget.yproj(num.arange(ymin, ymax, yinc))
+
+            w, h = widget.wh
+            self.lines_h = [qc.QLineF(w * widget.left * 0.8, yval, w, yval)
+                     for yval in ticks_proj]
+            self.data_lims_h = (widget._ymin, widget._ymax)
+
+        return self.lines_h
+
+    def lines_vertical(self, widget, painter):
+        ''' setup vertical grid lines'''
+        
+        if not (widget._xmin, widget._xmax) == self.data_lims_v:
+            xmin, xmax, xinc = widget.yscaler.make_scale(
+                (widget._xmin, widget._xmax)
+            )
+            ticks_proj = widget.xproj(num.arange(xmin, xmax, xinc))
+
+            w, h = widget.wh
+            self.lines_v = [qc.QLineF(xval, h * widget.top*0.8, xval, h)
+                     for xval in ticks_proj]
+
+            self.data_lims_v = (widget._xmin, widget._xmax)
+
+        return self.lines_v
+
+
 class PlotWidget(__PlotSuperClass):
     ''' a plotwidget displays data (x, y coordinates). '''
 
@@ -308,7 +379,7 @@ class PlotWidget(__PlotSuperClass):
         self.xticks = None
         self.xzoom = 0.
 
-        self.__show_grid = False
+        self.grids = [Grid()]
         #self.set_background_color('white')
         self.set_background_color('transparent')
         self.yscaler = AutoScaler(
@@ -380,14 +451,6 @@ class PlotWidget(__PlotSuperClass):
 
     def set_title(self, title):
         self.title = title
-
-    @property
-    def show_grid(self):
-        return self.__show_grid
-
-    @show_grid.setter
-    def show_grid(self, show):
-        self.__show_grid = show
 
     def plot(self, xdata=None, ydata=None, ndecimate=0, envelope=False,
              style='solid', color='black', line_width=1, ignore_nan=False):
@@ -545,26 +608,11 @@ class PlotWidget(__PlotSuperClass):
         self.draw_y_ticks(painter)
         self.draw_x_ticks(painter)
 
-        if self.show_grid:
-            self.draw_grid_lines(painter)
+        for grid in self.grids:
+            grid.draw_grid(self, painter)
+        
         painter.restore()
     
-    def draw_grid_lines(self, painter):
-        ''' draw semi transparent grid lines'''
-        w, h = self.wh
-        ymin, ymax, yinc = self.yscaler.make_scale(
-            (self._ymin, self._ymax)
-        )
-        ticks = num.arange(ymin, ymax, yinc)
-        ticks_proj = self.yproj(ticks)
-
-        lines = [qc.QLineF(w * self.left * 0.8, yval, w, yval)
-                 for yval in ticks_proj]
-
-        painter.save()
-        painter.drawLines(lines)
-        painter.restore()
-
     def draw_axes(self, painter):
         ''' draw x and y axis'''
         w, h = self.wh
@@ -587,8 +635,8 @@ class PlotWidget(__PlotSuperClass):
                  for xval in ticks_proj]
 
         painter.drawLines(lines)
-        #for i, xval in enumerate(ticks):
-        #    painter.drawText(qc.QPointF(ticks_proj[i], tick_anchor), str(xval))
+        for i, xval in enumerate(ticks):
+            painter.drawText(qc.QPointF(ticks_proj[i], tick_anchor), str(xval))
 
     def draw_y_ticks(self, painter):
         w, h = self.wh

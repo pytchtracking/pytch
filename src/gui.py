@@ -8,7 +8,7 @@ from pytch.data import MicrophoneRecorder, getaudiodevices, sampling_rate_option
 from pytch.gui_util import AutoScaler, Projection, mean_decimation
 from pytch.gui_util import make_QPolygonF, _color_names, _colors # noqa
 from pytch.util import Profiler, smooth
-from pytch.plot import PlotWidget, GaugeWidget, MikadoWidget
+from pytch.plot import PlotWidget, GaugeWidget, MikadoWidget, AutoGrid
 
 if False:
     from PyQt4 import QtCore as qc
@@ -270,20 +270,22 @@ class ChannelView(QWidget):
         layout = QHBoxLayout()
         self.setLayout(layout)
 
-        self.trace_widget = PlotWidget()#parent=self)
-        #self.trace_widget.set_xtick_increment(1.)
-        layout.addWidget(self.trace_widget)
+        self.trace_widget = PlotWidget()
+        self.trace_widget.grids = [AutoGrid(vertical=False)]
         self.trace_widget.set_ylim(-1000., 1000.)
 
         self.spectrum = PlotWidget()
         self.spectrum.set_xlim(0, 2000)
         self.spectrum.set_ylim(0, 20)
+        self.spectrum.grids = [AutoGrid(horizontal=False)]
+        
+        layout.addWidget(self.trace_widget)
         layout.addWidget(self.spectrum)
 
     def draw(self):
         c = self.channel
         self.trace_widget.plot(*c.latest_frame(
-            tfollow), ndecimate=20, color=self.color)
+            tfollow), ndecimate=25, color=self.color)
 
         self.spectrum.plotlog(c.freqs, num.abs(c.fft), color=self.color,
                               ignore_nan=True)#, ndecimate=2)
@@ -309,21 +311,16 @@ class PitchLevelMikadoViews(QWidget):
                 w = MikadoWidget()#parent=self)
                 w.set_ylim(-2000, 2000)
                 w.set_title('Channels: %s %s' % (i1, i2))
+                w.tfollow = 60.
                 self.widgets.append((cv1, cv2, w))
                 layout.addWidget(w, i1, i2)
 
     def draw(self):
         for cv1, cv2, w in self.widgets:
-            #w.set_data(
-            #    abs(cv1.channel.pitch.latest_frame_data(1) -
-            #    cv2.channel.pitch.latest_frame_data(1)))
-            w.fill_between(
-                *cv1.channel.pitch.latest_frame(60),
-                *cv2.channel.pitch.latest_frame(60))
-
-        for cv1, cv2, w in self.widgets:
+            x1, y1 = cv1.channel.pitch.latest_frame(w.tfollow)
+            x2, y2 = cv1.channel.pitch.latest_frame(w.tfollow)
+            w.fill_between(x1, y1, x2, y2)
             w.repaint()
-
 
 
 class PitchLevelDifferenceViews(QWidget):
@@ -362,6 +359,7 @@ class PitchWidget(QWidget):
         self.setLayout(layout)
         self.figure = PlotWidget()
         self.figure.set_ylim(-1000., 1000)
+        self.figure.tfollow = 20
         layout.addWidget(self.figure)
         self.noise_threshold = -99999
 
@@ -373,7 +371,7 @@ class PitchWidget(QWidget):
 
     def draw(self):
         for cv in self.channel_views:
-            x, y = cv.channel.pitch.latest_frame(10)
+            x, y = cv.channel.pitch.latest_frame(self.figure.tfollow)
             index = num.where(y>=self.noise_threshold)
             self.figure.plot(x[index], y[index], style='o', line_width=4, color=cv.color)
         self.figure.update()
