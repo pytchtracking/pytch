@@ -543,8 +543,9 @@ class PlotWidget(__PlotSuperClass):
 
         mi, ma = self.xproj.get_out_range()
         drange = ma-mi
-        xzoom = self.xzoom * drange/2.
-        self.xproj.set_in_range(self._xmin - xzoom, self._xmax + xzoom)
+        xzoom = self.xzoom * drange
+        self.xproj.set_in_range(self._xmin - xzoom,
+                                self._xmax)
         self.xproj.set_out_range(w * self.left, w * self.right)
 
         self.yproj.set_in_range(self._ymin, self._ymax)
@@ -673,12 +674,10 @@ class PlotWidget(__PlotSuperClass):
         point = self.mapFromGlobal(mouse_ev.globalPos())
         x0, y0 = self.track_start
         if self.track_start:
-            self.dy = (y0 - point.y()) / float(self.height())
-            self._zoom_track = self.dy
-
+            xzoom = (y0 - self.last_y)/self.height()
             self.last_y = point.y()
 
-        self.xzoom = self._zoom_track
+        self.xzoom = xzoom/10.
 
 
 class MikadoWidget(PlotWidget):
