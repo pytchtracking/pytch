@@ -8,7 +8,7 @@ from pytch.data import MicrophoneRecorder, getaudiodevices, sampling_rate_option
 from pytch.gui_util import AutoScaler, Projection, mean_decimation
 from pytch.gui_util import make_QPolygonF, _color_names, _colors # noqa
 from pytch.util import Profiler, smooth
-from pytch.plot import PlotWidget, GaugeWidget
+from pytch.plot import PlotWidget, GaugeWidget, MikadoWidget
 
 if False:
     from PyQt4 import QtCore as qc
@@ -294,6 +294,38 @@ class ChannelView(QWidget):
         self.trace_widget.setVisible(show)
 
 
+class PitchLevelMikadoViews(QWidget):
+    def __init__(self, channel_views, *args, **kwargs):
+        QWidget.__init__(self, *args, **kwargs)
+        self.channel_views = channel_views
+        layout = QGridLayout()
+        self.setLayout(layout)
+        self.widgets = []
+
+        for i1, cv1 in enumerate(self.channel_views):
+            for i2, cv2 in enumerate(self.channel_views):
+                if i1>=i2:
+                    continue
+                w = MikadoWidget()#parent=self)
+                w.set_ylim(-2000, 2000)
+                w.set_title('Channels: %s %s' % (i1, i2))
+                self.widgets.append((cv1, cv2, w))
+                layout.addWidget(w, i1, i2)
+
+    def draw(self):
+        for cv1, cv2, w in self.widgets:
+            #w.set_data(
+            #    abs(cv1.channel.pitch.latest_frame_data(1) -
+            #    cv2.channel.pitch.latest_frame_data(1)))
+            w.fill_between(
+                *cv1.channel.pitch.latest_frame(60),
+                *cv2.channel.pitch.latest_frame(60))
+
+        for cv1, cv2, w in self.widgets:
+            w.repaint()
+
+
+
 class PitchLevelDifferenceViews(QWidget):
     def __init__(self, channel_views, *args, **kwargs):
         QWidget.__init__(self, *args, **kwargs)
@@ -433,9 +465,12 @@ class MainWidget(QWidget):
         self.menu.connect_channel_views(self.channel_views_widget)
 
         self.pitch_diff_view = PitchLevelDifferenceViews(channel_views)
+        
+        self.pitch_diff_view_colorized = PitchLevelMikadoViews(channel_views)
 
         tabbed_pitch_widget.addTab(self.pitch_view, 'Pitches')
-        tabbed_pitch_widget.addTab(self.pitch_diff_view, 'Diff')
+        tabbed_pitch_widget.addTab(self.pitch_diff_view, 'Differential')
+        tabbed_pitch_widget.addTab(self.pitch_diff_view_colorized, 'Mikado')
         self.refresh_timer.start(57)
 
     def set_input(self, input):
@@ -458,6 +493,7 @@ class MainWidget(QWidget):
         self.channel_views_widget.draw()
         self.pitch_view.draw()
         self.pitch_diff_view.draw()
+        self.pitch_diff_view_colorized.draw()
 
     def set_fftsize(self, size):
         self.cleanup()

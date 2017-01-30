@@ -43,14 +43,6 @@ except ImportError:
     __PlotSuperClass = PlotWidgetBase
 
 
-use_pyqtgraph = False
-tfollow = 3.
-fmax = 2000.
-
-
-channel_to_color = ['blue', 'red', 'green', 'black']
-
-
 class InterpolatedColormap:
     ''' Continuously interpolating colormap '''
     def __init__(self, name=''):
@@ -386,6 +378,9 @@ class PlotWidget(__PlotSuperClass):
         self.pen = qg.QPen(qg.QColor(*_colors[color]),
                            line_width, _pen_styles[pen_style])
 
+    def set_title(self, title):
+        self.title = title
+
     @property
     def show_grid(self):
         return self.__show_grid
@@ -638,9 +633,9 @@ class PlotWidget(__PlotSuperClass):
         self.xzoom = self._zoom_track
 
 
-class PlotPitchWidget(PlotWidget):
+class MikadoWidget(PlotWidget):
     def __init__(self, *args, **kwargs):
-        PlotWidget.__init__(self, *args, **kwargs)
+        super(MikadoWidget, self).__init__(*args, **kwargs)
 
     def fill_between(self, xdata1, ydata1, xdata2, ydata2, *args, **kwargs):
         '''
@@ -660,39 +655,28 @@ class PlotPitchWidget(PlotWidget):
 
         self.update_datalims()
 
-    def paintEvent(self, e):
+    def do_draw(self, painter):
         ''' this is executed e.g. when self.repaint() is called. Draws the
         underlying data and scales the content to fit into the widget.'''
 
         if len(self._xvisible) == 0:
             return
-        # p = Profiler()
-        # p.mark('start')
 
         lines = []
         pens = []
         dy = num.abs(self._yvisible[0] - self._yvisible[1])
 
-        # SHOULD BE DONE OUTSIDE THIS SCOPE AND FIXED!
         x = self.xproj(self._xvisible)
         y = self.yproj(self._yvisible)
-        # p.mark('start setup lines')
 
         for i in range(len(self._xvisible[0])):
             lines.append(qc.QLineF(x[0][i], y[0][i], x[1][i], y[1][i]))
             pens.append(self.colormap.map_to_QPen(dy[i]))
-        # p.mark('start finished setup lines')
 
-        painter = qg.QPainter(self)
         painter.setRenderHint(qg.QPainter.Antialiasing)
-        #painter.fillRect(self.rect(), qg.QBrush(self.background_color))
-        # p.mark('start draw lines')
         for iline, line in enumerate(lines):
             painter.save()
             painter.setPen(pens[iline])
             painter.drawLine(line)
             painter.restore()
-        # p.mark('finished draw lines')
         self.draw_deco(painter)
-        # print p
-
