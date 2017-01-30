@@ -308,7 +308,7 @@ class PitchLevelMikadoViews(QWidget):
             for i2, cv2 in enumerate(self.channel_views):
                 if i1>=i2:
                     continue
-                w = MikadoWidget()#parent=self)
+                w = MikadoWidget()
                 w.set_ylim(-2000, 2000)
                 w.set_title('Channels: %s %s' % (i1, i2))
                 w.tfollow = 60.
@@ -346,9 +346,8 @@ class PitchLevelDifferenceViews(QWidget):
             #    abs(cv1.channel.pitch.latest_frame_data(1) -
             #    cv2.channel.pitch.latest_frame_data(1)))
             w.set_data(
-                abs(cv1.channel.pitch.latest_frame_data(1)))
+                abs(num.mean(cv1.channel.pitch.latest_frame_data(2))))
 
-        for cv1, cv2, w in self.widgets:
             w.repaint()
 
 class PitchWidget(QWidget):
@@ -360,6 +359,7 @@ class PitchWidget(QWidget):
         self.figure = PlotWidget()
         self.figure.set_ylim(-1000., 1000)
         self.figure.tfollow = 20
+        self.figure.grids = [AutoGrid()]
         layout.addWidget(self.figure)
         self.noise_threshold = -99999
 
@@ -463,7 +463,6 @@ class MainWidget(QWidget):
         self.menu.connect_channel_views(self.channel_views_widget)
 
         self.pitch_diff_view = PitchLevelDifferenceViews(channel_views)
-        
         self.pitch_diff_view_colorized = PitchLevelMikadoViews(channel_views)
 
         tabbed_pitch_widget.addTab(self.pitch_view, 'Pitches')
