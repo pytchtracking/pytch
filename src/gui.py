@@ -24,7 +24,7 @@ else:
     from PyQt5.QtWidgets import QAction, QSlider, QPushButton, QDockWidget
     from PyQt5.QtWidgets import QCheckBox, QSizePolicy, QFrame, QMenu
     from PyQt5.QtWidgets import QGridLayout, QSpacerItem, QDialog, QLineEdit
-    from PyQt5.QtWidgets import QDialogButtonBox, QTabWidget
+    from PyQt5.QtWidgets import QDialogButtonBox, QTabWidget, QActionGroup
 
 
 logger = logging.getLogger(__name__)
@@ -282,6 +282,25 @@ class ChannelView(QWidget):
         layout.addWidget(self.trace_widget)
         layout.addWidget(self.spectrum)
 
+        self.right_click_menu = QMenu('RC', self)
+
+        self.channel_color_menu = QMenu('Channel Color', self.right_click_menu)
+
+        #color_action_grous = QMenu('Colors', self.right_click_menu)
+        self.color_choices = []
+        action_group = QActionGroup(self.channel_color_menu)
+        action_group.setExclusive(True)
+        for color_name in _color_names:
+            color_action = QAction(color_name, self.channel_color_menu)
+            color_action.triggered.connect(self.on_color_select)
+            color_action.setCheckable(True)
+            self.color_choices.append(color_action)
+            action_group.addAction(color_action)
+            self.channel_color_menu.addAction(color_action)
+
+        self.right_click_menu.addMenu(self.channel_color_menu)
+        self.setMouseTracking(True)
+
     def draw(self):
         c = self.channel
         self.trace_widget.plot(*c.latest_frame(
@@ -294,6 +313,19 @@ class ChannelView(QWidget):
 
     def show_trace_widget(self, show=True):
         self.trace_widget.setVisible(show)
+
+    def mousePressEvent(self, mouse_ev):
+        point = self.mapFromGlobal(mouse_ev.globalPos())
+        
+        if mouse_ev.button() == qc.Qt.RightButton:
+            self.right_click_menu.exec_(qg.QCursor.pos())
+        else:
+            QWidget.mousePressEvent(mouse_ev)
+
+    def on_color_select(self):
+        for c in self.color_choices:
+            if c.isChecked():
+                self.color = c.text()
 
 
 class PitchLevelMikadoViews(QWidget):
@@ -447,7 +479,7 @@ class MainWidget(QWidget):
 
         channel_views = []
         for ichannel, channel in enumerate(self.data_input.channels):
-            channel_views.append(ChannelView(channel, color=_color_names[3*ichannel]))
+            channel_views.append(ChannelView(channel, color=_color_names[3+3*ichannel]))
 
         self.channel_views_widget = ChannelViews(channel_views)
         self.top_layout.addWidget(self.channel_views_widget)

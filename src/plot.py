@@ -20,6 +20,7 @@ else:
     from PyQt5.QtWidgets import QAction, QSlider, QPushButton, QDockWidget
     from PyQt5.QtWidgets import QCheckBox, QSizePolicy, QFrame, QMenu
     from PyQt5.QtWidgets import QGridLayout, QSpacerItem, QDialog, QLineEdit
+    from PyQt5.QtWidgets import QActionGroup
 
 
 logger = logging.getLogger(__name__)
@@ -224,7 +225,7 @@ class GaugeWidget(__PlotSuperClass):
         ''' This is executed when self.repaint() is called'''
         painter.save()
         pen = qg.QPen(self.color, 20, qc.Qt.SolidLine)
-        painter.setPen(pen)
+        #painter.setPen(self.pen)
         painter.drawArc(self.rect(), 2880., -self.proj.clipped(self._val))
         painter.restore()
         self._painter = painter
@@ -372,9 +373,7 @@ class PlotWidget(__PlotSuperClass):
         self.right = 1.
         self.bottom = 0.1
         self.top = 0.1
-
-        self.right_click_menu = QMenu(self)
-
+        
         self.yticks = None
         self.xticks = None
         self.xzoom = 0.
@@ -393,10 +392,8 @@ class PlotWidget(__PlotSuperClass):
         )
         self.draw_fill = False
         self.draw_points = False
-        select_scale = QAction('asdf', self.right_click_menu)
         self.set_pen()
         self.set_brush()
-        self.addAction(select_scale)
         self._xvisible = num.empty(0)
         self._yvisible = num.empty(0)
         self.yproj = Projection()
@@ -420,11 +417,6 @@ class PlotWidget(__PlotSuperClass):
     def wh(self):
         return self.width(), self.height()
 
-    def test_refresh(self, npoints=100, ntimes=100):
-        for i in range(ntimes):
-            self.plot(num.random.random(npoints))
-            self.repaint()
-
     def keyPressEvent(self, key_event):
         ''' react on keyboard keys when they are pressed.'''
         key_text = key_event.text()
@@ -438,6 +430,9 @@ class PlotWidget(__PlotSuperClass):
 
     def set_brush(self, color='black'):
         self.brush = qg.QBrush(qg.QColor(*_colors[color]))
+
+    def set_pen_color(self, color='black'):
+        self.pen.setColor(qg.QColor(*_colors[color]))
 
     def set_pen(self, color='black', line_width=1, pen_style='solid'):
         '''
@@ -459,6 +454,7 @@ class PlotWidget(__PlotSuperClass):
         :param *args:  ydata | xdata, ydata
         :param ignore_nan: skip values which are nan
         '''
+
         self.set_pen(color, line_width, style)
         if ydata is None:
             return
@@ -657,18 +653,15 @@ class PlotWidget(__PlotSuperClass):
         painter.drawText(self.x_annotation_rect, qc.Qt.AlignCenter, 'Time')
 
     def mousePressEvent(self, mouse_ev):
-        self.test_refresh()
         point = self.mapFromGlobal(mouse_ev.globalPos())
-        if mouse_ev.button() == qc.Qt.RightButton:
-            self.right_click_menu.exec_(qg.QCursor.pos())
-        elif mouse_ev.button() == qc.Qt.LeftButton:
+        if mouse_ev.button() == qc.Qt.LeftButton:
             self.track_start = (point.x(), point.y())
             self.last_y = point.y()
-            self._zoom_track = 0.
+        else:
+            super(PlotWidget, self).mousePressEvent(mouse_ev)
 
     def mouseReleaseEvent(self, mouse_event):
         self.track_start = None
-        self._zoom_track = 0.
 
     def mouseMoveEvent(self, mouse_ev):
         point = self.mapFromGlobal(mouse_ev.globalPos())
