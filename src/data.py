@@ -126,8 +126,11 @@ class Buffer():
 
     def latest_frame_data(self, n):
         ''' Return the latest n samples data from buffer as array.'''
-        return self.data[num.arange(self.i_filled-n, self.i_filled) %
-                         self.data.size]
+        if n>self.i_filled:
+            return None
+        else:
+            return self.data[num.arange(max(self.i_filled-n, 0), self.i_filled) %
+                             self.data.size]
 
     def append(self, d):
         ''' Append data frame *d* to Buffer'''
@@ -155,6 +158,20 @@ class RingBuffer(Buffer):
         self.i_filled += n
 
 
+class RingBuffer2D(RingBuffer):
+    def __init__(self, ndimension2, *args, **kwargs):
+        self.ndimension2 = ndimension2
+        RingBuffer.__init__(self, *args, **kwargs)
+    
+    def empty(self):
+        self.data = num.empty((int(self.data_len), self.ndimension2),
+                          dtype=self.dtype)
+
+    def append(self, d):
+        self.data[self.i_filled, :] = d
+        self.i_filled += 1
+
+
 class DataProvider(object):
     ''' Base class defining common interface for data input to Worker'''
     def __init__(self):
@@ -173,10 +190,10 @@ class SamplingRateException(Exception):
     pass
 
 
-class Channel(Buffer):
+class Channel(RingBuffer):
     def __init__(self, sampling_rate, fftsize=8192):
         self.buffer_length_seconds = 100
-        Buffer.__init__(self, sampling_rate, self.buffer_length_seconds)
+        RingBuffer.__init__(self, sampling_rate, self.buffer_length_seconds)
         self.name = ''
         self.pitch_o = False
         self.fftsize = fftsize
@@ -186,8 +203,9 @@ class Channel(Buffer):
     def update(self):
         nfft = (int(self.fftsize), self.delta)
         self.freqs = num.fft.rfftfreq(*nfft)
-        self.fft = num.ones(self.fftsize)
-
+        self.fft = RingBuffer2D(
+            ndimension2=self.fftsize/2+1, sampling_rate=self.sampling_rate,
+            buffer_length_seconds=self.buffer_length_seconds)
         self.pitch = RingBuffer(
             self.sampling_rate/self.fftsize,
             self.sampling_rate*self.buffer_length_seconds/self.fftsize)

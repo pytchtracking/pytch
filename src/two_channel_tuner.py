@@ -59,18 +59,16 @@ class Worker():
         for ic, channel in enumerate(self.channels):
             frame_work = channel.latest_frame_data(channel.fftsize)
 
-            if self.spectral_smoothing:
-                channel.fft += num.abs(num.fft.rfft(frame_work))
-                channel.fft /= 2.
-            else:
-                channel.fft = num.abs(num.fft.rfft(frame_work))
-            total_power = num.sum(channel.fft)/len(channel.freqs)
-            if total_power < self.pmin:
-                new_pitch_Cent = -9999999.
-            else:
-                #pitch = channel.pitch_o(frame_work.astype(num.float32))[0]
-                new_pitch_Cent = 1200. * math.log((
-                    channel.pitch_o(frame_work)[0] + .1)/120., 2)
+            # change to rfft. Saves cost.
+            channel.fft.append(num.abs(num.fft.rfft(frame_work)))
+            
+            #total_power = num.sum(channel.fft)/len(channel.freqs)
+            #if total_power < self.pmin:
+            #new_pitch_Cent = -9999999.
+            #else:
+            #pitch = channel.pitch_o(frame_work.astype(num.float32))[0]
+            new_pitch_Cent = 1200. * math.log((
+                channel.pitch_o(frame_work)[0] + .1)/120., 2)
             channel.pitch.append(num.array([new_pitch_Cent]))
 
         #    #pitch_confidence2 = pitch_o.get_confidence()

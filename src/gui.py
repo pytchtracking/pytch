@@ -121,7 +121,7 @@ class DeviceMenu(QDialog):
                         chunksize=512,
                         device_no=self.select_input.currentIndex(),
                         sampling_rate=int(self.edit_sampling_rate.value),
-                        fftsize=fftsize,
+                        fftsize=int(fftsize),
                         nchannels=int(self.edit_nchannels.value))
         self.set_input_callback(recorder)
         self.hide()
@@ -151,22 +151,14 @@ class MenuWidget(QFrame):
         layout = QGridLayout()
         self.setLayout(layout)
 
-        self.play_button = QPushButton('Play')
-        layout.addWidget(self.play_button, 0, 0)
-
-        self.pause_button = QPushButton('Pause')
-        layout.addWidget(self.pause_button, 0, 1)
-
         self.input_button = QPushButton('Set Input')
         layout.addWidget(self.input_button, 0, 0)
 
-        # layout.addWidget(QLabel('Sampling rate'), 2, 0)
-        # self.select_sampling_rate = QComboBox()
-        # layout.addWidget(self.select_sampling_rate, 2, 1)
+        self.play_button = QPushButton('Play')
+        layout.addWidget(self.play_button, 0, 1)
 
-        #layout.addWidget(QLabel('NFFT'), 3, 0)
-        #self.nfft_choice = self.get_nfft_box()
-        #layout.addWidget(self.nfft_choice, 3, 1)
+        self.pause_button = QPushButton('Pause')
+        layout.addWidget(self.pause_button, 0, 2)
 
         layout.addWidget(QLabel('Noise Threshold'), 4, 0)
         self.noise_thresh_slider = QSlider()
@@ -175,9 +167,12 @@ class MenuWidget(QFrame):
         self.noise_thresh_slider.setOrientation(qc.Qt.Horizontal)
         layout.addWidget(self.noise_thresh_slider, 4, 1)
 
-        #self.spectral_smoothing = QCheckBox('Spectral smoothing')
-        #self.spectral_smoothing.setCheckable(True)
-        #layout.addWidget(self.spectral_smoothing, 5, 0)
+        layout.addWidget(QLabel('Sensitiviy'), 5, 0)
+        self.sensitivity_slider = QSlider()
+        self.sensitivity_slider.setRange(0, 10000)
+        self.sensitivity_slider.setValue(1000)
+        self.sensitivity_slider.setOrientation(qc.Qt.Horizontal)
+        layout.addWidget(self.sensitivity_slider, 5, 1)
 
         layout.addWidget(QLabel('Select Algorithm'), 6, 0)
         self.select_algorithm = QComboBox()
@@ -220,6 +215,8 @@ class MenuWidget(QFrame):
         self.box_show_traces.stateChanged.connect(
             channel_views.show_trace_widgets)
         channel_views.show_trace_widgets(self.box_show_traces.isChecked())
+        self.sensitivity_slider.valueChanged.connect(
+            channel_views.set_in_range)
 
     def sizeHint(self):
         return qc.QSize(200, 200)
@@ -254,6 +251,10 @@ class ChannelViews(QWidget):
         for c_view in self.channel_views:
             c_view.draw()
 
+    def set_in_range(self, val_range):
+        for c_view in self.channel_views:
+            c_view.trace_widget.set_ylim(-val_range, val_range)
+
 
 class ChannelView(QWidget):
     def __init__(self, channel, color='red', *args, **kwargs):
@@ -278,15 +279,15 @@ class ChannelView(QWidget):
         self.spectrum.set_xlim(0, 2000)
         self.spectrum.set_ylim(0, 20)
         self.spectrum.grids = [AutoGrid(horizontal=False)]
+
+        self.fft_smooth_factor = 4
         
         layout.addWidget(self.trace_widget)
         layout.addWidget(self.spectrum)
 
         self.right_click_menu = QMenu('RC', self)
-
         self.channel_color_menu = QMenu('Channel Color', self.right_click_menu)
 
-        #color_action_grous = QMenu('Colors', self.right_click_menu)
         self.color_choices = []
         action_group = QActionGroup(self.channel_color_menu)
         action_group.setExclusive(True)
@@ -299,15 +300,35 @@ class ChannelView(QWidget):
             self.channel_color_menu.addAction(color_action)
 
         self.right_click_menu.addMenu(self.channel_color_menu)
+        
+        self.fft_smooth_factor_menu = QMenu(
+            'FFT smooth factor', self.right_click_menu)
+        action_group = QActionGroup(self.fft_smooth_factor_menu)
+        action_group.setExclusive(True)
+        for factor in range(5):
+            factor += 1
+            fft_smooth_action = QAction(str(factor), self.fft_smooth_factor_menu)
+            fft_smooth_action.triggered.connect(self.on_fft_smooth_select)
+            fft_smooth_action.setCheckable(True)
+            if factor == self.fft_smooth_factor:
+                fft_smooth_action.setChecked(True)
+            self.color_choices.append(fft_smooth_action)
+            action_group.addAction(fft_smooth_action)
+            self.fft_smooth_factor_menu.addAction(fft_smooth_action)
+        self.right_click_menu.addMenu(self.fft_smooth_factor_menu)
         self.setMouseTracking(True)
 
     def draw(self):
         c = self.channel
         self.trace_widget.plot(*c.latest_frame(
             tfollow), ndecimate=25, color=self.color)
-
-        self.spectrum.plotlog(c.freqs, num.abs(c.fft), color=self.color,
-                              ignore_nan=True)#, ndecimate=2)
+        d = c.fft.latest_frame_data(self.fft_smooth_factor)
+        
+        if d is not None:
+            self.spectrum.plotlog(
+                c.freqs, num.mean(d, axis=0), ndecimate=2,
+                color=self.color, ignore_nan=True)
+        
         self.trace_widget.update()
         self.spectrum.update()
 
@@ -321,6 +342,11 @@ class ChannelView(QWidget):
             self.right_click_menu.exec_(qg.QCursor.pos())
         else:
             QWidget.mousePressEvent(mouse_ev)
+
+    def on_fft_smooth_select(self):
+        for c in self.color_choices:
+            if c.isChecked():
+                self.fft_smooth_factor = int(c.text())
 
     def on_color_select(self):
         for c in self.color_choices:
@@ -374,11 +400,9 @@ class PitchLevelDifferenceViews(QWidget):
 
     def draw(self):
         for cv1, cv2, w in self.widgets:
-            #w.set_data(
-            #    abs(cv1.channel.pitch.latest_frame_data(1) -
-            #    cv2.channel.pitch.latest_frame_data(1)))
-            w.set_data(
-                abs(num.mean(cv1.channel.pitch.latest_frame_data(2))))
+            d = cv1.channel.pitch.latest_frame_data(3)
+            if d is not None:
+                w.set_data(abs(num.mean(d)))
 
             w.repaint()
 
@@ -430,8 +454,6 @@ class MainWidget(QWidget):
 
         self.data_input = None
 
-        self.make_connections()
-        
         qc.QTimer().singleShot(0, self.set_input_dialog)
 
     def make_connections(self):
@@ -443,6 +465,8 @@ class MainWidget(QWidget):
         #menu.nfft_choice.activated.connect(self.set_fftsize)
         menu.input_button.clicked.connect(self.set_input_dialog)
 
+        menu.pause_button.clicked.connect(self.data_input.stop)
+        menu.play_button.clicked.connect(self.data_input.start)
         #menu.pause_button.clicked.connect(core.data_input.stop)
         #menu.play_button.clicked.connect(core.data_input.start)
 
@@ -514,6 +538,8 @@ class MainWidget(QWidget):
             raise e
             #self.set_input_dialog()
 
+        self.make_connections()
+        
         self.reset()
 
     def refreshwidgets(self):
@@ -534,7 +560,7 @@ class MainWidget(QWidget):
     def closeEvent(self, ev):
         '''Called when application is closed.'''
         logger.info('closing')
-        self.core.data_input.terminate()
+        self.data_input.terminate()
         self.cleanup()
         QWidget.closeEvent(self, ev)
 
