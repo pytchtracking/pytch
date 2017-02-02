@@ -79,7 +79,7 @@ class Buffer():
         self.tmin = tmin
         self.tmax = self.tmin + buffer_length_seconds
         self.sampling_rate = sampling_rate
-        self.data_len = buffer_length_seconds * sampling_rate
+        self.data_len = int(buffer_length_seconds * sampling_rate)
         self.dtype = dtype
         self.empty()
 
@@ -162,14 +162,15 @@ class RingBuffer2D(RingBuffer):
     def __init__(self, ndimension2, *args, **kwargs):
         self.ndimension2 = ndimension2
         RingBuffer.__init__(self, *args, **kwargs)
-    
+
     def empty(self):
         self.data = num.empty((int(self.data_len), self.ndimension2),
                           dtype=self.dtype)
 
     def append(self, d):
-        self.data[self.i_filled, :] = d
-        self.i_filled += 1
+        ifill = int(self.i_filled % self.data_len)
+        self.data[ifill, :] = d
+        self.i_filled = ifill+1
 
 
 class DataProvider(object):
@@ -204,7 +205,8 @@ class Channel(RingBuffer):
         nfft = (int(self.fftsize), self.delta)
         self.freqs = num.fft.rfftfreq(*nfft)
         self.fft = RingBuffer2D(
-            ndimension2=self.fftsize/2+1, sampling_rate=self.sampling_rate,
+            ndimension2=self.fftsize/2+1,
+            sampling_rate=self.sampling_rate/self.fftsize,   # Hop size
             buffer_length_seconds=self.buffer_length_seconds)
         self.pitch = RingBuffer(
             self.sampling_rate/self.fftsize,

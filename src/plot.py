@@ -447,14 +447,13 @@ class PlotWidget(__PlotSuperClass):
     def set_title(self, title):
         self.title = title
 
-    def plot(self, xdata=None, ydata=None, ndecimate=0, envelope=False,
+    def plot(self, xdata=None, ydata=None, ndecimate=0,
              style='solid', color='black', line_width=1, ignore_nan=False):
         ''' plot data
 
         :param *args:  ydata | xdata, ydata
         :param ignore_nan: skip values which are nan
         '''
-
         self.set_pen(color, line_width, style)
         if ydata is None:
             return
@@ -504,9 +503,8 @@ class PlotWidget(__PlotSuperClass):
 
         self.update_datalims()
 
-    def plotlog(self, xdata=None, ydata=None, ndecimate=0, envelope=False,
-                **style_kwargs):
-        self.plot(xdata, num.log(ydata), ndecimate, envelope, **style_kwargs)
+    def plotlog(self, xdata=None, ydata=None, ndecimate=0, **style_kwargs):
+        self.plot(xdata, num.log(ydata), ndecimate=ndecimate, **style_kwargs)
 
     def update_datalims(self):
 

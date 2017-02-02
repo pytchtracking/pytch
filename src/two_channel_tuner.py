@@ -59,9 +59,9 @@ class Worker():
         for ic, channel in enumerate(self.channels):
             frame_work = channel.latest_frame_data(channel.fftsize)
 
-            # change to rfft. Saves cost.
-            channel.fft.append(num.abs(num.fft.rfft(frame_work)))
-            
+            fft_data = num.abs(num.fft.rfft(frame_work))
+            channel.fft.append(fft_data)
+
             #total_power = num.sum(channel.fft)/len(channel.freqs)
             #if total_power < self.pmin:
             #new_pitch_Cent = -9999999.

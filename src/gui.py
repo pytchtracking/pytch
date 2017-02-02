@@ -281,7 +281,7 @@ class ChannelView(QWidget):
         self.spectrum.grids = [AutoGrid(horizontal=False)]
 
         self.fft_smooth_factor = 4
-        
+
         layout.addWidget(self.trace_widget)
         layout.addWidget(self.spectrum)
 
@@ -289,22 +289,24 @@ class ChannelView(QWidget):
         self.channel_color_menu = QMenu('Channel Color', self.right_click_menu)
 
         self.color_choices = []
-        action_group = QActionGroup(self.channel_color_menu)
-        action_group.setExclusive(True)
+        color_action_group = QActionGroup(self.channel_color_menu)
+        color_action_group.setExclusive(True)
         for color_name in _color_names:
             color_action = QAction(color_name, self.channel_color_menu)
             color_action.triggered.connect(self.on_color_select)
             color_action.setCheckable(True)
             self.color_choices.append(color_action)
-            action_group.addAction(color_action)
+            color_action_group.addAction(color_action)
             self.channel_color_menu.addAction(color_action)
 
         self.right_click_menu.addMenu(self.channel_color_menu)
-        
+
         self.fft_smooth_factor_menu = QMenu(
             'FFT smooth factor', self.right_click_menu)
-        action_group = QActionGroup(self.fft_smooth_factor_menu)
-        action_group.setExclusive(True)
+        smooth_action_group = QActionGroup(self.fft_smooth_factor_menu)
+        smooth_action_group.setExclusive(True)
+
+        self.smooth_choices = []
         for factor in range(5):
             factor += 1
             fft_smooth_action = QAction(str(factor), self.fft_smooth_factor_menu)
@@ -312,8 +314,8 @@ class ChannelView(QWidget):
             fft_smooth_action.setCheckable(True)
             if factor == self.fft_smooth_factor:
                 fft_smooth_action.setChecked(True)
-            self.color_choices.append(fft_smooth_action)
-            action_group.addAction(fft_smooth_action)
+            self.smooth_choices.append(fft_smooth_action)
+            smooth_action_group.addAction(fft_smooth_action)
             self.fft_smooth_factor_menu.addAction(fft_smooth_action)
         self.right_click_menu.addMenu(self.fft_smooth_factor_menu)
         self.setMouseTracking(True)
@@ -321,14 +323,14 @@ class ChannelView(QWidget):
     def draw(self):
         c = self.channel
         self.trace_widget.plot(*c.latest_frame(
-            tfollow), ndecimate=25, color=self.color)
+            tfollow), ndecimate=25, color=self.color, line_width=1)
         d = c.fft.latest_frame_data(self.fft_smooth_factor)
-        
+
         if d is not None:
             self.spectrum.plotlog(
                 c.freqs, num.mean(d, axis=0), ndecimate=2,
                 color=self.color, ignore_nan=True)
-        
+
         self.trace_widget.update()
         self.spectrum.update()
 
@@ -337,18 +339,18 @@ class ChannelView(QWidget):
 
     def mousePressEvent(self, mouse_ev):
         point = self.mapFromGlobal(mouse_ev.globalPos())
-        
+
         if mouse_ev.button() == qc.Qt.RightButton:
             self.right_click_menu.exec_(qg.QCursor.pos())
         else:
             QWidget.mousePressEvent(mouse_ev)
 
     def on_fft_smooth_select(self):
-        for c in self.color_choices:
+        for c in self.smooth_choices:
             if c.isChecked():
                 self.fft_smooth_factor = int(c.text())
 
-    def on_color_select(self):
+    def on_color_select(self, asdf=None):
         for c in self.color_choices:
             if c.isChecked():
                 self.color = c.text()
@@ -449,7 +451,7 @@ class MainWidget(QWidget):
 
         self.input_dialog = DeviceMenu.from_device_menu_settings(
             settings, accept=settings.accept, parent=self)
-        
+
         self.input_dialog.set_input_callback = self.set_input
 
         self.data_input = None
@@ -524,6 +526,9 @@ class MainWidget(QWidget):
         tabbed_pitch_widget.addTab(self.pitch_view, 'Pitches')
         tabbed_pitch_widget.addTab(self.pitch_diff_view, 'Differential')
         tabbed_pitch_widget.addTab(self.pitch_diff_view_colorized, 'Mikado')
+        qc.QTimer().singleShot(200, self.start_refresh_timer)
+
+    def start_refresh_timer(self):
         self.refresh_timer.start(57)
 
     def set_input(self, input):
@@ -539,7 +544,7 @@ class MainWidget(QWidget):
             #self.set_input_dialog()
 
         self.make_connections()
-        
+
         self.reset()
 
     def refreshwidgets(self):
