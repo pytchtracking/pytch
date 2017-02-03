@@ -267,6 +267,7 @@ class ChannelView(QWidget):
         self.channel = channel
 
         self.color = color
+        self.setMouseTracking(True)
 
         layout = QHBoxLayout()
         self.setLayout(layout)
@@ -279,6 +280,7 @@ class ChannelView(QWidget):
         self.spectrum.set_xlim(0, 2000)
         self.spectrum.set_ylim(0, 20)
         self.spectrum.grids = [AutoGrid(horizontal=False)]
+        self.plot_spectrum = self.spectrum.plotlog
 
         self.fft_smooth_factor = 4
 
@@ -298,14 +300,12 @@ class ChannelView(QWidget):
             self.color_choices.append(color_action)
             color_action_group.addAction(color_action)
             self.channel_color_menu.addAction(color_action)
-
         self.right_click_menu.addMenu(self.channel_color_menu)
 
         self.fft_smooth_factor_menu = QMenu(
             'FFT smooth factor', self.right_click_menu)
         smooth_action_group = QActionGroup(self.fft_smooth_factor_menu)
         smooth_action_group.setExclusive(True)
-
         self.smooth_choices = []
         for factor in range(5):
             factor += 1
@@ -318,7 +318,24 @@ class ChannelView(QWidget):
             smooth_action_group.addAction(fft_smooth_action)
             self.fft_smooth_factor_menu.addAction(fft_smooth_action)
         self.right_click_menu.addMenu(self.fft_smooth_factor_menu)
-        self.setMouseTracking(True)
+        
+        self.spectrum_type_menu = QMenu(
+            'lin/log', self.right_click_menu)
+        plot_action_group = QActionGroup(self.spectrum_type_menu)
+        plot_action_group.setExclusive(True)
+        self.spectrum_type_choices = []
+
+        for stype in ['log', 'linear']:
+            spectrum_type = QAction(stype, self.spectrum_type_menu)
+            spectrum_type.triggered.connect(self.on_spectrum_type_select)
+            spectrum_type.setCheckable(True)
+            self.spectrum_type_choices.append(spectrum_type)
+            smooth_action_group.addAction(spectrum_type)
+            self.spectrum_type_menu.addAction(spectrum_type)
+            if stype == 'log':
+                spectrum_type.setChecked(True)
+        self.right_click_menu.addMenu(self.spectrum_type_menu)
+        self.on_spectrum_type_select()
 
     def draw(self):
         c = self.channel
@@ -327,9 +344,9 @@ class ChannelView(QWidget):
         d = c.fft.latest_frame_data(self.fft_smooth_factor)
 
         if d is not None:
-            self.spectrum.plotlog(
-                c.freqs, num.mean(d, axis=0), ndecimate=2,
-                color=self.color, ignore_nan=True)
+            self.plot_spectrum(
+                    c.freqs, num.mean(d, axis=0), ndecimate=2,
+                    color=self.color, ignore_nan=True)
 
         self.trace_widget.update()
         self.spectrum.update()
@@ -344,6 +361,18 @@ class ChannelView(QWidget):
             self.right_click_menu.exec_(qg.QCursor.pos())
         else:
             QWidget.mousePressEvent(mouse_ev)
+
+    def on_spectrum_type_select(self):
+        for c in self.spectrum_type_choices:
+            if c.isChecked():
+                if c.text() == 'log':
+                    self.plot_spectrum = self.spectrum.plotlog
+                    self.spectrum.set_xlim(0, 2000)
+                    self.spectrum.set_ylim(0, 20)
+                elif c.text() == 'linear':
+                    self.plot_spectrum = self.spectrum.plot
+                    self.spectrum.set_xlim(0, 2000)
+                    self.spectrum.set_ylim(0, num.exp(15))
 
     def on_fft_smooth_select(self):
         for c in self.smooth_choices:
