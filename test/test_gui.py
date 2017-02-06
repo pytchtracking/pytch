@@ -42,7 +42,7 @@ class GUITestCase():
     def test_PitchWidget(self):
         app = QApplication(sys.argv)
         main_window = MainWindowQClose()
-        plot_widget = gui.PlotPitchWidget()
+        plot_widget = gui.PlotWidget()
         #plot_widget.set_xlim(0, 18)
         #plot_widget.set_ylim(0, 1)
         n = 200
@@ -59,7 +59,7 @@ class GUITestCase():
         y2 = num.random.random(len(x1))*100
 
 
-        plot_widget.fill_between(x1, y1, x2, y2)
+        #plot_widget.fill_between(x1, y1, x2, y2)
         plot_widget.colormap.set_vlim(0, 100)
         main_window.setCentralWidget(plot_widget)
         main_window.show()
@@ -90,13 +90,27 @@ class GUITestCase():
         main_window.repaint()
         sys.exit(app.exec_())
 
+    def test_graphicsview(self):
+        from pytch.plot import Figure
+        app = QApplication(sys.argv)
+        main_window = MainWindowQClose()
+
+        figure = Figure()
+        figure.add_subplot()
+
+        main_window.setCentralWidget(gauge)
+        main_window.show()
+        main_window.repaint()
+        sys.exit(app.exec_())
+
 if __name__=='__main__':
     #unittest.main()
     t = GUITestCase()
     #t.test_scaling()
-    #t.test_PitchWidget()
+    t.test_PitchWidget()
     #t.test_ColormapWidget()
-    t.test_gauge()
+    #t.test_gauge()
+    #t.test_graphicsview()
 
 
 
