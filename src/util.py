@@ -10,6 +10,15 @@ def dummy():
     return
 
 
+def f2pitch(f):
+    return 1200. * num.log2((f + .1)/120.)
+
+
+def pitch2f(p):
+    return num.exp2(p/1200.) * 120. - 0.1
+
+
+
 class DummySignal():
     ''' does nothing when emitted'''
     def __init__(self):

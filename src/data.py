@@ -225,7 +225,7 @@ class Channel(RingBuffer):
         tolerance = 0.8
         win_s = self.fftsize
         #self.pitch_o = pitch(self.pitch_algorithms[ialgorithm],
-        self.pitch_o = pitch('yin',
+        self.pitch_o = pitch('yinfft',
           win_s, win_s, self.sampling_rate)
         self.pitch_o.set_unit("Hz")
         self.pitch_o.set_tolerance(tolerance)

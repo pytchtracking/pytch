@@ -4,7 +4,7 @@ import math
 from aubio import pitch
 import numpy as num
 
-from pytch.util import DummySignal
+from pytch.util import DummySignal, f2pitch
 
 import logging
 
@@ -67,9 +67,10 @@ class Worker():
             #new_pitch_Cent = -9999999.
             #else:
             #pitch = channel.pitch_o(frame_work.astype(num.float32))[0]
-            new_pitch_Cent = 1200. * math.log((
-                channel.pitch_o(frame_work)[0] + .1)/120., 2)
-            channel.pitch.append(num.array([new_pitch_Cent]))
+            #new_pitch_Cent = channel.pitch_o(frame_work)[0]
+            channel.pitch.append(num.array(
+                [f2pitch(channel.pitch_o(frame_work)[0])])
+            )
 
         #    #pitch_confidence2 = pitch_o.get_confidence()
 

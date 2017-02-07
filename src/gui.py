@@ -7,7 +7,7 @@ from pytch.two_channel_tuner import Worker
 from pytch.data import MicrophoneRecorder, getaudiodevices, sampling_rate_options
 from pytch.gui_util import AutoScaler, Projection, mean_decimation
 from pytch.gui_util import make_QPolygonF, _color_names, _colors # noqa
-from pytch.util import Profiler, smooth
+from pytch.util import Profiler, smooth, pitch2f
 from pytch.plot import PlotWidget, GaugeWidget, MikadoWidget, AutoGrid
 
 if False:
@@ -330,6 +330,7 @@ class ChannelView(QWidget):
             self.spectrum_type_menu.addAction(spectrum_type)
             if stype == 'log':
                 spectrum_type.setChecked(True)
+
         self.right_click_menu.addMenu(self.spectrum_type_menu)
         self.on_spectrum_type_select()
 
@@ -352,7 +353,14 @@ class ChannelView(QWidget):
             self.plot_spectrum(
                     c.freqs, num.mean(d, axis=0), ndecimate=2,
                     color=self.color, ignore_nan=True)
+        self.spectrum.axvline(
+            pitch2f(
+                num.mean(
+                    c.pitch.latest_frame_data(1),
+                    axis=0)
+            )
 
+        )
         self.trace_widget.update()
         self.spectrum.update()
 
@@ -372,22 +380,23 @@ class ChannelView(QWidget):
             if c.isChecked():
                 if c.text() == 'log':
                     self.plot_spectrum = self.spectrum.plotlog
-                    self.spectrum.set_xlim(0, 2000)
                     self.spectrum.set_ylim(0, 20)
                 elif c.text() == 'linear':
                     self.plot_spectrum = self.spectrum.plot
-                    self.spectrum.set_xlim(0, 2000)
                     self.spectrum.set_ylim(0, num.exp(15))
+                break
 
     def on_fft_smooth_select(self):
         for c in self.smooth_choices:
             if c.isChecked():
                 self.fft_smooth_factor = int(c.text())
+                break
 
     def on_color_select(self, asdf=None):
         for c in self.color_choices:
             if c.isChecked():
                 self.color = c.text()
+                break
 
 
 class PitchLevelMikadoViews(QWidget):

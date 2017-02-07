@@ -351,6 +351,36 @@ class AutoGrid():
         return self.lines_v
 
 
+class AxHLine():
+    def __init__(self, y, pen):
+        self.y = y
+        self.pen = pen
+
+    def draw(self, painter, xproj, yproj):
+        xmin, xmax = xproj.get_out_range()
+        y = yproj(self.y)
+
+        painter.save()
+        painter.setPen(self.pen)
+        painter.drawLine(xmin, y, xmax, y)
+        painter.restore()
+
+
+class AxVLine():
+    def __init__(self, x, pen):
+        self.x = x
+        self.pen = pen
+
+    def draw(self, painter, xproj, yproj):
+        ymin, ymax = yproj.get_out_range()
+        x = xproj(self.x)
+
+        painter.save()
+        painter.setPen(self.pen)
+        painter.drawLine(x, ymin, x, ymax)
+        painter.restore()
+
+
 class Points():
     ''' Holds and draws data projected to screen dimensions.'''
     def __init__(self, x, y, pen):
@@ -421,12 +451,12 @@ class PlotWidget(__PlotSuperClass):
         #self.set_background_color('white')
         self.set_background_color('transparent')
         self.yscaler = AutoScaler(
-            no_exp_interval=(-3, 2), approx_ticks=7,
+            no_exp_interval=(-3, 2), approx_ticks=5,
             snap=True
         )
 
         self.xscaler = AutoScaler(
-            no_exp_interval=(-3, 2), approx_ticks=7,
+            no_exp_interval=(-3, 2), approx_ticks=5,
             snap=True
         )
         self.draw_fill = False
@@ -527,6 +557,14 @@ class PlotWidget(__PlotSuperClass):
             self.scene_items.append(Polyline(x=xvisible, y=yvisible, pen=pen))
 
         self.update_datalims(xvisible, yvisible)
+
+    def axvline(self, x, **pen_args):
+        pen = self.get_pen(**pen_args)
+        self.scene_items.append(AxVLine(x=x, pen=pen))
+
+    def axhline(self, x, **pen_args):
+        pen = self.get_pen(**pen_args)
+        self.scene_items.append(AxHLine(x=x, pen=pen))
 
     def fill_between(self, xdata, ydata1, ydata2, *args, **kwargs):
         x = num.hstack((xdata, xdata[::-1]))
