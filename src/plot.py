@@ -20,7 +20,8 @@ else:
     from PyQt5.QtWidgets import QAction, QSlider, QPushButton, QDockWidget
     from PyQt5.QtWidgets import QCheckBox, QSizePolicy, QFrame, QMenu
     from PyQt5.QtWidgets import QGridLayout, QSpacerItem, QDialog, QLineEdit
-    from PyQt5.QtWidgets import QActionGroup
+    from PyQt5.QtWidgets import QActionGroup, QGraphicsWidget, QGraphicsGridLayout
+    from PyQt5.QtWidgets import QGraphicsScene, QGraphicsView
 
 
 logger = logging.getLogger(__name__)
@@ -31,15 +32,21 @@ try:
 except ImportError:
     logger.warn('no opengl support')
 
-    class PlotWidgetBase(QWidget):
+    if True:
+        class PlotWidgetBase(QWidget):
 
-        def paintEvent(self, e):
-            painter = qg.QPainter(self)
+            def paintEvent(self, e):
+                painter = qg.QPainter(self)
 
-            self.do_draw(painter)
+                self.do_draw(painter)
 
-        def do_draw(self, painter):
-            raise Exception('to be implemented in subclass')
+            def do_draw(self, painter):
+                raise Exception('to be implemented in subclass')
+
+    else:
+        class PlotWidgetBase(QGraphicsItem):
+            def paint(self, e):
+                self.do_draw(e)
 
     __PlotSuperClass = PlotWidgetBase
 
@@ -328,7 +335,7 @@ class AutoGrid():
 
     def lines_vertical(self, widget, painter):
         ''' setup vertical grid lines'''
-        
+
         if not (widget._xmin, widget._xmax) == self.data_lims_v:
             xmin, xmax, xinc = widget.yscaler.make_scale(
                 (widget._xmin, widget._xmax)
@@ -344,15 +351,46 @@ class AutoGrid():
         return self.lines_v
 
 
+class Points():
+    ''' Holds and draws data projected to screen dimensions.'''
+    def __init__(self, x, y, pen):
+        self.x = x
+        self.y = y
+        self.pen = pen
+
+    def draw(self, painter, xproj, yproj):
+        qpoints = make_QPolygonF(xproj(self.x), yproj(self.y))
+        painter.save()
+        painter.setPen(self.pen)
+        painter.drawPoints(qpoints)
+        painter.restore()
+
+
+
+class Polyline():
+    ''' Holds and draws data projected to screen dimensions.'''
+    def __init__(self, x, y, pen):
+        self.x = x
+        self.y = y
+        self.pen = pen
+
+    def draw(self, painter, xproj, yproj):
+        qpoints = make_QPolygonF(xproj(self.x), yproj(self.y))
+
+        painter.save()
+        painter.setPen(self.pen)
+        painter.drawPolyline(qpoints)
+        painter.restore()
+
+
+
 class PlotWidget(__PlotSuperClass):
     ''' a plotwidget displays data (x, y coordinates). '''
 
     def __init__(self, *args, **kwargs):
         super(PlotWidget, self).__init__(*args, **kwargs)
-        layout = QVBoxLayout()
-        self.setLayout(layout)
-        self.setContentsMargins(1, 1, 1, 1)
 
+        self.setContentsMargins(1, 1, 1, 1)
         self.track_start = None
 
         self.yscale = 1.
@@ -373,11 +411,12 @@ class PlotWidget(__PlotSuperClass):
         self.right = 1.
         self.bottom = 0.1
         self.top = 0.1
-        
+
         self.yticks = None
         self.xticks = None
         self.xzoom = 0.
 
+        self.scene_items = []
         self.grids = [Grid()]
         #self.set_background_color('white')
         self.set_background_color('transparent')
@@ -392,13 +431,15 @@ class PlotWidget(__PlotSuperClass):
         )
         self.draw_fill = False
         self.draw_points = False
-        self.set_pen()
         self.set_brush()
         self._xvisible = num.empty(0)
         self._yvisible = num.empty(0)
         self.yproj = Projection()
         self.xproj = Projection()
         self.colormap = Colormap()
+
+    def clear(self):
+        self.scene_items = []
 
     def setup_annotation_boxes(self):
         ''' left and top boxes containing labels, dashes, marks, etc.'''
@@ -434,15 +475,15 @@ class PlotWidget(__PlotSuperClass):
     def set_pen_color(self, color='black'):
         self.pen.setColor(qg.QColor(*_colors[color]))
 
-    def set_pen(self, color='black', line_width=1, pen_style='solid'):
+    def get_pen(self, color='black', line_width=1, pen_style='solid'):
         '''
         :param color: color name as string
         '''
         if pen_style == 'o':
             self.draw_points = True
 
-        self.pen = qg.QPen(qg.QColor(*_colors[color]),
-                           line_width, _pen_styles[pen_style])
+        return qg.QPen(qg.QColor(*_colors[color]),
+                      line_width, _pen_styles[pen_style])
 
     def set_title(self, title):
         self.title = title
@@ -454,7 +495,6 @@ class PlotWidget(__PlotSuperClass):
         :param *args:  ydata | xdata, ydata
         :param ignore_nan: skip values which are nan
         '''
-        self.set_pen(color, line_width, style)
         if ydata is None:
             return
 
@@ -470,7 +510,23 @@ class PlotWidget(__PlotSuperClass):
             xdata = xdata[~ydata.mask]
             ydata = ydata[~ydata.mask]
 
-        self.set_data(xdata, ydata, ndecimate)
+        if ndecimate != 0:
+            #self._xvisible = minmax_decimation(xdata, ndecimate)
+            xvisible = xdata[::ndecimate]
+            yvisible = minmax_decimation(ydata, ndecimate)
+            #self._yvisible = smooth(ydata, window_len=ndecimate*2)[::ndecimate]
+            #index = num.arange(0, len(self._xvisible), ndecimate)
+        else:
+            xvisible = xdata
+            yvisible = ydata
+
+        pen = self.get_pen(color, line_width, style)
+        if style == 'o':
+            self.scene_items.append(Points(x=xvisible, y=yvisible, pen=pen))
+        else:
+            self.scene_items.append(Polyline(x=xvisible, y=yvisible, pen=pen))
+
+        self.update_datalims(xvisible, yvisible)
 
     def fill_between(self, xdata, ydata1, ydata2, *args, **kwargs):
         x = num.hstack((xdata, xdata[::-1]))
@@ -478,58 +534,35 @@ class PlotWidget(__PlotSuperClass):
         self.draw_fill = True
         self.set_data(x, y)
 
-    def set_data(self, xdata=None, ydata=None, ndecimate=0):
-        #p = Profiler()
-        if ndecimate != 0:
-            #if True:
-            #p.start()
-            #self._xvisible = minmax_decimation(xdata, ndecimate)
-            self._xvisible = xdata[::ndecimate]
-            self._yvisible = minmax_decimation(ydata, ndecimate)
-            #p.mark('finisehd mean')
-            #self._yvisible = smooth(ydata, window_len=ndecimate*2)[::ndecimate]
-            #index = num.arange(0, len(self._xvisible), ndecimate)
-            #self._yvisible = self._yvisible[index]
-            #self._xvisible = xdata[index]
-            #p.mark('stop smooth')
-            #print(p)
-        else:
-            self._xvisible = xdata
-            self._yvisible = ydata
-        
-        if self._yvisible.size == 0:
-            logger.warn('ydata array empty')
-            return
-
-        self.update_datalims()
-
     def plotlog(self, xdata=None, ydata=None, ndecimate=0, **style_kwargs):
         self.plot(xdata, num.log(ydata), ndecimate=ndecimate, **style_kwargs)
 
-    def update_datalims(self):
+    def update_datalims(self, xvisible, yvisible):
+
+        xvisible_max = num.max(xvisible)
 
         if self.ymin is None:
-            self._ymin = num.min(self._yvisible)
+            self._ymin = num.min(yvisible)
         else:
             self._ymin = self.ymin
         if not self.ymax:
-            self._ymax = num.max(self._yvisible)
+            self._ymax = num.max(yvisible)
         else:
             self._ymax = self.ymax
-        
+
         self.colormap.set_vlim(self._ymin, self._ymax)
 
         if self.tfollow:
-            self._xmin = num.max((num.max(self._xvisible) - self.tfollow, 0))
-            self._xmax = num.max((num.max(self._xvisible), self.tfollow))
+            self._xmin = num.max((xvisible_max - self.tfollow, 0))
+            self._xmax = num.max((xvisible_max, self.tfollow))
         else:
             if not self.xmin:
-                self._xmin = num.min(self._xvisible)
+                self._xmin = num.min(xvisible)
             else:
                 self._xmin = self.xmin
 
             if not self.xmax:
-                self._xmax = num.max(self._xvisible)
+                self._xmax = xvisible_max
             else:
                 self._xmax = self.xmax
 
@@ -566,34 +599,9 @@ class PlotWidget(__PlotSuperClass):
     def do_draw(self, painter):
         ''' this is executed e.g. when self.repaint() is called. Draws the
         underlying data and scales the content to fit into the widget.'''
+        for item in self.scene_items:
+            item.draw(painter, self.xproj, self.yproj)
 
-        if len(self._xvisible) == 0:
-            return
-
-        qpoints = make_QPolygonF(self.xproj(self._xvisible),
-                                 self.yproj(self._yvisible))
-
-        painter.save()
-        painter.setRenderHint(qg.QPainter.Antialiasing)
-        painter.fillRect(self.rect(), qg.QBrush(self.background_color))
-        painter.setPen(self.pen)
-
-        if not self.draw_fill and not self.draw_points:
-            painter.drawPolyline(qpoints)
-
-        elif self.draw_fill and not self.draw_points:
-            painter.drawPolygon(qpoints)
-            qpath = qg.QPainterPath()
-            qpath.addPolygon(qpoints)
-            painter.fillPath(qpath, self.brush)
-
-        elif self.draw_points:
-            painter.drawPoints(qpoints)
-
-        else:
-            raise Exception('dont know what to draw')
-
-        painter.restore()
         self.draw_deco(painter)
 
     def draw_deco(self, painter):
@@ -605,9 +613,9 @@ class PlotWidget(__PlotSuperClass):
 
         for grid in self.grids:
             grid.draw_grid(self, painter)
-        
+
         painter.restore()
-    
+
     def draw_axes(self, painter):
         ''' draw x and y axis'''
         w, h = self.wh
@@ -650,6 +658,9 @@ class PlotWidget(__PlotSuperClass):
         self.setup_annotation_boxes()
         painter.drawText(self.x_annotation_rect, qc.Qt.AlignCenter, 'Time')
 
+    def draw_background(self, painter):
+        painter.fillRect(self.rect(), qg.QBrush(self.background_color))
+
     def mousePressEvent(self, mouse_ev):
         point = self.mapFromGlobal(mouse_ev.globalPos())
         if mouse_ev.button() == qc.Qt.LeftButton:
@@ -691,7 +702,7 @@ class MikadoWidget(PlotWidget):
         self._xvisible = num.vstack((xdata1[indxdata1], xdata2[indxdata2]))
         self._yvisible = num.vstack((ydata1[indxdata1], ydata2[indxdata2]))
 
-        self.update_datalims()
+        self.update_datalims(self._xvisible, self._yvisible)
 
     def do_draw(self, painter):
         ''' this is executed e.g. when self.repaint() is called. Draws the

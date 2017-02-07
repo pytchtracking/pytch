@@ -247,10 +247,6 @@ class ChannelViews(QWidget):
         '''
         self.layout.addWidget(channel_view)
 
-    def draw(self):
-        for c_view in self.channel_views:
-            c_view.draw()
-
     def set_in_range(self, val_range):
         for c_view in self.channel_views:
             c_view.trace_widget.set_ylim(-val_range, val_range)
@@ -318,7 +314,7 @@ class ChannelView(QWidget):
             smooth_action_group.addAction(fft_smooth_action)
             self.fft_smooth_factor_menu.addAction(fft_smooth_action)
         self.right_click_menu.addMenu(self.fft_smooth_factor_menu)
-        
+
         self.spectrum_type_menu = QMenu(
             'lin/log', self.right_click_menu)
         plot_action_group = QActionGroup(self.spectrum_type_menu)
@@ -336,6 +332,15 @@ class ChannelView(QWidget):
                 spectrum_type.setChecked(True)
         self.right_click_menu.addMenu(self.spectrum_type_menu)
         self.on_spectrum_type_select()
+
+    @qc.pyqtSlot()
+    def on_clear(self):
+        self.trace_widget.clear()
+        self.spectrum.clear()
+
+    @qc.pyqtSlot()
+    def on_draw(self):
+        self.draw()
 
     def draw(self):
         c = self.channel
@@ -456,16 +461,22 @@ class PitchWidget(QWidget):
         '''
         self.threshold = threshold
 
-    def draw(self):
+    @qc.pyqtSlot()
+    def on_draw(self):
         for cv in self.channel_views:
             x, y = cv.channel.pitch.latest_frame(self.figure.tfollow)
             index = num.where(y>=self.noise_threshold)
             self.figure.plot(x[index], y[index], style='o', line_width=4, color=cv.color)
         self.figure.update()
 
+    @qc.pyqtSlot()
+    def on_clear(self):
+        self.figure.clear()
 
 class MainWidget(QWidget):
     ''' top level widget covering the central widget in the MainWindow.'''
+    signal_widgets_clear = qc.pyqtSignal()
+    signal_widgets_draw = qc.pyqtSignal()
 
     def __init__(self, settings, opengl, *args, **kwargs):
         QWidget.__init__(self, *args, **kwargs)
@@ -475,7 +486,7 @@ class MainWidget(QWidget):
         self.setLayout(self.top_layout)
 
         self.refresh_timer = qc.QTimer()
-        self.refresh_timer.timeout.connect(self.refreshwidgets)
+        self.refresh_timer.timeout.connect(self.refresh_widgets)
         self.menu = MenuWidget(settings)
 
         self.input_dialog = DeviceMenu.from_device_menu_settings(
@@ -534,7 +545,10 @@ class MainWidget(QWidget):
 
         channel_views = []
         for ichannel, channel in enumerate(self.data_input.channels):
-            channel_views.append(ChannelView(channel, color=_color_names[3+3*ichannel]))
+            cv = ChannelView(channel, color=_color_names[3+3*ichannel])
+            self.signal_widgets_clear.connect(cv.on_clear)
+            self.signal_widgets_draw.connect(cv.on_draw)
+            channel_views.append(cv)
 
         self.channel_views_widget = ChannelViews(channel_views)
         self.top_layout.addWidget(self.channel_views_widget)
@@ -546,6 +560,8 @@ class MainWidget(QWidget):
         self.top_layout.addWidget(tabbed_pitch_widget)
 
         self.pitch_view = PitchWidget(channel_views)
+        self.signal_widgets_clear.connect(self.pitch_view.on_clear)
+        self.signal_widgets_draw.connect(self.pitch_view.on_draw)
         self.menu.connect_pitch_view(self.pitch_view)
         self.menu.connect_channel_views(self.channel_views_widget)
 
@@ -576,12 +592,11 @@ class MainWidget(QWidget):
 
         self.reset()
 
-    def refreshwidgets(self):
+    def refresh_widgets(self):
         self.data_input.flush()
         self.worker.process()
-        self.channel_views_widget.draw()
-        self.pitch_view.draw()
-        self.pitch_diff_view.draw()
+        self.signal_widgets_clear.emit()
+        self.signal_widgets_draw.emit()
         self.pitch_diff_view_colorized.draw()
 
     def set_fftsize(self, size):
