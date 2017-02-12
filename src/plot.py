@@ -5,23 +5,15 @@ import logging
 from pytch.gui_util import AutoScaler, Projection, minmax_decimation
 from pytch.gui_util import make_QPolygonF, _color_names, _colors, _pen_styles    # noqa
 
-
-if False:
-    from PyQt4 import QtCore as qc
-    from PyQt4 import QtGui as qg
-    from PyQt4.QtGui import QApplication, QWidget, QHBoxLayout, QLabel, QMenu
-    from PyQt4.QtGui import QMainWindow, QVBoxLayout, QComboBox, QGridLayout
-    from PyQt4.QtGui import QAction, QSlider, QPushButton, QDockWidget, QFrame
-else:
-    from PyQt5 import QtCore as qc
-    from PyQt5 import QtGui as qg
-    from PyQt5.QtWidgets import QApplication, QWidget, QLabel
-    from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QComboBox
-    from PyQt5.QtWidgets import QAction, QSlider, QPushButton, QDockWidget
-    from PyQt5.QtWidgets import QCheckBox, QSizePolicy, QFrame, QMenu
-    from PyQt5.QtWidgets import QGridLayout, QSpacerItem, QDialog, QLineEdit
-    from PyQt5.QtWidgets import QActionGroup, QGraphicsWidget, QGraphicsGridLayout
-    from PyQt5.QtWidgets import QGraphicsScene, QGraphicsView
+# if False:
+#     from PyQt4 import QtCore as qc
+#     from PyQt4 import QtGui as qg
+#     from PyQt4.QtGui import QWidget, QMenu
+#     from PyQt4.QtGui import QAction, QSlider, QPushButton, QDockWidget, QFrame
+# else:
+from PyQt5 import QtCore as qc
+from PyQt5 import QtGui as qg
+from PyQt5.QtWidgets import QWidget, QSizePolicy
 
 
 logger = logging.getLogger(__name__)
@@ -32,21 +24,15 @@ try:
 except ImportError:
     logger.warn('no opengl support')
 
-    if True:
-        class PlotWidgetBase(QWidget):
+    class PlotWidgetBase(QWidget):
 
-            def paintEvent(self, e):
-                painter = qg.QPainter(self)
+        def paintEvent(self, e):
+            painter = qg.QPainter(self)
 
-                self.do_draw(painter)
+            self.do_draw(painter)
 
-            def do_draw(self, painter):
-                raise Exception('to be implemented in subclass')
-
-    else:
-        class PlotWidgetBase(QGraphicsItem):
-            def paint(self, e):
-                self.do_draw(e)
+        def do_draw(self, painter):
+            raise Exception('to be implemented in subclass')
 
     __PlotSuperClass = PlotWidgetBase
 
@@ -67,7 +53,6 @@ class InterpolatedColormap:
         self.proj.set_out_range(0, 255.)
 
     def update(self):
-        # why did i pass this?
         pass
 
     def _map(self, val):
@@ -188,7 +173,7 @@ class ColormapWidget(QWidget):
             patch = qc.QRect(qc.QPoint(rect.left(), yvals[i]),
                              qc.QPoint(rect.right(), yvals[i+1]))
             painter.save()
-            #painter.fillRect(patch, qg.QBrush(self.colors[i]))
+            painter.fillRect(patch, qg.QBrush(self.colors[i]))
             painter.restore()
 
     def sizeHint(self):
@@ -199,7 +184,6 @@ class GaugeWidget(__PlotSuperClass):
     def __init__(self, *args, **kwargs):
         super(GaugeWidget, self).__init__(*args, **kwargs)
 
-        self._painter = None
         self.color = qg.QColor(0, 100, 100)
         self._val = 0
         self.set_title('')
@@ -232,17 +216,17 @@ class GaugeWidget(__PlotSuperClass):
         ''' This is executed when self.repaint() is called'''
         painter.save()
         pen = qg.QPen(self.color, 20, qc.Qt.SolidLine)
-        #painter.setPen(self.pen)
-        painter.drawArc(self.rect(), 2880., -self.proj.clipped(self._val))
+        painter.setPen(pen)
+        if self._val:
+            painter.drawArc(self.rect(), 2880., -self.proj.clipped(self._val))
         painter.restore()
-        self._painter = painter
 
         self.draw_deco(painter)
 
     def draw_deco(self, painter):
         self.draw_ticks(painter)
         self.draw_title(painter)
-    
+
     def draw_title(self, painter):
         painter.save()
         w, h = self.width(), self.height()
@@ -264,7 +248,7 @@ class GaugeWidget(__PlotSuperClass):
             painter.drawLine(180, 0, 196, 0)
             painter.drawText(180, 0, str(ticks[-i]))
             painter.restore()
-        
+
         painter.restore()
 
     def set_title(self, title):
@@ -296,14 +280,14 @@ class AutoGrid():
         pen_color = 'aluminium2'
         pen_style = ':'
         line_width = 1
-        
+
         self.data_lims_v = (None, None)
         self.data_lims_h = (None, None)
         self.lines_h = []
         self.lines_v = []
         self.grid_pen = qg.QPen(qg.QColor(*_colors[pen_color]),
                            line_width, _pen_styles[pen_style])
-    
+
     def draw_grid(self, widget, painter):
         lines = []
         if self.horizontal:
@@ -446,10 +430,9 @@ class PlotWidget(__PlotSuperClass):
         self.xticks = None
         self.xzoom = 0.
 
-        self.scene_items = []
+        self.clear()
         self.grids = [Grid()]
-        #self.set_background_color('white')
-        self.set_background_color('transparent')
+        #self.set_background_color('transparent')
         self.yscaler = AutoScaler(
             no_exp_interval=(-3, 2), approx_ticks=5,
             snap=True
@@ -527,9 +510,8 @@ class PlotWidget(__PlotSuperClass):
         '''
         if ydata is None:
             return
-
-        if num.size(ydata) == 0:
-            print('no data in array')
+        if len(ydata) == 0:
+            self.update_datalims([0], [0])
             return
 
         if xdata is None:

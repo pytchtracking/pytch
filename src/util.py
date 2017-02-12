@@ -51,6 +51,8 @@ class Profiler():
         s += 'total: %s' % (self.times[-1][1]-self.times[0][1])
         return s
 
+def consecutive(arr):
+    return num.split(arr, num.where(num.diff(arr) != 1)[0]+1)
 
 
 def smooth(x,window_len=11,window='hanning'):

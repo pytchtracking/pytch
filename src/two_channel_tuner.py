@@ -19,14 +19,9 @@ class Worker():
         :param buffer_length: in seconds'''
 
         self.ndata_scale = 16*2
-        #self.processingFinished = DummySignal()
-        self.buffer_length = buffer_length     # seconds
-        self.pitch_algorithms = ['default', 'schmitt', 'fcomb', 'mcomb',
-                                 'specacf', 'yin', 'yinfft']
         self.channels = channels
         self.nchannels = len(self.channels)
         self.cross_spectra_combinations = []
-        self.pmin = 100.
         self.spectral_smoothing = False
         self.set_pitch_algorithm(0)
 
@@ -42,16 +37,6 @@ class Worker():
             tolerance = 0.8
             win_s = channel.fftsize
 
-            #p = pitch(self.pitch_algorithms[ialgorithm],
-            #          win_s, win_s, channel.sampling_rate)
-            #p.set_unit("Hz")
-            #p.set_tolerance(tolerance)
-
-            #channel.pitch_o = p
-
-    def set_pmin(self, v):
-        self.pmin = v
-
     def process(self):
         ''' Do the work'''
         logger.debug('start processing')
@@ -59,18 +44,16 @@ class Worker():
         for ic, channel in enumerate(self.channels):
             frame_work = channel.latest_frame_data(channel.fftsize)
 
-            fft_data = num.abs(num.fft.rfft(frame_work))
-            channel.fft.append(fft_data)
+            amp_spec = num.abs(num.fft.rfft(frame_work))
+            channel.fft.append(amp_spec)
+            channel.fft_power.append(num.sum(amp_spec)/channel.sampling_rate)
 
             #total_power = num.sum(channel.fft)/len(channel.freqs)
-            #if total_power < self.pmin:
             #new_pitch_Cent = -9999999.
             #else:
             #pitch = channel.pitch_o(frame_work.astype(num.float32))[0]
             #new_pitch_Cent = channel.pitch_o(frame_work)[0]
-            channel.pitch.append(num.array(
-                [f2pitch(channel.pitch_o(frame_work)[0])])
-            )
+            channel.pitch.append_value(f2pitch(channel.pitch_o(frame_work)[0]))
 
         #    #pitch_confidence2 = pitch_o.get_confidence()
 

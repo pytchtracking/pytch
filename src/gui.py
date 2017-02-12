@@ -4,10 +4,10 @@ import numpy as num
 
 from pytch.two_channel_tuner import Worker
 
-from pytch.data import MicrophoneRecorder, getaudiodevices, sampling_rate_options
+from pytch.data import MicrophoneRecorder, getaudiodevices, sampling_rate_options, pitch_algorithms
 from pytch.gui_util import AutoScaler, Projection, mean_decimation
 from pytch.gui_util import make_QPolygonF, _color_names, _colors # noqa
-from pytch.util import Profiler, smooth, pitch2f
+from pytch.util import Profiler, smooth, pitch2f, consecutive
 from pytch.plot import PlotWidget, GaugeWidget, MikadoWidget, AutoGrid
 
 if False:
@@ -162,20 +162,20 @@ class MenuWidget(QFrame):
 
         layout.addWidget(QLabel('Noise Threshold'), 4, 0)
         self.noise_thresh_slider = QSlider()
-        self.noise_thresh_slider.setRange(0, 10000)
-        self.noise_thresh_slider.setValue(1000)
+        self.noise_thresh_slider.setRange(0, 2000)
+        self.noise_thresh_slider.setValue(500)
         self.noise_thresh_slider.setOrientation(qc.Qt.Horizontal)
         layout.addWidget(self.noise_thresh_slider, 4, 1)
 
         layout.addWidget(QLabel('Sensitiviy'), 5, 0)
         self.sensitivity_slider = QSlider()
-        self.sensitivity_slider.setRange(0, 10000)
-        self.sensitivity_slider.setValue(1000)
+        self.sensitivity_slider.setRange(100, 100000)
+        self.sensitivity_slider.setValue(10000)
         self.sensitivity_slider.setOrientation(qc.Qt.Horizontal)
         layout.addWidget(self.sensitivity_slider, 5, 1)
 
         layout.addWidget(QLabel('Select Algorithm'), 6, 0)
-        self.select_algorithm = QComboBox()
+        self.select_algorithm = QComboBox(self)
         layout.addWidget(self.select_algorithm, 6, 1)
 
         layout.addWidget(QLabel('Show traces'), 7, 0)
@@ -207,9 +207,9 @@ class MenuWidget(QFrame):
         if default:
             self.select_algorithm.setCurrentIndex(algorithms.index(default))
 
-    def connect_pitch_view(self, pitch_view):
+    def connect_to_noise_threshold(self, widget):
         self.noise_thresh_slider.valueChanged.connect(
-            pitch_view.set_noise_threshold)
+            widget.on_noise_threshold_changed)
 
     def connect_channel_views(self, channel_views):
         self.box_show_traces.stateChanged.connect(
@@ -267,6 +267,8 @@ class ChannelView(QWidget):
 
         layout = QHBoxLayout()
         self.setLayout(layout)
+
+        self.noise_threshold = 0
 
         self.trace_widget = PlotWidget()
         self.trace_widget.grids = [AutoGrid(vertical=False)]
@@ -343,6 +345,13 @@ class ChannelView(QWidget):
     def on_draw(self):
         self.draw()
 
+    @qc.pyqtSlot(int)
+    def on_noise_threshold_changed(self, threshold):
+        '''
+        self.channel_views_widget.
+        '''
+        self.noise_threshold = threshold
+
     def draw(self):
         c = self.channel
         self.trace_widget.plot(*c.latest_frame(
@@ -353,14 +362,17 @@ class ChannelView(QWidget):
             self.plot_spectrum(
                     c.freqs, num.mean(d, axis=0), ndecimate=2,
                     color=self.color, ignore_nan=True)
-        self.spectrum.axvline(
-            pitch2f(
-                num.mean(
-                    c.pitch.latest_frame_data(1),
-                    axis=0)
-            )
 
-        )
+        power1 = num.sum(c.fft_power.latest_frame_data(1))
+        if power1 > self.noise_threshold:
+            self.spectrum.axvline(
+                pitch2f(
+                    num.mean(
+                        c.pitch.latest_frame_data(1),
+                        axis=0)
+                )
+
+            )
         self.trace_widget.update()
         self.spectrum.update()
 
@@ -418,7 +430,8 @@ class PitchLevelMikadoViews(QWidget):
                 self.widgets.append((cv1, cv2, w))
                 layout.addWidget(w, i1, i2)
 
-    def draw(self):
+    @qc.pyqtSlot()
+    def on_draw(self):
         for cv1, cv2, w in self.widgets:
             x1, y1 = cv1.channel.pitch.latest_frame(w.tfollow)
             x2, y2 = cv1.channel.pitch.latest_frame(w.tfollow)
@@ -443,13 +456,20 @@ class PitchLevelDifferenceViews(QWidget):
                 self.widgets.append((cv1, cv2, w))
                 layout.addWidget(w, i1, i2)
 
-    def draw(self):
+    @qc.pyqtSlot()
+    def on_draw(self):
+        naverage = 3
         for cv1, cv2, w in self.widgets:
-            d = cv1.channel.pitch.latest_frame_data(3)
-            if d is not None:
-                w.set_data(abs(num.mean(d)))
-
+            power1 = num.sum(cv1.channel.fft_power.latest_frame_data(1))
+            power2 = num.sum(cv1.channel.fft_power.latest_frame_data(1))
+            if power1 > cv1.noise_threshold and power2>cv2.noise_threshold:
+                d1 = cv1.channel.pitch.latest_frame_data(naverage)
+                d2 = cv2.channel.pitch.latest_frame_data(naverage)
+                w.set_data(num.mean(d1)-num.mean(d2))
+            else:
+                w.set_data(None)
             w.repaint()
+
 
 class PitchWidget(QWidget):
     def __init__(self, channel_views, *args, **kwargs):
@@ -462,20 +482,56 @@ class PitchWidget(QWidget):
         self.figure.tfollow = 20
         self.figure.grids = [AutoGrid()]
         layout.addWidget(self.figure)
-        self.noise_threshold = -99999
-
-    def set_noise_threshold(self, threshold):
-        '''
-        self.channel_views_widget.
-        '''
-        self.threshold = threshold
 
     @qc.pyqtSlot()
     def on_draw(self):
         for cv in self.channel_views:
             x, y = cv.channel.pitch.latest_frame(self.figure.tfollow)
-            index = num.where(y>=self.noise_threshold)
+            index = num.where(cv.channel.fft_power.latest_frame_data(
+                len(x))>=cv.noise_threshold)
             self.figure.plot(x[index], y[index], style='o', line_width=4, color=cv.color)
+        self.repaint()
+
+    @qc.pyqtSlot()
+    def on_clear(self):
+        self.figure.clear()
+
+
+class DifferentialPitchWidget(QWidget):
+    def __init__(self, channel_views, *args, **kwargs):
+        QWidget.__init__(self, *args, **kwargs)
+        self.channel_views = channel_views
+        layout = QGridLayout()
+        self.setLayout(layout)
+        self.figure = PlotWidget()
+        self.figure.set_ylim(-1000., 1000)
+        self.figure.tfollow = 20
+        self.figure.grids = [AutoGrid()]
+        layout.addWidget(self.figure)
+
+    @qc.pyqtSlot()
+    def on_draw(self):
+        for i1, cv1 in enumerate(self.channel_views):
+            x1, y1 = cv1.channel.pitch.latest_frame(self.figure.tfollow)
+            index1 = num.where(cv1.channel.fft_power.latest_frame_data(
+                len(x1))>=cv1.noise_threshold)[0]
+
+            for i2, cv2 in enumerate(self.channel_views):
+                if i1>=i2:
+                    continue
+                x2, y2 = cv2.channel.pitch.latest_frame(self.figure.tfollow)
+                index2 = num.where(cv2.channel.fft_power.latest_frame_data(
+                    len(x2))>=cv2.noise_threshold)[0]
+                indices = num.intersect1d(index1, index2)
+                indices_grouped = consecutive(indices)
+                for group in indices_grouped:
+                    y = y1[group] - y2[group]
+                    x = x1[group]
+                    self.figure.plot(
+                        x, y, style='solid', line_width=4, color=cv1.color)
+                    self.figure.plot(
+                        x, y, style=':', line_width=4, color=cv2.color)
+
         self.figure.update()
 
     @qc.pyqtSlot()
@@ -487,7 +543,7 @@ class MainWidget(QWidget):
     signal_widgets_clear = qc.pyqtSignal()
     signal_widgets_draw = qc.pyqtSignal()
 
-    def __init__(self, settings, opengl, *args, **kwargs):
+    def __init__(self, settings, *args, **kwargs):
         QWidget.__init__(self, *args, **kwargs)
 
         self.setMouseTracking(True)
@@ -509,25 +565,17 @@ class MainWidget(QWidget):
 
     def make_connections(self):
         menu = self.menu
-        #worker = self.worker
-        #core.device_no = menu.select_input.currentIndex()
-        #menu.select_input.activated.connect(self.data_input.set_device_no)
-
-        #menu.nfft_choice.activated.connect(self.set_fftsize)
         menu.input_button.clicked.connect(self.set_input_dialog)
-
         menu.pause_button.clicked.connect(self.data_input.stop)
         menu.play_button.clicked.connect(self.data_input.start)
-        #menu.pause_button.clicked.connect(core.data_input.stop)
-        #menu.play_button.clicked.connect(core.data_input.start)
 
-        #menu.spectral_smoothing.stateChanged.connect(
-        #    worker.set_spectral_smoothing)
-        #menu.spectral_smoothing.setChecked(worker.spectral_smoothing)
-        #menu.set_algorithms(worker.pitch_algorithms, default='yin')
-        #menu.select_algorithm.activated.connect(worker.set_pitch_algorithm)
+        menu.set_algorithms(pitch_algorithms, default='yin')
+        menu.select_algorithm.currentTextChanged.connect(self.on_algorithm_select)
 
-        #self.set_fftsize(3)
+    @qc.pyqtSlot(str)
+    def on_algorithm_select(self, arg):
+        for c in self.data_input.channels:
+            c.pitch_algorithm = arg
 
     def cleanup(self):
         ''' clear all widgets. '''
@@ -547,16 +595,18 @@ class MainWidget(QWidget):
         self.input_dialog.activateWindow()
 
     def reset(self):
+        dinput = self.data_input
 
         self.worker = Worker(
-            self.data_input.channels,
+            dinput.channels,
             buffer_length=10*60.)
 
         channel_views = []
-        for ichannel, channel in enumerate(self.data_input.channels):
+        for ichannel, channel in enumerate(dinput.channels):
             cv = ChannelView(channel, color=_color_names[3+3*ichannel])
             self.signal_widgets_clear.connect(cv.on_clear)
             self.signal_widgets_draw.connect(cv.on_draw)
+            self.menu.connect_to_noise_threshold(cv)
             channel_views.append(cv)
 
         self.channel_views_widget = ChannelViews(channel_views)
@@ -569,51 +619,47 @@ class MainWidget(QWidget):
         self.top_layout.addWidget(tabbed_pitch_widget)
 
         self.pitch_view = PitchWidget(channel_views)
-        self.signal_widgets_clear.connect(self.pitch_view.on_clear)
-        self.signal_widgets_draw.connect(self.pitch_view.on_draw)
-        self.menu.connect_pitch_view(self.pitch_view)
-        self.menu.connect_channel_views(self.channel_views_widget)
 
+        self.pitch_view_all_diff = DifferentialPitchWidget(channel_views)
         self.pitch_diff_view = PitchLevelDifferenceViews(channel_views)
         self.pitch_diff_view_colorized = PitchLevelMikadoViews(channel_views)
 
         tabbed_pitch_widget.addTab(self.pitch_view, 'Pitches')
-        tabbed_pitch_widget.addTab(self.pitch_diff_view, 'Differential')
+        tabbed_pitch_widget.addTab(self.pitch_view_all_diff, 'Differential')
+        tabbed_pitch_widget.addTab(self.pitch_diff_view, 'Current')
         tabbed_pitch_widget.addTab(self.pitch_diff_view_colorized, 'Mikado')
-        qc.QTimer().singleShot(200, self.start_refresh_timer)
+
+        self.menu.connect_channel_views(self.channel_views_widget)
+
+        self.signal_widgets_clear.connect(self.pitch_view.on_clear)
+        self.signal_widgets_clear.connect(self.pitch_view_all_diff.on_clear)
+
+        self.signal_widgets_draw.connect(self.pitch_view.on_draw)
+        self.signal_widgets_draw.connect(self.pitch_view_all_diff.on_draw)
+        self.signal_widgets_draw.connect(self.pitch_diff_view.on_draw)
+        self.signal_widgets_draw.connect(self.pitch_diff_view_colorized.on_draw)
+
+        t_wait_buffer = max(dinput.fftsizes)/dinput.sampling_rate*1500.
+        qc.QTimer().singleShot(t_wait_buffer, self.start_refresh_timer)
 
     def start_refresh_timer(self):
-        self.refresh_timer.start(57)
+        self.refresh_timer.start(58)
 
     def set_input(self, input):
-
         self.cleanup()
 
         self.data_input = input
-        try:
-            self.data_input.start_new_stream()
-        except OSError as e:
-            # to be caught!
-            raise e
-            #self.set_input_dialog()
-
+        self.data_input.start_new_stream()
         self.make_connections()
 
         self.reset()
 
+    @qc.pyqtSlot()
     def refresh_widgets(self):
         self.data_input.flush()
         self.worker.process()
         self.signal_widgets_clear.emit()
         self.signal_widgets_draw.emit()
-        self.pitch_diff_view_colorized.draw()
-
-    def set_fftsize(self, size):
-        self.cleanup()
-        for channel in self.data_input.channels:
-            channel.fftsize = size
-
-        self.reset()
 
     def closeEvent(self, ev):
         '''Called when application is closed.'''
@@ -625,9 +671,9 @@ class MainWidget(QWidget):
 
 class MainWindow(QMainWindow):
     ''' Top level Window. The entry point of the gui.'''
-    def __init__(self, settings, opengl=True, *args, **kwargs):
+    def __init__(self, settings, *args, **kwargs):
         QMainWindow.__init__(self, *args, **kwargs)
-        self.main_widget = MainWidget(settings, opengl=opengl)
+        self.main_widget = MainWidget(settings)
         self.setCentralWidget(self.main_widget)
 
         controls_dock_widget = QDockWidget()
@@ -665,7 +711,7 @@ def from_command_line(close_after=None, settings=None, check_opengl=False,
             sys.exit()
 
     app = QApplication(sys.argv)
-    
+
     if settings is None:
         settings = DeviceMenuSetting()
         settings.accept = False
@@ -681,7 +727,7 @@ def from_command_line(close_after=None, settings=None, check_opengl=False,
         close_timer = qc.QTimer()
         close_timer.timeout.connect(app.quit)
         close_timer.start(close_after * 1000.)
-    
+
     app.exec_()
 
 

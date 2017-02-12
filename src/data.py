@@ -5,13 +5,15 @@ import atexit
 import numpy as num
 import logging
 
-from pytch.util import DummySignal
 _lock = threading.Lock()
 
 # class taken from the scipy 2015 vispy talk opening example
 # see https://github.com/vispy/vispy/pull/928
 
 logger = logging.getLogger(__name__)
+
+pitch_algorithms = [
+    'default', 'schmitt', 'fcomb', 'mcomb', 'specacf', 'yin', 'yinfft']
 
 
 def append_to_frame(f, d):
@@ -127,7 +129,7 @@ class Buffer():
     def latest_frame_data(self, n):
         ''' Return the latest n samples data from buffer as array.'''
         if n>self.i_filled:
-            return None
+            return self.data[:min(n, self.i_filled)]
         else:
             return self.data[num.arange(max(self.i_filled-n, 0), self.i_filled) %
                              self.data.size]
@@ -139,6 +141,12 @@ class Buffer():
             raise Exception('data overflow')
         self.data[self.i_filled:self.i_filled+n] = d
         self.i_filled += n
+
+    def append_value(self, v):
+        if self.i_filled + 1 > self.data.size:
+            raise Exception('data overflow')
+        self.data[self.i_filled+1] = v
+        self.i_filled += 1
 
     def energy(self, nsamples_total, nsamples_sum=1):
         xi = num.arange(self.i_filled-nsamples_total, self.i_filled)
@@ -156,6 +164,10 @@ class RingBuffer(Buffer):
         xi = (self.i_filled + num.arange(n)) % self.data.size
         self.data[xi] = d
         self.i_filled += n
+
+    def append_value(self, v):
+        self.data[(self.i_filled+1) % self.data_len] = v
+        self.i_filled += 1
 
 
 class RingBuffer2D(RingBuffer):
@@ -193,10 +205,13 @@ class SamplingRateException(Exception):
 
 class Channel(RingBuffer):
     def __init__(self, sampling_rate, fftsize=8192):
+
         self.buffer_length_seconds = 100
         RingBuffer.__init__(self, sampling_rate, self.buffer_length_seconds)
+
+        self.__pitch_algorithm = 'yinfft'
         self.name = ''
-        self.pitch_o = False
+        self.pitch_o = None
         self.fftsize = fftsize
         self.setup_pitch()
         self.update()
@@ -206,6 +221,9 @@ class Channel(RingBuffer):
         self.freqs = num.fft.rfftfreq(*nfft)
         self.fft = RingBuffer2D(
             ndimension2=self.fftsize/2+1,
+            sampling_rate=self.sampling_rate/self.fftsize,   # Hop size
+            buffer_length_seconds=self.buffer_length_seconds)
+        self.fft_power = RingBuffer(
             sampling_rate=self.sampling_rate/self.fftsize,   # Hop size
             buffer_length_seconds=self.buffer_length_seconds)
         self.pitch = RingBuffer(
@@ -221,11 +239,22 @@ class Channel(RingBuffer):
         self.__fftsize = size
         self.update()
 
+    @property
+    def pitch_algorithm(self):
+        return self.__pitch_algorithm
+
+    @pitch_algorithm.setter
+    def pitch_algorithm(self, alg):
+        self.__algorithm = alg
+        self.update()
+        self.setup_pitch()
+
     def setup_pitch(self):
+        if self.pitch_o:
+            self.pitch_o = None
         tolerance = 0.8
         win_s = self.fftsize
-        #self.pitch_o = pitch(self.pitch_algorithms[ialgorithm],
-        self.pitch_o = pitch('yinfft',
+        self.pitch_o = pitch(self.pitch_algorithm,
           win_s, win_s, self.sampling_rate)
         self.pitch_o.set_unit("Hz")
         self.pitch_o.set_tolerance(tolerance)
@@ -234,7 +263,7 @@ class Channel(RingBuffer):
 class MicrophoneRecorder(DataProvider):
 
     def __init__(self, chunksize=512, device_no=None, sampling_rate=None, fftsize=1024,
-                 nchannels=2, data_ready_signal=None):
+                 nchannels=2):
         DataProvider.__init__(self)
 
         self.stream = None
@@ -251,7 +280,12 @@ class MicrophoneRecorder(DataProvider):
             self.channels.append(c)
 
         self.chunksize = chunksize
-        self.data_ready_signal = data_ready_signal or DummySignal()
+
+    @property
+    def fftsizes(self):
+        ''' List of sampling rates of all channels registered by the input
+        device'''
+        return [c.fftsize for c in self.channels]
 
     @property
     def sampling_rate_options(self):
@@ -265,8 +299,6 @@ class MicrophoneRecorder(DataProvider):
             self.frames.append(data)
             if self._stop:
                 return None, pyaudio.paComplete
-
-        self.data_ready_signal.emit()
 
         return None, pyaudio.paContinue
 
