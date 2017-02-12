@@ -490,6 +490,7 @@ class PitchWidget(QWidget):
             index = num.where(cv.channel.fft_power.latest_frame_data(
                 len(x))>=cv.noise_threshold)
             self.figure.plot(x[index], y[index], style='o', line_width=4, color=cv.color)
+            self.figure.update()
         self.repaint()
 
     @qc.pyqtSlot()
