@@ -7,8 +7,8 @@ from pytch.two_channel_tuner import Worker
 from pytch.data import MicrophoneRecorder, getaudiodevices, sampling_rate_options, pitch_algorithms
 from pytch.gui_util import AutoScaler, Projection, mean_decimation, FloatQLineEdit
 from pytch.gui_util import make_QPolygonF, _color_names, _colors # noqa
-from pytch.util import Profiler, smooth, pitch2f, consecutive
-from pytch.plot import PlotWidget, GaugeWidget, MikadoWidget, AutoGrid
+from pytch.util import Profiler, smooth, consecutive
+from pytch.plot import PlotWidget, GaugeWidget, MikadoWidget, AutoGrid, FixGrid
 
 if False:
     from PyQt4 import QtCore as qc
@@ -379,9 +379,8 @@ class ChannelView(QWidget):
         power = num.sum(c.fft_power.latest_frame_data(1))
 
         if power > self.noise_threshold:
-            self.spectrum.axvline(
-                num.mean(c.get_latest_pitch(self.standard_frequency, n=3))
-            )
+            x= c.get_latest_pitch(self.standard_frequency)
+            self.spectrum.axvline(x)
         self.trace_widget.update()
         self.spectrum.update()
 
@@ -429,7 +428,7 @@ class PitchWidget(QWidget):
         self.figure = PlotWidget()
         self.figure.set_ylim(-1500., 1500)
         self.figure.tfollow = 20
-        self.figure.grids = [AutoGrid()]
+        self.figure.grids = [FixGrid(delta=100.)]
         layout.addWidget(self.figure)
 
     @qc.pyqtSlot()
@@ -456,7 +455,7 @@ class DifferentialPitchWidget(QWidget):
         self.figure = PlotWidget()
         self.figure.set_ylim(-1500., 1500)
         self.figure.tfollow = 20
-        self.figure.grids = [AutoGrid()]
+        self.figure.grids = [FixGrid(delta=100.)]
         layout.addWidget(self.figure)
 
     @qc.pyqtSlot()
@@ -511,8 +510,8 @@ class PitchLevelDifferenceViews(QWidget):
     def on_draw(self):
         naverage = 3
         for cv1, cv2, w in self.widgets:
-            power1 = num.sum(cv1.channel.fft_power.latest_frame_data(1))
-            power2 = num.sum(cv1.channel.fft_power.latest_frame_data(1))
+            power1 = num.sum(cv1.channel.fft_power.latest_frame_data(naverage))
+            power2 = num.sum(cv1.channel.fft_power.latest_frame_data(naverage))
             if power1 > cv1.noise_threshold and power2>cv2.noise_threshold:
                 d1 = cv1.channel.pitch.latest_frame_data(naverage)
                 d2 = cv2.channel.pitch.latest_frame_data(naverage)
@@ -707,7 +706,7 @@ class MainWindow(QMainWindow):
         QMainWindow.keyPressEvent(self, key_event)
 
     def sizeHint(self):
-        return qc.QSize(900, 600)
+        return qc.QSize(700, 600)
 
 
 def from_command_line(close_after=None, settings=None, check_opengl=False,

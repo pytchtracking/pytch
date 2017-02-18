@@ -18,7 +18,6 @@ def pitch2f(p, standard_frequency=120.):
     return num.exp2(p/1200.) * standard_frequency - 0.1
 
 
-
 class DummySignal():
     ''' does nothing when emitted'''
     def __init__(self):

@@ -177,7 +177,7 @@ class ColormapWidget(QWidget):
             painter.restore()
 
     def sizeHint(self):
-        return qc.QSize(100, 500)
+        return qc.QSize(100, 400)
 
 
 class GaugeWidget(__PlotSuperClass):
@@ -261,7 +261,7 @@ class GaugeWidget(__PlotSuperClass):
         self._val = val
 
     def sizeHint(self):
-        return qc.QSize(500, 500)
+        return qc.QSize(400, 400)
 
 
 class Grid():
@@ -332,6 +332,45 @@ class AutoGrid():
         self.data_lims_v = (widget._xmin, widget._xmax)
 
         return self.lines_v
+
+
+class FixGrid(AutoGrid):
+    def __init__(self, delta, *args, **kwargs):
+        self.delta = delta
+        AutoGrid.__init__(self, *args, **kwargs)
+
+    def lines_horizontal(self, widget, painter):
+        ''' setup horizontal grid lines'''
+
+        #if not (widget._ymin, widget._ymax) == self.data_lims_h:
+        ymin, ymax, yinc = widget.yscaler.make_scale(
+            (widget._ymin, widget._ymax)
+        )
+        ticks_proj = widget.yproj(num.arange(ymin, ymax, self.delta))
+
+        w, h = widget.wh
+        self.lines_h = [qc.QLineF(w * widget.left, yval, w, yval)
+                 for yval in ticks_proj]
+        self.data_lims_h = (widget._ymin, widget._ymax)
+
+        return self.lines_h
+
+    def lines_vertical(self, widget, painter):
+        ''' setup vertical grid lines'''
+
+        #if not (widget._xmin, widget._xmax) == self.data_lims_v:
+        xmin, xmax, xinc = widget.xscaler.make_scale(
+            (widget._xmin, widget._xmax)
+        )
+        ticks_proj = widget.xproj(num.arange(xmin, xmax, self.delta))
+
+        w, h = widget.wh
+        self.lines_v = [qc.QLineF(xval, h * widget.top, xval, h)
+                 for xval in ticks_proj]
+        self.data_lims_v = (widget._xmin, widget._xmax)
+
+        return self.lines_v
+
 
 
 class AxHLine():
