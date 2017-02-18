@@ -304,16 +304,16 @@ class AutoGrid():
     def lines_horizontal(self, widget, painter):
         ''' setup horizontal grid lines'''
 
-        if not (widget._ymin, widget._ymax) == self.data_lims_h:
-            ymin, ymax, yinc = widget.yscaler.make_scale(
-                (widget._ymin, widget._ymax)
-            )
-            ticks_proj = widget.yproj(num.arange(ymin, ymax, yinc))
+        #if not (widget._ymin, widget._ymax) == self.data_lims_h:
+        ymin, ymax, yinc = widget.yscaler.make_scale(
+            (widget._ymin, widget._ymax)
+        )
+        ticks_proj = widget.yproj(num.arange(ymin, ymax, yinc))
 
-            w, h = widget.wh
-            self.lines_h = [qc.QLineF(w * widget.left, yval, w, yval)
-                     for yval in ticks_proj]
-            self.data_lims_h = (widget._ymin, widget._ymax)
+        w, h = widget.wh
+        self.lines_h = [qc.QLineF(w * widget.left, yval, w, yval)
+                 for yval in ticks_proj]
+        self.data_lims_h = (widget._ymin, widget._ymax)
 
         return self.lines_h
 
