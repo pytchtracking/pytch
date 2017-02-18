@@ -534,7 +534,7 @@ class PitchLevelMikadoViews(QWidget):
                 if i1>=i2:
                     continue
                 w = MikadoWidget()
-                w.set_ylim(-2000, 2000)
+                w.set_ylim(-1500, 1500)
                 w.set_title('Channels: %s %s' % (i1, i2))
                 w.tfollow = 60.
                 self.widgets.append((cv1, cv2, w))
@@ -544,7 +544,7 @@ class PitchLevelMikadoViews(QWidget):
     def on_draw(self):
         for cv1, cv2, w in self.widgets:
             x1, y1 = cv1.channel.pitch.latest_frame(w.tfollow)
-            x2, y2 = cv1.channel.pitch.latest_frame(w.tfollow)
+            x2, y2 = cv2.channel.pitch.latest_frame(w.tfollow)
             w.fill_between(x1, y1, x2, y2)
             w.repaint()
 
