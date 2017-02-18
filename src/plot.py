@@ -303,7 +303,7 @@ class AutoGrid():
 
     def lines_horizontal(self, widget, painter):
         ''' setup horizontal grid lines'''
-        
+
         if not (widget._ymin, widget._ymax) == self.data_lims_h:
             ymin, ymax, yinc = widget.yscaler.make_scale(
                 (widget._ymin, widget._ymax)
@@ -311,7 +311,7 @@ class AutoGrid():
             ticks_proj = widget.yproj(num.arange(ymin, ymax, yinc))
 
             w, h = widget.wh
-            self.lines_h = [qc.QLineF(w * widget.left * 0.8, yval, w, yval)
+            self.lines_h = [qc.QLineF(w * widget.left, yval, w, yval)
                      for yval in ticks_proj]
             self.data_lims_h = (widget._ymin, widget._ymax)
 
@@ -320,17 +320,16 @@ class AutoGrid():
     def lines_vertical(self, widget, painter):
         ''' setup vertical grid lines'''
 
-        if not (widget._xmin, widget._xmax) == self.data_lims_v:
-            xmin, xmax, xinc = widget.yscaler.make_scale(
-                (widget._xmin, widget._xmax)
-            )
-            ticks_proj = widget.xproj(num.arange(xmin, xmax, xinc))
+        #if not (widget._xmin, widget._xmax) == self.data_lims_v:
+        xmin, xmax, xinc = widget.xscaler.make_scale(
+            (widget._xmin, widget._xmax)
+        )
+        ticks_proj = widget.xproj(num.arange(xmin, xmax, xinc))
 
-            w, h = widget.wh
-            self.lines_v = [qc.QLineF(xval, h * widget.top*0.8, xval, h)
-                     for xval in ticks_proj]
-
-            self.data_lims_v = (widget._xmin, widget._xmax)
+        w, h = widget.wh
+        self.lines_v = [qc.QLineF(xval, h * widget.top, xval, h)
+                 for xval in ticks_proj]
+        self.data_lims_v = (widget._xmin, widget._xmax)
 
         return self.lines_v
 
@@ -431,7 +430,7 @@ class PlotWidget(__PlotSuperClass):
         self.xzoom = 0.
 
         self.clear()
-        self.grids = [Grid()]
+        self.grids = [AutoGrid()]
         #self.set_background_color('transparent')
         self.yscaler = AutoScaler(
             no_exp_interval=(-3, 2), approx_ticks=5,
@@ -544,9 +543,9 @@ class PlotWidget(__PlotSuperClass):
         pen = self.get_pen(**pen_args)
         self.scene_items.append(AxVLine(x=x, pen=pen))
 
-    def axhline(self, x, **pen_args):
+    def axhline(self, y, **pen_args):
         pen = self.get_pen(**pen_args)
-        self.scene_items.append(AxHLine(x=x, pen=pen))
+        self.scene_items.append(AxHLine(y=y, pen=pen))
 
     def fill_between(self, xdata, ydata1, ydata2, *args, **kwargs):
         x = num.hstack((xdata, xdata[::-1]))
@@ -591,8 +590,7 @@ class PlotWidget(__PlotSuperClass):
         mi, ma = self.xproj.get_out_range()
         drange = ma-mi
         xzoom = self.xzoom * drange
-        self.xproj.set_in_range(self._xmin - xzoom,
-                                self._xmax)
+        self.xproj.set_in_range(self._xmin - xzoom, self._xmax)
         self.xproj.set_out_range(w * self.left, w * self.right)
 
         self.yproj.set_in_range(self._ymin, self._ymax)

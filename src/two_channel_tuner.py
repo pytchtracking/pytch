@@ -3,6 +3,7 @@
 import math
 from aubio import pitch
 import numpy as num
+import time
 
 from pytch.util import DummySignal, f2pitch
 
@@ -53,8 +54,8 @@ class Worker():
             #else:
             #pitch = channel.pitch_o(frame_work.astype(num.float32))[0]
             #new_pitch_Cent = channel.pitch_o(frame_work)[0]
-            channel.pitch.append_value(f2pitch(channel.pitch_o(frame_work)[0]))
-
+            #channel.pitch.append_value(f2pitch(channel.pitch_o(frame_work)[0]))
+            channel.pitch.append_value(channel.pitch_o(frame_work)[0])
         #    #pitch_confidence2 = pitch_o.get_confidence()
 
         #    self.pitchlog_vect1 = num.roll(self.pitchlog_vect1, -1)

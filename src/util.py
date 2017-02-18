@@ -10,12 +10,12 @@ def dummy():
     return
 
 
-def f2pitch(f):
-    return 1200. * num.log2((f + .1)/120.)
+def f2pitch(f, standard_frequency=120.):
+    return 1200. * num.log2((f + .1)/standard_frequency)
 
 
-def pitch2f(p):
-    return num.exp2(p/1200.) * 120. - 0.1
+def pitch2f(p, standard_frequency=120.):
+    return num.exp2(p/1200.) * standard_frequency - 0.1
 
 
 

@@ -4,6 +4,7 @@ from aubio import pitch
 import atexit
 import numpy as num
 import logging
+from pytch.util import f2pitch
 
 _lock = threading.Lock()
 
@@ -248,6 +249,14 @@ class Channel(RingBuffer):
         self.__algorithm = alg
         self.update()
         self.setup_pitch()
+
+    def get_latest_pitch(self, standard_frequency, n=None, t=None):
+        if n:
+            return f2pitch(self.pitch.latest_frame_data(n), standard_frequency)
+        elif t:
+            return f2pitch(self.pitch.latest_frame(t), standard_frequency)
+        else:
+            raise Exception('need to define n or t')
 
     def setup_pitch(self):
         if self.pitch_o:

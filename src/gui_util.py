@@ -4,8 +4,7 @@ import sys
 
 import PyQt5.QtGui as qg
 import PyQt5.QtCore as qc
-
-
+import PyQt5.QtWidgets as qw
 
 
 _color_names = [
@@ -322,3 +321,14 @@ def minmax_decimation(d, ndecimate):
     dout[::2] = num.nanmin(d[::2], axis=1)
     return dout
 
+
+class FloatQLineEdit(qw.QLineEdit):
+    accepted_value = qc.pyqtSignal(float)
+
+    def __init__(self, *args, **kwargs):
+        qw.QLineEdit.__init__(self, *args, **kwargs)
+        self.setValidator(qg.QDoubleValidator())
+        self.returnPressed.connect(self.check)
+
+    def check(self):
+        self.accepted_value.emit(float(self.text()))
