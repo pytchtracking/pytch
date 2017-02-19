@@ -89,7 +89,6 @@ def normalized_to01(d):
     return (d-dmin)/(num.max(d)-dmin)
 
 
-
 class AutoScaler():
     ''' taken from pyrocko.org'''
     def __init__(
@@ -328,7 +327,11 @@ class FloatQLineEdit(qw.QLineEdit):
     def __init__(self, *args, **kwargs):
         qw.QLineEdit.__init__(self, *args, **kwargs)
         self.setValidator(qg.QDoubleValidator())
+        self.setFocusPolicy(qc.Qt.ClickFocus|qc.Qt.TabFocus)
         self.returnPressed.connect(self.check)
+        p = self.parent()
+        if p:
+            self.returnPressed.connect(p.setFocus)
 
     def check(self):
         self.accepted_value.emit(float(self.text()))
