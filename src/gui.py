@@ -7,7 +7,7 @@ from pytch.two_channel_tuner import Worker
 from pytch.data import MicrophoneRecorder, getaudiodevices, sampling_rate_options, pitch_algorithms
 from pytch.gui_util import AutoScaler, Projection, mean_decimation, FloatQLineEdit
 from pytch.gui_util import make_QPolygonF, _color_names, _colors # noqa
-from pytch.util import Profiler, smooth, consecutive
+from pytch.util import Profiler, smooth, consecutive, f2pitch, pitch2f
 from pytch.plot import PlotWidget, GaugeWidget, MikadoWidget, AutoGrid, FixGrid
 
 if False:
@@ -167,10 +167,10 @@ class MenuWidget(QFrame):
         self.noise_thresh_slider.setOrientation(qc.Qt.Horizontal)
         layout.addWidget(self.noise_thresh_slider, 4, 1)
 
-        layout.addWidget(QLabel('Sensitiviy'), 5, 0)
+        layout.addWidget(QLabel('Gain'), 5, 0)
         self.sensitivity_slider = QSlider()
-        self.sensitivity_slider.setRange(100, 100000)
-        self.sensitivity_slider.setValue(10000)
+        self.sensitivity_slider.setRange(100., 100000.)
+        self.sensitivity_slider.setValue(10000.)
         self.sensitivity_slider.setOrientation(qc.Qt.Horizontal)
         layout.addWidget(self.sensitivity_slider, 5, 1)
 
@@ -182,7 +182,7 @@ class MenuWidget(QFrame):
         self.box_show_traces = QCheckBox()
         layout.addWidget(self.box_show_traces, 7, 1)
 
-        self.freq_box = FloatQLineEdit()
+        self.freq_box = FloatQLineEdit(self)
         layout.addWidget(QLabel('Standard Frequency'), 8, 0)
         layout.addWidget(self.freq_box, 8, 1)
 
@@ -221,8 +221,10 @@ class MenuWidget(QFrame):
         channel_views.show_trace_widgets(self.box_show_traces.isChecked())
         self.sensitivity_slider.valueChanged.connect(
             channel_views.set_in_range)
-        for cv in channel_views.channel_views:
-            self.freq_box.accepted_value.connect(cv.on_standard_frequency_changed)
+
+        self.freq_box.accepted_value.connect(
+            channel_views.on_standard_frequency_changed)
+
         self.freq_box.setText(str(channel_views.standard_frequency))
 
     def sizeHint(self):
@@ -259,6 +261,10 @@ class ChannelViews(QWidget):
         for c_view in self.channel_views:
             c_view.trace_widget.set_ylim(-val_range, val_range)
 
+    @qc.pyqtSlot(float)
+    def on_standard_frequency_changed(self, f):
+        for cv in self.channel_views:
+            cv.on_standard_frequency_changed(f)
 
 class ChannelView(QWidget):
     def __init__(self, channel, color='red', *args, **kwargs):
@@ -374,13 +380,14 @@ class ChannelView(QWidget):
         if d is not None:
             self.plot_spectrum(
                     c.freqs, num.mean(d, axis=0), ndecimate=2,
+                    #f2pitch(c.freqs, self.standard_frequency), num.mean(d, axis=0), ndecimate=2,
                     color=self.color, ignore_nan=True)
 
         power = num.sum(c.fft_power.latest_frame_data(1))
 
         if power > self.noise_threshold:
-            x= c.get_latest_pitch(self.standard_frequency)
-            self.spectrum.axvline(x)
+            x = c.get_latest_pitch(self.standard_frequency)
+            self.spectrum.axvline(pitch2f(x))
         self.trace_widget.update()
         self.spectrum.update()
 
