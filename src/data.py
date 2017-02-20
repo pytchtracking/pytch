@@ -129,31 +129,24 @@ class Buffer():
 
     def latest_frame_data(self, n):
         ''' Return the latest n samples data from buffer as array.'''
-        if n>self.i_filled:
-            return self.data[:min(n, self.i_filled)]
-        else:
-            return self.data[num.arange(max(self.i_filled-n, 0), self.i_filled) %
-                             self.data.size]
+        return self.data[max(self.i_filled-n, 0): self.i_filled]
 
     def append(self, d):
         ''' Append data frame *d* to Buffer'''
         n = d.shape[0]
-        if self.i_filled + n > self.data.size:
-            raise Exception('data overflow')
         self.data[self.i_filled:self.i_filled+n] = d
         self.i_filled += n
 
     def append_value(self, v):
-        if self.i_filled + 1 > self.data.size:
-            raise Exception('data overflow')
         self.data[self.i_filled+1] = v
         self.i_filled += 1
 
-    def energy(self, nsamples_total, nsamples_sum=1):
-        xi = num.arange(self.i_filled-nsamples_total, self.i_filled)
-        y = self.data[xi].reshape((int(len(xi)/nsamples_sum), nsamples_sum))
-        y = num.sum(y**2, axis=1)
-        return self._x[xi[::nsamples_sum]], y
+    #def energy(self, nsamples_total, nsamples_sum=1):
+    #    xi = num.arange(self.i_filled-nsamples_total, self.i_filled)
+    #    y = self.data[xi].reshape((int(len(xi)/nsamples_sum), nsamples_sum))
+    #    y = num.sum(y**2, axis=1)
+    #    return self._x[xi[::nsamples_sum]], y
+
 
 
 class RingBuffer(Buffer):
@@ -161,10 +154,22 @@ class RingBuffer(Buffer):
         Buffer.__init__(self, *args, **kwargs)
 
     def append(self, d):
+        '''append new data d to buffer f'''
         n = d.size
-        xi = (self.i_filled + num.arange(n)) % self.data.size
-        self.data[xi] = d
-        self.i_filled += n
+        if n == 1:
+            self.append_value(d)
+            return
+
+        istop = (self.i_filled + n)
+        if istop >= self.data_len:
+            istop %= self.data_len
+            iwrap = n - istop
+            self.data[self.i_filled:] = d[: iwrap]
+            self.data[0: istop] = d[iwrap :]
+        else:
+            self.data[self.i_filled: istop] = d
+
+        self.i_filled = istop
 
     def append_value(self, v):
         self.data[(self.i_filled+1) % self.data_len] = v
