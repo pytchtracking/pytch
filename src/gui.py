@@ -169,8 +169,8 @@ class MenuWidget(QFrame):
 
         layout.addWidget(QLabel('Gain'), 5, 0)
         self.sensitivity_slider = QSlider()
-        self.sensitivity_slider.setRange(100., 100000.)
-        self.sensitivity_slider.setValue(10000.)
+        self.sensitivity_slider.setRange(1000., 500000.)
+        self.sensitivity_slider.setValue(100000.)
         self.sensitivity_slider.setOrientation(qc.Qt.Horizontal)
         layout.addWidget(self.sensitivity_slider, 5, 1)
 
@@ -226,6 +226,7 @@ class MenuWidget(QFrame):
             channel_views.on_standard_frequency_changed)
 
         self.freq_box.setText(str(channel_views.standard_frequency))
+        channel_views.set_in_range(self.sensitivity_slider.value())
 
     def sizeHint(self):
         return qc.QSize(200, 200)
