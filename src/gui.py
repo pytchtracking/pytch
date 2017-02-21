@@ -296,7 +296,7 @@ class ChannelView(QWidget):
         self.plot_spectrum = self.spectrum.plotlog
 
         self.fft_smooth_factor = 4
-        self.standard_frequency = 120.
+        self.standard_frequency = 220.
 
         layout.addWidget(self.trace_widget)
         layout.addWidget(self.spectrum)
