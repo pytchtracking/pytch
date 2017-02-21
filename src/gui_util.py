@@ -248,12 +248,18 @@ class Projection(object):
     def __init__(self):
         self.xr = 0., 1.
         self.ur = 0., 1.
+        self.update()
+
+    def update(self):
+        self.out_range = abs(self.ur[1] - self.ur[0])
+        self.in_range= abs(self.xr[1] - self.xr[0])
 
     def set_in_range(self, xmin, xmax):
         if xmax == xmin:
             xmax = xmin + 1.
 
         self.xr = xmin, xmax
+        self.update()
 
     def get_in_range(self):
         return self.xr
@@ -263,6 +269,7 @@ class Projection(object):
             umax = umin + 1.
 
         self.ur = umin, umax
+        self.update()
 
     def get_out_range(self):
         return self.ur

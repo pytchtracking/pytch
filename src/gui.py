@@ -428,6 +428,8 @@ class ChannelView(QWidget):
 
 
 class PitchWidget(QWidget):
+    ''' Pitches of each trace as discrete samples.'''
+
     def __init__(self, channel_views, *args, **kwargs):
         QWidget.__init__(self, *args, **kwargs)
         self.channel_views = channel_views
@@ -435,14 +437,15 @@ class PitchWidget(QWidget):
         self.setLayout(layout)
         self.figure = PlotWidget()
         self.figure.set_ylim(-1500., 1500)
-        self.figure.tfollow = 20
+        self.figure.tfollow = 10.
         self.figure.grids = [FixGrid(delta=100.)]
         layout.addWidget(self.figure)
 
     @qc.pyqtSlot()
     def on_draw(self):
         for cv in self.channel_views:
-            x, y = cv.channel.pitch.latest_frame(self.figure.tfollow)
+            x, y = cv.channel.pitch.latest_frame(
+                self.figure.tfollow, clip_min=True)
             index = num.where(cv.channel.fft_power.latest_frame_data(
                 len(x))>=cv.noise_threshold)
             self.figure.plot(x[index], y[index], style='o', line_width=4, color=cv.color)
@@ -455,6 +458,7 @@ class PitchWidget(QWidget):
 
 
 class DifferentialPitchWidget(QWidget):
+    ''' Diffs as line'''
     def __init__(self, channel_views, *args, **kwargs):
         QWidget.__init__(self, *args, **kwargs)
         self.channel_views = channel_views
@@ -462,23 +466,25 @@ class DifferentialPitchWidget(QWidget):
         self.setLayout(layout)
         self.figure = PlotWidget()
         self.figure.set_ylim(-1500., 1500)
-        self.figure.tfollow = 20
+        self.figure.tfollow = 10
         self.figure.grids = [FixGrid(delta=100.)]
         layout.addWidget(self.figure)
 
     @qc.pyqtSlot()
     def on_draw(self):
         for i1, cv1 in enumerate(self.channel_views):
-            x1, y1 = cv1.channel.pitch.latest_frame(self.figure.tfollow)
+            x1, y1 = cv1.channel.pitch.latest_frame(
+                self.figure.tfollow, clip_min=True)
             index1 = num.where(cv1.channel.fft_power.latest_frame_data(
-                len(x1))>=cv1.noise_threshold)[0]
+                len(x1))>=cv1.noise_threshold)
 
             for i2, cv2 in enumerate(self.channel_views):
                 if i1>=i2:
                     continue
-                x2, y2 = cv2.channel.pitch.latest_frame(self.figure.tfollow)
+                x2, y2 = cv2.channel.pitch.latest_frame(
+                    self.figure.tfollow, clip_min=True)
                 index2 = num.where(cv2.channel.fft_power.latest_frame_data(
-                    len(x2))>=cv2.noise_threshold)[0]
+                    len(x2))>=cv2.noise_threshold)
                 indices = num.intersect1d(index1, index2)
                 indices_grouped = consecutive(indices)
                 for group in indices_grouped:
@@ -498,6 +504,7 @@ class DifferentialPitchWidget(QWidget):
 
 
 class PitchLevelDifferenceViews(QWidget):
+    ''' The Gauge widget collection'''
     def __init__(self, channel_views, *args, **kwargs):
         QWidget.__init__(self, *args, **kwargs)
         self.channel_views = channel_views
@@ -617,9 +624,7 @@ class MainWidget(QWidget):
     def reset(self):
         dinput = self.data_input
 
-        self.worker = Worker(
-            dinput.channels,
-            buffer_length=10*60.)
+        self.worker = Worker(dinput.channels)
 
         channel_views = []
         for ichannel, channel in enumerate(dinput.channels):
