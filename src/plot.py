@@ -5,12 +5,6 @@ import logging
 from pytch.gui_util import AutoScaler, Projection, minmax_decimation
 from pytch.gui_util import make_QPolygonF, _color_names, _colors, _pen_styles    # noqa
 
-# if False:
-#     from PyQt4 import QtCore as qc
-#     from PyQt4 import QtGui as qg
-#     from PyQt4.QtGui import QWidget, QMenu
-#     from PyQt4.QtGui import QAction, QSlider, QPushButton, QDockWidget, QFrame
-# else:
 from PyQt5 import QtCore as qc
 from PyQt5 import QtGui as qg
 from PyQt5.QtWidgets import QWidget, QSizePolicy
@@ -201,58 +195,45 @@ class GaugeWidget(__PlotSuperClass):
         size_policy.setHorizontalPolicy(QSizePolicy.Minimum)
         self.setSizePolicy(size_policy)
         self._f = -180./2880.
-
-    #def resizeEvent(self, e):
-    #    print(e)
-    #    print(self._painter)
-    #    if self._painter is not None:
-    #        self.draw_deco(self._painter)
-    #    #painter = qg.QPainter(self)
-    #    #pen = qg.QPen(self.color, 20, qc.Qt.SolidLine)
-    #    #painter.setPen(pen)
-    #    super(GaugeWidget, self).resizeEvent(e)
+        self.pen = qg.QPen(self.color, 20, qc.Qt.SolidLine)
 
     def do_draw(self, painter):
         ''' This is executed when self.repaint() is called'''
         painter.save()
-        pen = qg.QPen(self.color, 20, qc.Qt.SolidLine)
-        painter.setPen(pen)
+        side = min(self.width(), self.height())
+        painter.translate(self.width()/2., self.height()/2.)
+        painter.save()
+        painter.setPen(self.pen)
         if self._val:
-            painter.drawArc(self.rect(), 2880., -self.proj.clipped(self._val))
+            painter.drawArc(-side/2., -side/2., side, side,
+                            2880., -self.proj.clipped(self._val))
         painter.restore()
 
         self.draw_deco(painter)
+        painter.restore()
 
     def draw_deco(self, painter):
         self.draw_ticks(painter)
         self.draw_title(painter)
 
     def draw_title(self, painter):
-        painter.save()
-        w, h = self.width(), self.height()
-        painter.translate(w/2, h/2)
-        painter.drawStaticText(1, 2, self.title)
-        painter.restore()
+        painter.drawText(-40., 2., self.title)
 
     def draw_ticks(self, painter):
         # needs some performance polishing !!!
-        painter.save()
-        painter.translate(self.width()/2, self.height()/2)
         xmin, xmax, xinc = self.scaler.make_scale(self.proj.get_in_range())
-        ticks = num.arange(xmin, xmax, xinc)
+        ticks = num.arange(xmin, xmax, 100, dtype=num.int)
         ticks_proj = self.proj(ticks)
         # expensive. can be made cheaper. By creating list of lines first.
         for i, degree in enumerate(ticks_proj):
             painter.save()
             painter.rotate(degree * self._f)
             painter.drawLine(180, 0, 196, 0)
-            painter.drawText(180, 0, str(ticks[-i]))
+            painter.drawText(140, 0, str(ticks[-i]))
             painter.restore()
 
-        painter.restore()
-
     def set_title(self, title):
-        self.title = qg.QStaticText(title)
+        self.title = title
 
     def set_data(self, val):
         '''
@@ -464,13 +445,14 @@ class PlotWidget(__PlotSuperClass):
         self.bottom = 0.1
         self.top = 0.1
 
-        self.yticks = None
-        self.xticks = None
+        self.xlabels = True
+        self.ylabels = True
+        self.yticks = True
+        self.xticks = True
         self.xzoom = 0.
 
         self.clear()
         self.grids = [AutoGrid()]
-        #self.set_background_color('transparent')
         self.yscaler = AutoScaler(
             no_exp_interval=(-3, 2), approx_ticks=5,
             snap=True
@@ -488,6 +470,7 @@ class PlotWidget(__PlotSuperClass):
         self.yproj = Projection()
         self.xproj = Projection()
         self.colormap = Colormap()
+        self.set_background_color('white')
 
     def clear(self):
         self.scene_items = []
@@ -644,7 +627,8 @@ class PlotWidget(__PlotSuperClass):
         '''
         :param color: color as string
         '''
-        self.background_color = qg.QColor(*_colors[color])
+        background_color = qg.QColor(*_colors[color])
+        self.background_brush = qg.QBrush(background_color)
 
     def set_xlim(self, xmin, xmax):
         ''' Set x data range. If unset scale to min|max of ydata range '''
@@ -663,17 +647,19 @@ class PlotWidget(__PlotSuperClass):
     def do_draw(self, painter):
         ''' this is executed e.g. when self.repaint() is called. Draws the
         underlying data and scales the content to fit into the widget.'''
+        self.draw_background(painter)
+        self.draw_deco(painter)
         for item in self.scene_items:
             item.draw(painter, self.xproj, self.yproj)
-
-        self.draw_deco(painter)
 
     def draw_deco(self, painter):
         painter.save()
         self.draw_axes(painter)
-        # self.draw_labels(painter)
-        self.draw_y_ticks(painter)
-        self.draw_x_ticks(painter)
+
+        if self.yticks:
+            self.draw_y_ticks(painter)
+        if self.xticks:
+            self.draw_x_ticks(painter)
 
         for grid in self.grids:
             grid.draw_grid(self, painter)
@@ -702,8 +688,9 @@ class PlotWidget(__PlotSuperClass):
                  for xval in ticks_proj]
 
         painter.drawLines(lines)
-        for i, xval in enumerate(ticks):
-            painter.drawText(qc.QPointF(ticks_proj[i], tick_anchor), str(xval))
+        if self.xlabels:
+            for i, xval in enumerate(ticks):
+                painter.drawText(qc.QPointF(ticks_proj[i], tick_anchor), str(xval))
 
     def draw_y_ticks(self, painter):
         w, h = self.wh
@@ -715,15 +702,16 @@ class PlotWidget(__PlotSuperClass):
         lines = [qc.QLineF(w * self.left * 0.8, yval, w*self.left, yval)
                  for yval in ticks_proj]
         painter.drawLines(lines)
-        for i, yval in enumerate(ticks):
-            painter.drawText(qc.QPointF(0, ticks_proj[i]), str(yval))
+        if self.ylabels:
+            for i, yval in enumerate(ticks):
+                painter.drawText(qc.QPointF(0, ticks_proj[i]), str(yval))
 
     def draw_labels(self, painter):
         self.setup_annotation_boxes()
         painter.drawText(self.x_annotation_rect, qc.Qt.AlignCenter, 'Time')
 
     def draw_background(self, painter):
-        painter.fillRect(self.rect(), qg.QBrush(self.background_color))
+        painter.fillRect(self.rect(), self.background_brush)
 
     def mousePressEvent(self, mouse_ev):
         point = self.mapFromGlobal(mouse_ev.globalPos())
