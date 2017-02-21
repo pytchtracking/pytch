@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 class Worker():
 
-    def __init__(self, channels, buffer_length):
+    def __init__(self, channels):
         ''' Grabbing data, working on it and saving the results
 
         :param buffer_length: in seconds'''
@@ -47,7 +47,7 @@ class Worker():
 
             amp_spec = num.abs(num.fft.rfft(frame_work))
             channel.fft.append(amp_spec)
-            channel.fft_power.append(num.sum(amp_spec)/channel.sampling_rate)
+            channel.fft_power.append_value(num.sum(amp_spec)/channel.sampling_rate)
 
             #total_power = num.sum(channel.fft)/len(channel.freqs)
             #new_pitch_Cent = -9999999.
