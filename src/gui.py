@@ -293,7 +293,7 @@ class ChannelView(QWidget):
         self.spectrum = PlotWidget()
         self.spectrum.set_xlim(0, 2000)
         self.spectrum.set_ylim(0, 20)
-        self.spectrum.grids = [AutoGrid(horizontal=False)]
+        self.spectrum.grids = [FixGrid(delta=100., horizontal=False)]
         self.plot_spectrum = self.spectrum.plotlog
 
         self.fft_smooth_factor = 4
