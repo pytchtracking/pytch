@@ -4,27 +4,20 @@ import numpy as num
 
 from pytch.two_channel_tuner import Worker
 
-from pytch.data import MicrophoneRecorder, getaudiodevices, sampling_rate_options, pitch_algorithms
-from pytch.gui_util import AutoScaler, Projection, mean_decimation, FloatQLineEdit
+from pytch.data import MicrophoneRecorder, getaudiodevices, pitch_algorithms
+from pytch.gui_util import FloatQLineEdit
 from pytch.gui_util import make_QPolygonF, _color_names, _colors # noqa
-from pytch.util import Profiler, smooth, consecutive, f2pitch, pitch2f
-from pytch.plot import PlotWidget, GaugeWidget, MikadoWidget, AutoGrid, FixGrid
+from pytch.util import consecutive, f2pitch, pitch2f
+from pytch.plot import PlotWidget, GaugeWidget, MikadoWidget, FixGrid
 
-if False:
-    from PyQt4 import QtCore as qc
-    from PyQt4 import QtGui as qg
-    from PyQt4.QtGui import QApplication, QWidget, QHBoxLayout, QLabel, QMenu
-    from PyQt4.QtGui import QMainWindow, QVBoxLayout, QComboBox, QGridLayout
-    from PyQt4.QtGui import QAction, QSlider, QPushButton, QDockWidget, QFrame
-else:
-    from PyQt5 import QtCore as qc
-    from PyQt5 import QtGui as qg
-    from PyQt5.QtWidgets import QApplication, QWidget, QHBoxLayout, QLabel
-    from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QComboBox
-    from PyQt5.QtWidgets import QAction, QSlider, QPushButton, QDockWidget
-    from PyQt5.QtWidgets import QCheckBox, QSizePolicy, QFrame, QMenu
-    from PyQt5.QtWidgets import QGridLayout, QSpacerItem, QDialog, QLineEdit
-    from PyQt5.QtWidgets import QDialogButtonBox, QTabWidget, QActionGroup
+from PyQt5 import QtCore as qc
+from PyQt5 import QtGui as qg
+from PyQt5.QtWidgets import QApplication, QWidget, QHBoxLayout, QLabel
+from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QComboBox
+from PyQt5.QtWidgets import QAction, QSlider, QPushButton, QDockWidget
+from PyQt5.QtWidgets import QCheckBox, QSizePolicy, QFrame, QMenu
+from PyQt5.QtWidgets import QGridLayout, QSpacerItem, QDialog, QLineEdit
+from PyQt5.QtWidgets import QDialogButtonBox, QTabWidget, QActionGroup
 
 
 logger = logging.getLogger(__name__)
@@ -146,6 +139,9 @@ class DeviceMenu(QDialog):
 
 
 class MenuWidget(QFrame):
+
+    spectrum_type_selected = qc.pyqtSignal(str)
+
     ''' Contains all widget of left-side panel menu'''
     def __init__(self, settings=None, *args, **kwargs):
         QFrame.__init__(self, *args, **kwargs)
@@ -187,7 +183,16 @@ class MenuWidget(QFrame):
         layout.addWidget(QLabel('Standard Frequency'), 8, 0)
         layout.addWidget(self.freq_box, 8, 1)
 
-        layout.addItem(QSpacerItem(40, 20), 9, 1, qc.Qt.AlignTop)
+        layout.addWidget(QLabel('Spectral type'), 9, 0)
+        select_spectral_type = QComboBox(self)
+        layout.addWidget(select_spectral_type, 9, 1)
+
+        for stype in ['log', 'linear', 'pitch']:
+            select_spectral_type.addItem(stype)
+        select_spectral_type.currentTextChanged.connect(
+            self.on_spectrum_type_select)
+
+        layout.addItem(QSpacerItem(40, 20), 10, 1, qc.Qt.AlignTop)
 
         self.setFrameStyle(QFrame.Sunken)
         self.setLineWidth(1)
@@ -212,6 +217,10 @@ class MenuWidget(QFrame):
         if default:
             self.select_algorithm.setCurrentIndex(algorithms.index(default))
 
+    @qc.pyqtSlot(str)
+    def on_spectrum_type_select(self, arg):
+        self.spectrum_type_selected.emit(arg)
+
     def connect_to_noise_threshold(self, widget):
         self.noise_thresh_slider.valueChanged.connect(
             widget.on_noise_threshold_changed)
@@ -227,6 +236,9 @@ class MenuWidget(QFrame):
             channel_views.on_standard_frequency_changed)
 
         self.freq_box.setText(str(channel_views.standard_frequency))
+
+        for cv in channel_views.channel_views:
+            self.spectrum_type_selected.connect(cv.on_spectrum_type_select)
         channel_views.set_in_range(self.sensitivity_slider.value())
 
     def sizeHint(self):
@@ -268,6 +280,7 @@ class ChannelViews(QWidget):
         for cv in self.channel_views:
             cv.on_standard_frequency_changed(f)
 
+
 class ChannelView(QWidget):
     def __init__(self, channel, color='red', *args, **kwargs):
         '''
@@ -287,13 +300,18 @@ class ChannelView(QWidget):
         self.noise_threshold = 0
 
         self.trace_widget = PlotWidget()
-        self.trace_widget.grids = [AutoGrid(vertical=False)]
+        self.trace_widget.grids = []
+        self.trace_widget.yticks = False
         self.trace_widget.set_ylim(-1000., 1000.)
+        self.trace_widget.left = 0.
 
         self.spectrum = PlotWidget()
         self.spectrum.set_xlim(0, 2000)
         self.spectrum.set_ylim(0, 20)
+        self.spectrum.left = 0.
+        self.spectrum.yticks = False
         self.spectrum.grids = [FixGrid(delta=100., horizontal=False)]
+
         self.plot_spectrum = self.spectrum.plotlog
 
         self.fft_smooth_factor = 4
@@ -338,20 +356,6 @@ class ChannelView(QWidget):
             'lin/log', self.right_click_menu)
         plot_action_group = QActionGroup(self.spectrum_type_menu)
         plot_action_group.setExclusive(True)
-        self.spectrum_type_choices = []
-
-        for stype in ['log', 'linear']:
-            spectrum_type = QAction(stype, self.spectrum_type_menu)
-            spectrum_type.triggered.connect(self.on_spectrum_type_select)
-            spectrum_type.setCheckable(True)
-            self.spectrum_type_choices.append(spectrum_type)
-            smooth_action_group.addAction(spectrum_type)
-            self.spectrum_type_menu.addAction(spectrum_type)
-            if stype == 'log':
-                spectrum_type.setChecked(True)
-
-        self.right_click_menu.addMenu(self.spectrum_type_menu)
-        self.on_spectrum_type_select()
 
     @qc.pyqtSlot()
     def on_clear(self):
@@ -386,7 +390,6 @@ class ChannelView(QWidget):
                     color=self.color, ignore_nan=True)
 
         power = num.sum(c.fft_power.latest_frame_data(1))
-
         if power > self.noise_threshold:
             x = c.get_latest_pitch(self.standard_frequency)
             self.spectrum.axvline(pitch2f(x, _standard_frequency))
@@ -404,16 +407,27 @@ class ChannelView(QWidget):
         else:
             QWidget.mousePressEvent(mouse_ev)
 
-    def on_spectrum_type_select(self):
-        for c in self.spectrum_type_choices:
-            if c.isChecked():
-                if c.text() == 'log':
-                    self.plot_spectrum = self.spectrum.plotlog
-                    self.spectrum.set_ylim(0, 20)
-                elif c.text() == 'linear':
-                    self.plot_spectrum = self.spectrum.plot
-                    self.spectrum.set_ylim(0, num.exp(15))
-                break
+    @qc.pyqtSlot(str)
+    def on_spectrum_type_select(self, arg):
+        '''
+        Slot to update the spectrum type
+        '''
+        if arg == 'log':
+            self.plot_spectrum = self.spectrum.plotlog
+            self.spectrum.set_ylim(0, 20)
+            self.spectrum.set_xlim(0, 2000)
+        elif arg == 'linear':
+            self.plot_spectrum = self.spectrum.plot
+            self.spectrum.set_ylim(0, num.exp(15))
+            self.spectrum.set_xlim(0, 2000)
+        elif arg == 'pitch':
+            def plot_pitch(*args, **kwargs):
+                f = f2pitch(args[0], _standard_frequency)
+                self.spectrum.plot(f, *args[1:], **kwargs)
+
+            self.plot_spectrum = plot_pitch
+            self.spectrum.set_ylim(0, 1500000)
+            self.spectrum.set_xlim(-5000, 5000)
 
     def on_fft_smooth_select(self):
         for c in self.smooth_choices:
@@ -449,8 +463,8 @@ class PitchWidget(QWidget):
                 self.figure.tfollow, clip_min=True)
             index = num.where(cv.channel.fft_power.latest_frame_data(
                 len(x))>=cv.noise_threshold)
-            #y = pitch2f(y, cv.standard_frequency)
-            self.figure.plot(x[index], y[index], style='o', line_width=4, color=cv.color)
+            self.figure.plot(x[index], y[index], style='o', line_width=4,
+                             color=cv.color)
         self.figure.update()
         self.repaint()
 
@@ -519,7 +533,7 @@ class PitchLevelDifferenceViews(QWidget):
                 if i1>=i2:
                     continue
                 w = GaugeWidget(parent=self)
-                w.set_title('Channels: %s %s' % (i1, i2))
+                w.set_title('Channels: %s | %s' % (i1+1, i2+1))
                 self.widgets.append((cv1, cv2, w))
                 layout.addWidget(w, i1, i2)
 
@@ -594,8 +608,12 @@ class MainWidget(QWidget):
     def make_connections(self):
         menu = self.menu
         menu.input_button.clicked.connect(self.set_input_dialog)
+
         menu.pause_button.clicked.connect(self.data_input.stop)
+        menu.pause_button.clicked.connect(self.refresh_timer.stop)
+
         menu.play_button.clicked.connect(self.data_input.start)
+        menu.play_button.clicked.connect(self.refresh_timer.start)
 
         menu.set_algorithms(pitch_algorithms, default='yin')
         menu.select_algorithm.currentTextChanged.connect(
