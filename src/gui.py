@@ -649,12 +649,12 @@ class MainWidget(QWidget):
 
         self.pitch_view_all_diff = DifferentialPitchWidget(channel_views)
         self.pitch_diff_view = PitchLevelDifferenceViews(channel_views)
-        self.pitch_diff_view_colorized = PitchLevelMikadoViews(channel_views)
+        #self.pitch_diff_view_colorized = PitchLevelMikadoViews(channel_views)
 
         tabbed_pitch_widget.addTab(self.pitch_view, 'Pitches')
         tabbed_pitch_widget.addTab(self.pitch_view_all_diff, 'Differential')
         tabbed_pitch_widget.addTab(self.pitch_diff_view, 'Current')
-        tabbed_pitch_widget.addTab(self.pitch_diff_view_colorized, 'Mikado')
+        #tabbed_pitch_widget.addTab(self.pitch_diff_view_colorized, 'Mikado')
 
         self.menu.connect_channel_views(self.channel_views_widget)
 
@@ -664,7 +664,7 @@ class MainWidget(QWidget):
         self.signal_widgets_draw.connect(self.pitch_view.on_draw)
         self.signal_widgets_draw.connect(self.pitch_view_all_diff.on_draw)
         self.signal_widgets_draw.connect(self.pitch_diff_view.on_draw)
-        self.signal_widgets_draw.connect(self.pitch_diff_view_colorized.on_draw)
+        #self.signal_widgets_draw.connect(self.pitch_diff_view_colorized.on_draw)
 
         t_wait_buffer = max(dinput.fftsizes)/dinput.sampling_rate*1500.
         qc.QTimer().singleShot(t_wait_buffer, self.start_refresh_timer)
