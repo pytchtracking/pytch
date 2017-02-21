@@ -593,7 +593,10 @@ class PlotWidget(__PlotSuperClass):
         self.set_data(x, y)
 
     def plotlog(self, xdata=None, ydata=None, ndecimate=0, **style_kwargs):
-        self.plot(xdata, num.log(ydata), ndecimate=ndecimate, **style_kwargs)
+        try:
+            self.plot(xdata, num.log(ydata), ndecimate=ndecimate, **style_kwargs)
+        except ValueError as e:
+            logger.info(e)
 
     def update_datalims(self, xvisible, yvisible):
 
@@ -652,6 +655,10 @@ class PlotWidget(__PlotSuperClass):
         ''' Set x data range. If unset scales to min|max of ydata range'''
         self.ymin = ymin
         self.ymax = ymax
+
+    @property
+    def xrange_visible(self):
+        return self.xproj.in_range
 
     def do_draw(self, painter):
         ''' this is executed e.g. when self.repaint() is called. Draws the
