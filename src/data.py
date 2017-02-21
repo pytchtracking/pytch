@@ -4,7 +4,6 @@ from aubio import pitch
 import atexit
 import numpy as num
 import logging
-from pytch.util import f2pitch
 
 _lock = threading.Lock()
 
@@ -15,20 +14,6 @@ logger = logging.getLogger(__name__)
 
 pitch_algorithms = [
     'default', 'schmitt', 'fcomb', 'mcomb', 'specacf', 'yin', 'yinfft']
-
-
-def append_to_frame(f, d):
-    ''' shift data in f and append new data d to buffer f'''
-    i = d.shape[0]
-    #f[:-i] = f[i:]
-    num.roll(f, -i)
-    f[-i:] = d.T
-
-
-def prepend_to_frame(f, d):
-    i = d.shape[0]
-    num.roll(f, i)
-    f[:i] = d.T
 
 
 def getaudiodevices():
@@ -43,8 +28,8 @@ def getaudiodevices():
 
 def sampling_rate_options(device_no, audio=None):
     ''' list of supported sampling rates.'''
-    candidates = [8000., 11.025, 123123123123., 16000., 22050., 32000., 37.800, 44100.,
-                  48000.]
+    candidates = [8000., 11.025, 123123123123., 16000., 22050., 32000., 37.800,
+                  44100., 48000.]
     supported_sampling_rates = []
     for c in candidates:
         if check_sampling_rate(device_no, int(c), audio=audio):
@@ -78,7 +63,8 @@ class Buffer():
     ''' data container
 
     new data is prepended, so that the latest data point is in self.data[0]'''
-    def __init__(self, sampling_rate, buffer_length_seconds, dtype=num.float32, tmin=0):
+    def __init__(self, sampling_rate, buffer_length_seconds, dtype=num.float32,
+                 tmin=0):
         self.tmin = tmin
         self.tmax = self.tmin + buffer_length_seconds
         self.sampling_rate = sampling_rate
@@ -87,8 +73,7 @@ class Buffer():
         self.empty()
 
         self.i_filled = 0
-
-        self._x = num.arange(self.data_len, dtype=self.dtype) *self.delta + self.tmin
+        self._x = num.arange(self.data_len, dtype=self.dtype) * self.delta + self.tmin
 
     def empty(self):
         self.data = num.empty((int(self.data_len)),
@@ -105,10 +90,6 @@ class Buffer():
     @property
     def delta(self):
         return 1./self.sampling_rate
-
-    @property
-    def xdata(self):
-        return self._x
 
     @property
     def ydata(self):
@@ -150,6 +131,7 @@ class Buffer():
 
 
 class RingBuffer(Buffer):
+    ''' Based on numpy'''
     def __init__(self, *args, **kwargs):
         Buffer.__init__(self, *args, **kwargs)
 
@@ -159,6 +141,60 @@ class RingBuffer(Buffer):
         if n == 1:
             self.append_value(d)
             return
+
+        i_filled_mod = self.i_filled % self.data_len
+        istop = i_filled_mod + n
+        if istop >= self.data_len:
+            istop_wrap = istop - self.data_len
+            iwrap = n - istop_wrap
+            self.data[i_filled_mod: ] = d[: iwrap]
+            self.data[0: istop_wrap] = d[iwrap :]
+        else:
+            self.data[i_filled_mod: istop] = d
+
+        self.i_filled += n
+
+    def append_value(self, v):
+        self.data[self.i_filled % self.data_len] = v
+        self.i_filled += 1
+
+    def latest_frame_data(self, n):
+        ''' Return the latest n samples data from buffer as array.'''
+        n %= self.data_len
+        i_filled = self.i_filled % self.data_len
+        if n > i_filled:
+            return num.roll(self.data, -i_filled)[-n:]
+        else:
+            return self.data[i_filled-n: i_filled]
+
+    def latest_frame(self, seconds, clip_min=False):
+        ''' Return the latest *seconds* data from buffer as x and y data tuple.'''
+        istart, istop = self.latest_indices(seconds)
+        n = int(seconds*self.sampling_rate)+1
+        x = self.i_filled/self.sampling_rate - self._x[:n][::-1]
+        if clip_min:
+            istart = num.min(num.where(x>0))
+        else:
+            istart = 0
+        return (x[istart:], self.latest_frame_data(n-istart))
+
+class RingBuffer2D(RingBuffer):
+    def __init__(self, ndimension2, *args, **kwargs):
+        self.ndimension2 = ndimension2
+        RingBuffer.__init__(self, *args, **kwargs)
+
+    def empty(self):
+        self.data = num.empty((int(self.data_len), int(self.ndimension2)),
+                          dtype=self.dtype)
+
+    def append(self, d):
+        if len(d.shape) == 1:
+            self.append_value(d)
+            return
+
+        n, n2 = d.shape
+        if n2 != self.ndimension2:
+            raise Exception('ndim2 wrong')
 
         istop = (self.i_filled + n)
         if istop >= self.data_len:
@@ -172,23 +208,14 @@ class RingBuffer(Buffer):
         self.i_filled = istop
 
     def append_value(self, v):
-        self.data[(self.i_filled+1) % self.data_len] = v
         self.i_filled += 1
+        self.i_filled %= self.data_len
+        self.data[self.i_filled, :] = v
 
-
-class RingBuffer2D(RingBuffer):
-    def __init__(self, ndimension2, *args, **kwargs):
-        self.ndimension2 = ndimension2
-        RingBuffer.__init__(self, *args, **kwargs)
-
-    def empty(self):
-        self.data = num.empty((int(self.data_len), int(self.ndimension2)),
-                          dtype=self.dtype)
-
-    def append(self, d):
-        ifill = int(self.i_filled % self.data_len)
-        self.data[ifill, :] = d
-        self.i_filled = ifill+1
+    def latest_frame_data(self, n):
+        ''' Return the latest n samples data from buffer as array.'''
+        #return self.data[max(self.i_filled-n, 0): self.i_filled]
+        return num.roll(self.data, -self.i_filled, 0)[-n:]
 
 
 class DataProvider(object):
@@ -212,7 +239,7 @@ class SamplingRateException(Exception):
 class Channel(RingBuffer):
     def __init__(self, sampling_rate, fftsize=8192):
 
-        self.buffer_length_seconds = 100
+        self.buffer_length_seconds = 14
         RingBuffer.__init__(self, sampling_rate, self.buffer_length_seconds)
 
         self.__pitch_algorithm = 'yinfft'
@@ -225,16 +252,19 @@ class Channel(RingBuffer):
     def update(self):
         nfft = (int(self.fftsize), self.delta)
         self.freqs = num.fft.rfftfreq(*nfft)
+        sr = int(1000./58.)
+        # TODO: 58=gui refresh rate. Nastily hard coded here for now
         self.fft = RingBuffer2D(
             ndimension2=self.fftsize/2+1,
-            sampling_rate=self.sampling_rate/self.fftsize,   # Hop size
+            # sampling_rate=self.sampling_rate/self.fftsize,   # Hop size
+            sampling_rate = sr,
             buffer_length_seconds=self.buffer_length_seconds)
         self.fft_power = RingBuffer(
-            sampling_rate=self.sampling_rate/self.fftsize,   # Hop size
+            sampling_rate=sr,
             buffer_length_seconds=self.buffer_length_seconds)
         self.pitch = RingBuffer(
-            self.sampling_rate/self.fftsize,
-            self.sampling_rate*self.buffer_length_seconds/self.fftsize)
+            sampling_rate=sr,
+            buffer_length_seconds=self.sampling_rate*self.buffer_length_seconds/self.fftsize)
 
     @property
     def fftsize(self):
