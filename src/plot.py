@@ -200,7 +200,7 @@ class GaugeWidget(__PlotSuperClass):
     def do_draw(self, painter):
         ''' This is executed when self.repaint() is called'''
         painter.save()
-        side = min(self.width(), self.height())
+        side = min(self.width(), self.height())/1.05
         painter.translate(self.width()/2., self.height()/2.)
         painter.save()
         painter.setPen(self.pen)
@@ -276,7 +276,7 @@ class AutoGrid():
 
         if self.vertical:
             lines.extend(self.lines_vertical(widget, painter))
-        
+
         painter.save()
         painter.setPen(self.grid_pen)
         painter.drawLines(lines)
