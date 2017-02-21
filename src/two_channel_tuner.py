@@ -9,6 +9,7 @@ from pytch.util import DummySignal, f2pitch
 
 import logging
 
+_standard_frequency = 220.
 logger = logging.getLogger(__name__)
 
 
@@ -54,7 +55,7 @@ class Worker():
             #else:
             #pitch = channel.pitch_o(frame_work.astype(num.float32))[0]
             #new_pitch_Cent = channel.pitch_o(frame_work)[0]
-            channel.pitch.append_value(f2pitch(channel.pitch_o(frame_work)[0]))
+            channel.pitch.append_value(f2pitch(channel.pitch_o(frame_work)[0], _standard_frequency))
             #channel.pitch.append_value(channel.pitch_o(frame_work)[0])
         #    #pitch_confidence2 = pitch_o.get_confidence()
 

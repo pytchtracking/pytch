@@ -30,6 +30,7 @@ else:
 logger = logging.getLogger(__name__)
 tfollow = 3.
 fmax = 2000.
+_standard_frequency = 220.
 
 
 class LineEditWithLabel(QWidget):
@@ -241,7 +242,7 @@ class ChannelViews(QWidget):
         self.channel_views = channel_views
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
-        self.standard_frequency = 120.
+        self.standard_frequency = _standard_frequency
 
         for c_view in self.channel_views:
             self.layout.addWidget(c_view)
@@ -296,7 +297,7 @@ class ChannelView(QWidget):
         self.plot_spectrum = self.spectrum.plotlog
 
         self.fft_smooth_factor = 4
-        self.standard_frequency = 220.
+        self.standard_frequency = _standard_frequency
 
         layout.addWidget(self.trace_widget)
         layout.addWidget(self.spectrum)
@@ -388,7 +389,7 @@ class ChannelView(QWidget):
 
         if power > self.noise_threshold:
             x = c.get_latest_pitch(self.standard_frequency)
-            self.spectrum.axvline(pitch2f(x))
+            self.spectrum.axvline(pitch2f(x, _standard_frequency))
         self.trace_widget.update()
         self.spectrum.update()
 
@@ -448,6 +449,7 @@ class PitchWidget(QWidget):
                 self.figure.tfollow, clip_min=True)
             index = num.where(cv.channel.fft_power.latest_frame_data(
                 len(x))>=cv.noise_threshold)
+            #y = pitch2f(y, cv.standard_frequency)
             self.figure.plot(x[index], y[index], style='o', line_width=4, color=cv.color)
         self.figure.update()
         self.repaint()
