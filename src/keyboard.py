@@ -7,35 +7,18 @@ from PyQt5.QtWidgets import QWidget
 
 logger = logging.getLogger(__name__)
 
-try:
-    from pytch.gui_util_opengl import GLWidget
-    __PlotSuperClass = GLWidget
-except ImportError:
-    logger.warn('no opengl support')
-
-    class PlotWidgetBase(QWidget):
-
-        def paintEvent(self, e):
-            painter = qg.QPainter(self)
-
-            self.do_draw(painter)
-
-        def do_draw(self, painter):
-            raise Exception('to be implemented in subclass')
-
-    __PlotSuperClass = PlotWidgetBase
-
 
 keys = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 _semitones = [1, 3, 6, 8, 10]
 
 
-class Key(__PlotSuperClass):
+class Key(QWidget):
 
     playKeyBoard = qc.pyqtSignal(int)
 
     def __init__(self, octave, semitone, *args, **kwargs):
         super(Key, self).__init__(*args, **kwargs)
+        self.setContentsMargins(0, 0, 0, 0)
         self.octave = octave
         self.semitone = semitone
         self.pressed = False
@@ -60,7 +43,8 @@ class Key(__PlotSuperClass):
             return (self.pen, self.brush_pressed)
         return (self.pen, self.brush)
 
-    def do_draw(self, painter):
+    def paintEvent(self, event):
+        painter= qg.QPainter(self)
         painter.save()
         pen, brush = self.get_pen_brush()
         rect = self.rect()
@@ -87,12 +71,14 @@ class Key(__PlotSuperClass):
             self.playKeyBoard.emit(self.f)
         else:
             QWidget.mousePressEvent(mouse_ev)
+        self.repaint()
 
     def mouseReleaseEvent(self, mouse_ev):
         self.pressed = False
+        self.repaint()
 
 
-class KeyBoard(__PlotSuperClass):
+class KeyBoard(QWidget):
     ''' a plotwidget displays data (x, y coordinates). '''
 
     keyBoardKeyPressed = qc.pyqtSignal(int)
@@ -102,6 +88,7 @@ class KeyBoard(__PlotSuperClass):
 
         self.setContentsMargins(1, 1, 1, 1)
         self.setMaximumHeight(200)
+        self.setMinimumHeight(100)
         self.n_octaves = 3
         self.keys = []
         self.setup()
@@ -119,7 +106,7 @@ class KeyBoard(__PlotSuperClass):
         n = 14 * self.n_octaves
         deltax = self.width()/n
         y = self.height()
-        y_semi = self.height() * 0.4
+        y_semi = self.height() * 0.6
         top_lefts = []
         rects = []
         x = 0
@@ -129,13 +116,13 @@ class KeyBoard(__PlotSuperClass):
                 continue
             if semitone % 12 in _semitones:
                 rect = qc.QRect(
-                    qc.QPoint(i * deltax + deltax * 0.5, 0),
-                    qc.QPoint(i * deltax + deltax * 1.5, y_semi)
+                    qc.QPoint(i * deltax, 0),
+                    qc.QPoint(i * deltax + deltax*2, y_semi)
                 )
             else:
                 rect = qc.QRect(
                     qc.QPoint(i * deltax, 0),
-                    qc.QPoint(i * deltax + deltax * 1.5, y)
+                    qc.QPoint(i * deltax + deltax*2, y)
                 )
             rects.append(rect)
             semitone += 1
@@ -146,8 +133,9 @@ class KeyBoard(__PlotSuperClass):
         for r, k in zip(rects, self.keys):
             k.setGeometry(r)
 
-    def do_draw(self, painter):
-        return
-
     def on_keyplay(self, f):
         self.keyBoardKeyPressed.emit(f)
+
+    def connect_channel_views(self, channel_views_widget):
+        for cv in channel_views_widget.channel_views:
+            self.keyBoardKeyPressed.connect(cv.on_keyboard_key_pressed)
