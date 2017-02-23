@@ -195,6 +195,7 @@ class GaugeWidget(__PlotSuperClass):
         size_policy.setHorizontalPolicy(QSizePolicy.Minimum)
         self.setSizePolicy(size_policy)
         self._f = -180./2880.
+        self.xtick_increment = 20
         self.pen = qg.QPen(self.color, 20, qc.Qt.SolidLine)
 
     def do_draw(self, painter):
@@ -222,14 +223,20 @@ class GaugeWidget(__PlotSuperClass):
     def draw_ticks(self, painter):
         # needs some performance polishing !!!
         xmin, xmax, xinc = self.scaler.make_scale(self.proj.get_in_range())
-        ticks = num.arange(xmin, xmax, 100, dtype=num.int)
+        ticks = num.arange(xmin, xmax, self.xtick_increment, dtype=num.int)
         ticks_proj = self.proj(ticks)
         # expensive. can be made cheaper. By creating list of lines first.
+        line = qc.QLine(170, 0, 192, 0)
+        subline = qc.QLine(176, 0, 192, 0)
+        anchor = qc.QPoint(140, 0)
         for i, degree in enumerate(ticks_proj):
             painter.save()
             painter.rotate(degree * self._f)
-            painter.drawLine(180, 0, 196, 0)
-            painter.drawText(140, 0, str(ticks[-i]))
+            if i % 2 == 0:
+                painter.drawText(anchor, str(ticks[-i]))
+                painter.drawLine(line)
+            else:
+                painter.drawLine(subline)
             painter.restore()
 
     def set_title(self, title):
