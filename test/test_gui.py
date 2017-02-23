@@ -90,6 +90,17 @@ class GUITestCase():
         main_window.repaint()
         sys.exit(app.exec_())
 
+    def test_keyboard(self):
+        from pytch.keyboard import KeyBoard
+        app = QApplication(sys.argv)
+        main_window = MainWindowQClose()
+
+        kb = KeyBoard()
+        main_window.setCentralWidget(kb)
+        main_window.show()
+        main_window.repaint()
+        sys.exit(app.exec_())
+
     def test_graphicsview(self):
         from pytch.plot import Figure
         app = QApplication(sys.argv)
@@ -107,10 +118,9 @@ if __name__=='__main__':
     #unittest.main()
     t = GUITestCase()
     #t.test_scaling()
-    t.test_PitchWidget()
+    #t.test_PitchWidget()
     #t.test_ColormapWidget()
     #t.test_gauge()
     #t.test_graphicsview()
-
-
+    t.test_keyboard()
 
