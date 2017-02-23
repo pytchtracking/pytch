@@ -214,6 +214,7 @@ class MenuWidget(QFrame):
 
     def set_algorithms(self, algorithms, default=None):
         ''' Query device list and set the drop down menu'''
+        self.select_algorithm.clear()
         for alg in algorithms:
             self.select_algorithm.addItem('%s' % alg)
 
@@ -531,6 +532,21 @@ class PitchLevelDifferenceViews(QWidget):
         self.setLayout(layout)
         self.widgets = []
 
+        self.right_click_menu = QMenu('Tick Settings', self)
+        self.right_click_menu.triggered.connect(self.on_xtick_increment_select)
+
+        self.tick_choices = []
+        group = QActionGroup(self)
+        group.setExclusive(True)
+        for tick_increment in [10, 20, 50, 100]:
+            action = QAction(str(tick_increment), self.right_click_menu)
+            action.setCheckable(True)
+            if tick_increment == 20:
+                action.setChecked(True)
+            self.tick_choices.append(action)
+            group.addAction(action)
+            self.right_click_menu.addAction(action)
+
         for i1, cv1 in enumerate(self.channel_views):
             for i2, cv2 in enumerate(self.channel_views):
                 if i1>=i2:
@@ -539,6 +555,23 @@ class PitchLevelDifferenceViews(QWidget):
                 w.set_title('Channels: %s | %s' % (i1+1, i2+1))
                 self.widgets.append((cv1, cv2, w))
                 layout.addWidget(w, i1, i2)
+
+    @qc.pyqtSlot(qg.QMouseEvent)
+    def mousePressEvent(self, mouse_ev):
+        point = self.mapFromGlobal(mouse_ev.globalPos())
+
+        if mouse_ev.button() == qc.Qt.RightButton:
+            self.right_click_menu.exec_(qg.QCursor.pos())
+        else:
+            try:
+                QWidget.mousePressEvent(mouse_ev)
+            except TypeError as e:
+                logger.warn(e)
+
+    @qc.pyqtSlot(QAction)
+    def on_xtick_increment_select(self, action):
+        for cv1, cv2, widget in self.widgets:
+            widget.xtick_increment = int(action.text())
 
     @qc.pyqtSlot()
     def on_draw(self):
