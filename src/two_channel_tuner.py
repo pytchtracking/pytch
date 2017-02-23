@@ -83,33 +83,3 @@ def cross_spectrum(spec1, spec2):
     ''' Returns cross spectrum and phase of *spec1* and *spec2*'''
     cross = spec1 * spec2.conjugate()
     return num.abs(cross), num.unwrap(num.arctan2(cross.imag, cross.real))
-
-
-def compute_pitch_hps(x, Fs, dF=None, Fmin=30., Fmax=900., H=5):
-    # default value for dF frequency resolution
-    if dF is None:
-        dF = Fs / x.size
-
-    # Hamming window apodization
-    x = num.array(x, dtype=num.double, copy=True)
-    x *= num.hamming(x.size)
-
-    # number of points in FFT to reach the resolution wanted by the user
-    n_fft = num.ceil(Fs / dF)
-
-    # DFT computation
-    X = num.abs(num.fft.fft(x, n=int(n_fft)))
-
-    # limiting frequency R_max computation
-    R = num.floor(1 + n_fft / 2. / H)
-
-    # computing the indices for min and max frequency
-    N_min = num.ceil(Fmin / Fs * n_fft)
-    N_max = num.floor(Fmax / Fs * n_fft)
-    N_max = min(N_max, R)
-
-    # harmonic product spectrum computation
-    indices = (num.arange(N_max)[:, num.newaxis] * num.arange(1, H+1)).astype(int)
-    P = num.prod(X[indices.ravel()].reshape(N_max, H), axis=1)
-    ix = num.argmax(P * ((num.arange(P.size) >= N_min) & (num.arange(P.size) <= N_max)))
-    return dF * ix
