@@ -17,7 +17,7 @@ from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QComboBox
 from PyQt5.QtWidgets import QAction, QSlider, QPushButton, QDockWidget
 from PyQt5.QtWidgets import QCheckBox, QSizePolicy, QFrame, QMenu
 from PyQt5.QtWidgets import QGridLayout, QSpacerItem, QDialog, QLineEdit
-from PyQt5.QtWidgets import QDialogButtonBox, QTabWidget, QActionGroup
+from PyQt5.QtWidgets import QDialogButtonBox, QTabWidget, QActionGroup, QFileDialog
 
 
 logger = logging.getLogger(__name__)
@@ -156,6 +156,9 @@ class MenuWidget(QFrame):
 
         self.pause_button = QPushButton('Pause')
         layout.addWidget(self.pause_button, 0, 2)
+
+        self.save_as_button = QPushButton('Save as')
+        layout.addWidget(self.save_as_button, 0, 3)
 
         layout.addWidget(QLabel('Noise Threshold'), 4, 0)
         self.noise_thresh_slider = QSlider()
@@ -612,6 +615,8 @@ class MainWidget(QWidget):
         menu.pause_button.clicked.connect(self.data_input.stop)
         menu.pause_button.clicked.connect(self.refresh_timer.stop)
 
+        menu.save_as_button.clicked.connect(self.on_save_as)
+
         menu.play_button.clicked.connect(self.data_input.start)
         menu.play_button.clicked.connect(self.refresh_timer.start)
 
@@ -619,8 +624,24 @@ class MainWidget(QWidget):
         menu.select_algorithm.currentTextChanged.connect(
             self.on_algorithm_select)
 
+    @qc.pyqtSlot()
+    def on_save_as(self):
+        '''Write traces to wav files'''
+        from scipy.io import wavfile
+        import os
+
+        _fn = QFileDialog().getSaveFileName(self, 'Save as', '.', '')[0]
+        for i, tr in enumerate(self.channel_views_widget.channel_views):
+            conv = num.asarray(tr.channel.ydata, dtype=num.int16)
+            if not os.path.exists(_fn):
+                os.makedirs(_fn)
+            fn = os.path.join(_fn, 'channel%s.wav' %i)
+            wavfile.write(fn, self.data_input.sampling_rate, conv)
+            logger.info('Saving file in %s' % fn)
+
     @qc.pyqtSlot(str)
     def on_algorithm_select(self, arg):
+        '''change pitch algorithm'''
         for c in self.data_input.channels:
             c.pitch_algorithm = arg
 
