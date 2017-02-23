@@ -9,6 +9,7 @@ from pytch.gui_util import FloatQLineEdit
 from pytch.gui_util import make_QPolygonF, _color_names, _colors # noqa
 from pytch.util import consecutive, f2pitch, pitch2f
 from pytch.plot import PlotWidget, GaugeWidget, MikadoWidget, FixGrid
+from pytch.keyboard import KeyBoard
 
 from PyQt5 import QtCore as qc
 from PyQt5 import QtGui as qg
@@ -625,13 +626,12 @@ class MainWidget(QWidget):
         QWidget.__init__(self, *args, **kwargs)
 
         self.setMouseTracking(True)
-        self.top_layout = QHBoxLayout()
+        self.top_layout = QGridLayout()
         self.setLayout(self.top_layout)
 
         self.refresh_timer = qc.QTimer()
         self.refresh_timer.timeout.connect(self.refresh_widgets)
         self.menu = MenuWidget(settings)
-
         self.input_dialog = DeviceMenu.from_device_menu_settings(
             settings, accept=settings.accept, parent=self)
 
@@ -698,6 +698,11 @@ class MainWidget(QWidget):
     def reset(self):
         dinput = self.data_input
 
+        self.keyboard = KeyBoard(self)
+        self.keyboard.setVisible(False)
+        self.keyboard.keyBoardKeyPressed.connect(dinput.play_sound)
+        self.top_layout.addWidget(self.keyboard, 0, 0, 1, -1)
+
         self.worker = Worker(dinput.channels)
 
         channel_views = []
@@ -709,13 +714,13 @@ class MainWidget(QWidget):
             channel_views.append(cv)
 
         self.channel_views_widget = ChannelViews(channel_views)
-        self.top_layout.addWidget(self.channel_views_widget)
+        self.top_layout.addWidget(self.channel_views_widget, 1, 0)
 
         tabbed_pitch_widget = QTabWidget()
         tabbed_pitch_widget.setSizePolicy(QSizePolicy.Minimum,
                                           QSizePolicy.Minimum)
 
-        self.top_layout.addWidget(tabbed_pitch_widget)
+        self.top_layout.addWidget(tabbed_pitch_widget, 1, 1)
 
         self.pitch_view = PitchWidget(channel_views)
 
@@ -767,6 +772,12 @@ class MainWidget(QWidget):
         self.cleanup()
         QWidget.closeEvent(self, ev)
 
+    def toggle_keyboard(self):
+        if not self.keyboard.isVisible():
+            self.keyboard.setVisible(True)
+        else:
+            self.keyboard.setVisible(False)
+
 
 class MainWindow(QMainWindow):
     ''' Top level Window. The entry point of the gui.'''
@@ -787,8 +798,11 @@ class MainWindow(QMainWindow):
         if key_text == 'q':
             self.close()
 
+        elif key_text == 'k':
+            self.main_widget.toggle_keyboard()
+
         elif key_text == 'f':
-            self.showMaximized()
+            self.showMaximized
 
         QMainWindow.keyPressEvent(self, key_event)
 
