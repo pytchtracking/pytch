@@ -286,6 +286,20 @@ class ChannelViews(QWidget):
             cv.on_standard_frequency_changed(f)
 
 
+class SpectrumWidget(PlotWidget):
+    def __init__(self, *args, **kwargs):
+        PlotWidget.__init__(self, *args, **kwargs)
+        self.set_xlim(0, 2000)
+        self.set_ylim(0, 20)
+        self.left = 0.
+        self.yticks = False
+        self.grids = [FixGrid(delta=100., horizontal=False)]
+
+        # TODO: migrate functionanlity from ChannelView
+
+
+
+
 class ChannelView(QWidget):
     def __init__(self, channel, color='red', *args, **kwargs):
         '''
@@ -310,12 +324,7 @@ class ChannelView(QWidget):
         self.trace_widget.set_ylim(-1000., 1000.)
         self.trace_widget.left = 0.
 
-        self.spectrum = PlotWidget()
-        self.spectrum.set_xlim(0, 2000)
-        self.spectrum.set_ylim(0, 20)
-        self.spectrum.left = 0.
-        self.spectrum.yticks = False
-        self.spectrum.grids = [FixGrid(delta=100., horizontal=False)]
+        self.spectrum = SpectrumWidget(parent=self)
 
         self.plot_spectrum = self.spectrum.plotlog
 
@@ -361,6 +370,11 @@ class ChannelView(QWidget):
             'lin/log', self.right_click_menu)
         plot_action_group = QActionGroup(self.spectrum_type_menu)
         plot_action_group.setExclusive(True)
+
+    @qc.pyqtSlot(int)
+    def on_keyboard_key_pressed(self, f):
+        print('x', f)
+        self.spectrum.axvline(f)
 
     @qc.pyqtSlot()
     def on_clear(self):
@@ -698,11 +712,6 @@ class MainWidget(QWidget):
     def reset(self):
         dinput = self.data_input
 
-        self.keyboard = KeyBoard(self)
-        self.keyboard.setVisible(False)
-        self.keyboard.keyBoardKeyPressed.connect(dinput.play_sound)
-        self.top_layout.addWidget(self.keyboard, 0, 0, 1, -1)
-
         self.worker = Worker(dinput.channels)
 
         channel_views = []
@@ -715,6 +724,12 @@ class MainWidget(QWidget):
 
         self.channel_views_widget = ChannelViews(channel_views)
         self.top_layout.addWidget(self.channel_views_widget, 1, 0)
+
+        self.keyboard = KeyBoard(self)
+        self.keyboard.setVisible(False)
+        self.keyboard.keyBoardKeyPressed.connect(dinput.play_sound)
+        self.keyboard.connect_channel_views(self.channel_views_widget)
+        self.top_layout.addWidget(self.keyboard, 0, 0, 1, -1)
 
         tabbed_pitch_widget = QTabWidget()
         tabbed_pitch_widget.setSizePolicy(QSizePolicy.Minimum,
