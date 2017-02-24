@@ -18,7 +18,7 @@ class Key(QWidget):
 
     def __init__(self, octave, semitone, *args, **kwargs):
         super(Key, self).__init__(*args, **kwargs)
-        self.setContentsMargins(0, 0, 0, 0)
+        self.setContentsMargins(1, 1, 1, 1)
         self.octave = octave
         self.semitone = semitone
         self.pressed = False
@@ -45,13 +45,11 @@ class Key(QWidget):
 
     def paintEvent(self, event):
         painter= qg.QPainter(self)
-        painter.save()
         pen, brush = self.get_pen_brush()
         rect = self.rect()
         painter.setPen(pen)
         painter.fillRect(rect, brush)
         painter.drawRect(rect)
-        painter.restore()
         if self.want_label:
             x1, y1, x2, y2 = rect.getCoords()
             # painter.drawStaticText(self.static_label)
@@ -60,8 +58,6 @@ class Key(QWidget):
                 painter.setPen(qg.QPen(qc.Qt.white))
             painter.drawText(x1 + (x2-x1)/2, y2, self.name)
             painter.restore()
-        if not self.is_semitone:
-            self.lower()
 
     def mousePressEvent(self, mouse_ev):
         point = self.mapFromGlobal(mouse_ev.globalPos())
