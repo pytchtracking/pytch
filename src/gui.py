@@ -471,7 +471,6 @@ class PitchWidget(QWidget):
         self.setLayout(layout)
         self.figure = PlotWidget()
         self.figure.set_ylim(-1500., 1500)
-        self.figure.tfollow = 10.
         self.figure.grids = [FixGrid(delta=100.)]
         layout.addWidget(self.figure)
 
@@ -479,11 +478,13 @@ class PitchWidget(QWidget):
     def on_draw(self):
         for cv in self.channel_views:
             x, y = cv.channel.pitch.latest_frame(
-                self.figure.tfollow, clip_min=True)
+                tfollow, clip_min=True)
             index = num.where(cv.channel.fft_power.latest_frame_data(
                 len(x))>=cv.noise_threshold)
             self.figure.plot(x[index], y[index], style='o', line_width=4,
                              color=cv.color)
+            xstart = num.min(x)
+            self.figure.set_xlim(xstart, xstart+tfollow)
         self.figure.update()
         self.repaint()
 
