@@ -79,8 +79,8 @@ class Buffer():
         self.data = num.empty((int(self.data_len)),
                           dtype=self.dtype)
 
-    def dump(self):
-        pass
+    def save_as(self, fn):
+        num.savetxt(fn, num.vstack((self.xdata, self.ydata)).T)
 
     @property
     def t_filled(self):
@@ -94,6 +94,10 @@ class Buffer():
     @property
     def ydata(self):
         return self.data[:self.i_filled]
+
+    @property
+    def xdata(self):
+        return self._x[:self.i_filled]
 
     def index_at_time(self, t):
         ''' Get the index of the sample (closest) defined by *t* '''

@@ -4,6 +4,8 @@ from PyQt5 import QtCore as qc
 from PyQt5 import QtGui as qg
 from PyQt5.QtWidgets import QWidget
 
+from pytch.gui_util import _colors
+
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +32,7 @@ class Key(QWidget):
         self.f = 2**((self.semitone +self.octave*12)/12) * 440
         self.name = keys[self.semitone]
         # self.static_label = qc.QStaticText(self.name)
-        self.brush_pressed = qg.QBrush(qc.Qt.blue)
+        self.brush_pressed = qg.QBrush(qg.QColor(*_colors['aluminium4']))
         if self.is_semitone:
             self.brush = qg.QBrush(qc.Qt.black)
             self.pen = qg.QPen(qc.Qt.white)
