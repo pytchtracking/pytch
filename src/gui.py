@@ -1,6 +1,7 @@
 import logging
 import sys
 import numpy as num
+import os
 
 from pytch.two_channel_tuner import Worker
 
@@ -419,8 +420,6 @@ class ChannelView(QWidget):
         self.trace_widget.setVisible(show)
 
     def mousePressEvent(self, mouse_ev):
-        point = self.mapFromGlobal(mouse_ev.globalPos())
-
         if mouse_ev.button() == qc.Qt.RightButton:
             self.right_click_menu.exec_(qg.QCursor.pos())
         else:
@@ -472,6 +471,12 @@ class PitchWidget(QWidget):
         self.figure = PlotWidget()
         self.figure.set_ylim(-1500., 1500)
         self.figure.grids = [FixGrid(delta=100.)]
+        self.right_click_menu = QMenu('Save pitches', self)
+        self.right_click_menu.triggered.connect(self.on_save_as)
+        save_as_action = QAction('Save pitches', self.right_click_menu)
+        save_as_action.triggered.connect(self.on_save_as)
+        self.right_click_menu.addAction(save_as_action)
+
         layout.addWidget(self.figure)
 
     @qc.pyqtSlot()
@@ -492,6 +497,26 @@ class PitchWidget(QWidget):
     def on_clear(self):
         self.figure.clear()
 
+    @qc.pyqtSlot()
+    def on_save_as(self):
+        _fn = QFileDialog().getSaveFileName(self, 'Save as text file', '.', '')[0]
+        if _fn:
+            if not os.path.exists(_fn):
+                os.makedirs(_fn)
+            for i, cv in enumerate(self.channel_views):
+                fn = os.path.join(_fn, 'channel%s.txt' %i)
+                cv.channel.pitch.save_as(fn)
+
+    @qc.pyqtSlot(qg.QMouseEvent)
+    def mousePressEvent(self, mouse_ev):
+        if mouse_ev.button() == qc.Qt.RightButton:
+            self.right_click_menu.exec_(qg.QCursor.pos())
+        else:
+            try:
+                QWidget.mousePressEvent(mouse_ev)
+            except TypeError as e:
+                logger.warn(e)
+
 
 class DifferentialPitchWidget(QWidget):
     ''' Diffs as line'''
@@ -504,6 +529,7 @@ class DifferentialPitchWidget(QWidget):
         self.figure.set_ylim(-1500., 1500)
         self.figure.tfollow = 10
         self.figure.grids = [FixGrid(delta=100.)]
+
         layout.addWidget(self.figure)
 
     @qc.pyqtSlot()
@@ -574,8 +600,6 @@ class PitchLevelDifferenceViews(QWidget):
 
     @qc.pyqtSlot(qg.QMouseEvent)
     def mousePressEvent(self, mouse_ev):
-        point = self.mapFromGlobal(mouse_ev.globalPos())
-
         if mouse_ev.button() == qc.Qt.RightButton:
             self.right_click_menu.exec_(qg.QCursor.pos())
         else:
@@ -675,17 +699,13 @@ class MainWidget(QWidget):
     @qc.pyqtSlot()
     def on_save_as(self):
         '''Write traces to wav files'''
-        from scipy.io import wavfile
-        import os
-
         _fn = QFileDialog().getSaveFileName(self, 'Save as', '.', '')[0]
-        for i, tr in enumerate(self.channel_views_widget.channel_views):
-            conv = num.asarray(tr.channel.ydata, dtype=num.int16)
-            if not os.path.exists(_fn):
-                os.makedirs(_fn)
-            fn = os.path.join(_fn, 'channel%s.wav' %i)
-            wavfile.write(fn, self.data_input.sampling_rate, conv)
-            logger.info('Saving file in %s' % fn)
+        if _fn:
+            for i, tr in enumerate(self.channel_views_widget.channel_views):
+                if not os.path.exists(_fn):
+                    os.makedirs(_fn)
+                fn = os.path.join(_fn, 'channel%s' %i)
+                tr.channel.save_as(fn, fmt='wav')
 
     @qc.pyqtSlot(str)
     def on_algorithm_select(self, arg):

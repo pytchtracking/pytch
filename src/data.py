@@ -1,9 +1,13 @@
+import os
 import threading
-import pyaudio
-from aubio import pitch
 import atexit
 import numpy as num
 import logging
+import pyaudio
+
+from scipy.io import wavfile
+from aubio import pitch
+
 
 _lock = threading.Lock()
 
@@ -79,8 +83,25 @@ class Buffer():
         self.data = num.empty((int(self.data_len)),
                           dtype=self.dtype)
 
-    def save_as(self, fn):
-        num.savetxt(fn, num.vstack((self.xdata, self.ydata)).T)
+    def save_as(self, fn, fmt='txt'):
+        fn = fn + '.' + fmt
+        if fmt == 'txt':
+            num.savetxt(fn, num.vstack((self.xdata, self.ydata)).T)
+        elif fmt ==  'mseed':
+            fn = os.path.join(fn, '.' + fmt)
+            try:
+                from pyrocko import trace, io
+            except ImportError as e:
+                logger.warn('no pyrocko installation found!')
+                return
+
+            tr = trace.Trace(tmin=self.tmin, deltat=self.deltat, ydata=self.ydata)
+            io.save([tr], fn)
+
+        elif fmt == 'wav':
+            wavfile.write(fn, self.sampling_rate,
+                          num.asarray(self.ydata, dtype=num.int16))
+        logger.info('Saved file in %s' % fn)
 
     @property
     def t_filled(self):
