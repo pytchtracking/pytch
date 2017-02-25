@@ -194,7 +194,6 @@ class GaugeWidget(__PlotSuperClass):
         size_policy = QSizePolicy()
         size_policy.setHorizontalPolicy(QSizePolicy.Minimum)
         self.setSizePolicy(size_policy)
-        self._f = -180./2880.
         self.xtick_increment = 20
         self.pen = qg.QPen(self.color, 20, qc.Qt.SolidLine)
         self.pen.setCapStyle(qc.Qt.FlatCap)
@@ -276,15 +275,15 @@ class AutoGrid():
         Grid.__init__(self, *args, **kwargs)
 
         pen_color = 'aluminium2'
-        pen_style = ':'
+        style = ':'
         line_width = 1
 
         self.data_lims_v = (None, None)
         self.data_lims_h = (None, None)
         self.lines_h = []
         self.lines_v = []
-        self.grid_pen = qg.QPen(qg.QColor(*_colors[pen_color]),
-                           line_width, _pen_styles[pen_style])
+        self.grid_pen = qg.QPen(
+            qg.QColor(*_colors[pen_color]), line_width, _pen_styles[style])
 
     def draw_grid(self, widget, painter):
         lines = []
@@ -526,15 +525,15 @@ class PlotWidget(__PlotSuperClass):
     def set_pen_color(self, color='black'):
         self.pen.setColor(qg.QColor(*_colors[color]))
 
-    def get_pen(self, color='black', line_width=1, pen_style='solid'):
+    def get_pen(self, color='black', line_width=1, style='solid'):
         '''
         :param color: color name as string
         '''
-        if pen_style == 'o':
+        if style == 'o':
             self.draw_points = True
 
         return qg.QPen(qg.QColor(*_colors[color]),
-                      line_width, _pen_styles[pen_style])
+                      line_width, _pen_styles[style])
 
     def set_title(self, title):
         self.title = title
