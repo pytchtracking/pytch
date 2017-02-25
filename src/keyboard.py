@@ -29,7 +29,7 @@ class Key(QWidget):
 
     def setup(self):
         self.is_semitone = self.semitone in _semitones
-        self.f = 2**((self.semitone +self.octave*12)/12) * 440
+        self.f = 2**((self.semitone + self.octave*12)/12) * 220
         self.name = keys[self.semitone]
         # self.static_label = qc.QStaticText(self.name)
         self.brush_pressed = qg.QBrush(qg.QColor(*_colors['aluminium4']))
@@ -78,7 +78,6 @@ class Key(QWidget):
 
 
 class KeyBoard(QWidget):
-    ''' a plotwidget displays data (x, y coordinates). '''
 
     keyBoardKeyPressed = qc.pyqtSignal(int)
 
