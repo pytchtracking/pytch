@@ -181,10 +181,10 @@ class GaugeWidget(__PlotSuperClass):
         self.color = qg.QColor(0, 100, 100)
         self._val = 0
         self.set_title('')
-
         self.proj = Projection()
-        self.proj.set_out_range(0., 2880)
-        self.proj.set_in_range(0, 1500.)
+        self.proj.set_out_range(0., 180.)
+
+        self.set_ylim(0., 1500.)
 
         self.scaler = AutoScaler(
             no_exp_interval=(-3, 2), approx_ticks=7,
@@ -197,17 +197,26 @@ class GaugeWidget(__PlotSuperClass):
         self._f = -180./2880.
         self.xtick_increment = 20
         self.pen = qg.QPen(self.color, 20, qc.Qt.SolidLine)
+        self.pen.setCapStyle(qc.Qt.FlatCap)
+
+    def set_ylim(self, ymin, ymax):
+        ''' Set range of Gauge.'''
+        self.ymin = ymin
+        self.ymax = ymax
+        self.proj.set_in_range(self.ymin, self.ymax)
 
     def do_draw(self, painter):
         ''' This is executed when self.repaint() is called'''
         painter.save()
-        side = min(self.width(), self.height())/1.05
+        self.side = min(self.width(), self.height())/1.05
+        self.halfside = self.side/2.
+        rect = qc.QRectF(-self.halfside, -self.halfside, self.side, self.side)
         painter.translate(self.width()/2., self.height()/2.)
         painter.save()
         painter.setPen(self.pen)
         if self._val:
-            painter.drawArc(-side/2., -side/2., side, side,
-                            2880., -self.proj.clipped(self._val))
+            span_angle = -self.proj.clipped(self._val) * 16.
+            painter.drawArc(rect, 2880, span_angle)
         painter.restore()
 
         self.draw_deco(painter)
@@ -223,17 +232,18 @@ class GaugeWidget(__PlotSuperClass):
     def draw_ticks(self, painter):
         # needs some performance polishing !!!
         xmin, xmax, xinc = self.scaler.make_scale(self.proj.get_in_range())
-        ticks = num.arange(xmin, xmax, self.xtick_increment, dtype=num.int)
-        ticks_proj = self.proj(ticks)
-        # expensive. can be made cheaper. By creating list of lines first.
-        line = qc.QLine(170, 0, 192, 0)
-        subline = qc.QLine(176, 0, 192, 0)
-        anchor = qc.QPoint(140, 0)
+        ticks = num.arange(xmin, xmax+self.xtick_increment,
+                           self.xtick_increment, dtype=num.int)
+        ticks_proj = self.proj(ticks) + 180.
+
+        line = qc.QLine(self.halfside * 0.9, 0, self.halfside, 0)
+        subline = qc.QLine(self.halfside * 0.95, 0, self.halfside, 0)
+        anchor = qc.QPoint(self.halfside * 0.68, 0)
         for i, degree in enumerate(ticks_proj):
             painter.save()
-            painter.rotate(degree * self._f)
-            if i % 2 == 0:
-                painter.drawText(anchor, str(ticks[-i]))
+            painter.rotate(degree)
+            if i % 5 == 0:
+                painter.drawText(anchor, str(ticks[i]))
                 painter.drawLine(line)
             else:
                 painter.drawLine(subline)
