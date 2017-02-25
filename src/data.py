@@ -7,6 +7,7 @@ import pyaudio
 
 from scipy.io import wavfile
 from aubio import pitch
+from pytch.kalman import Kalman
 
 
 _lock = threading.Lock()
@@ -273,6 +274,10 @@ class Channel(RingBuffer):
         self.fftsize = fftsize
         self.setup_pitch()
         self.update()
+        P = 0.
+        R = 0.01**2
+        Q = 1e-6
+        self.kalman_pitch_filter = Kalman(P, R, Q)
 
     def update(self):
         nfft = (int(self.fftsize), self.delta)
@@ -290,6 +295,13 @@ class Channel(RingBuffer):
         self.pitch = RingBuffer(
             sampling_rate=sr,
             buffer_length_seconds=self.sampling_rate*self.buffer_length_seconds/self.fftsize)
+
+    def append_value_pitch(self, val):
+        ''' Append a new pitch value to pitch buffer. Apply Kalman filter
+        before appending'''
+        self.pitch.append_value(
+            self.kalman_pitch_filter.evaluate(val)
+        )
 
     @property
     def fftsize(self):
