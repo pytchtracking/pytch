@@ -414,8 +414,9 @@ class ChannelView(QWidget):
             x = c.get_latest_pitch(self.standard_frequency)
             self.spectrum.axvline(pitch2f(x, _standard_frequency))
         if self.freq_keyboard:
-            self.spectrum.axvline(self.freq_keyboard, color='aluminium4',
-                                  style='dashed', line_width=4)
+            self.spectrum.axvline(
+                self.freq_keyboard, color='aluminium4', style='dashed',
+                line_width=4)
         self.trace_widget.update()
         self.spectrum.update()
 
@@ -530,7 +531,7 @@ class DifferentialPitchWidget(QWidget):
         self.setLayout(layout)
         self.figure = PlotWidget()
         self.figure.set_ylim(-1500., 1500)
-        self.figure.tfollow = 10
+        self.tfollow = 10
         self.figure.grids = [FixGrid(delta=100.)]
 
         layout.addWidget(self.figure)
@@ -538,16 +539,15 @@ class DifferentialPitchWidget(QWidget):
     @qc.pyqtSlot()
     def on_draw(self):
         for i1, cv1 in enumerate(self.channel_views):
-            x1, y1 = cv1.channel.pitch.latest_frame(
-                self.figure.tfollow, clip_min=True)
+            x1, y1 = cv1.channel.pitch.latest_frame(self.tfollow, clip_min=True)
+            xstart = num.min(x1)
             index1 = num.where(cv1.channel.fft_power.latest_frame_data(
                 len(x1))>=cv1.noise_threshold)
 
             for i2, cv2 in enumerate(self.channel_views):
                 if i1>=i2:
                     continue
-                x2, y2 = cv2.channel.pitch.latest_frame(
-                    self.figure.tfollow, clip_min=True)
+                x2, y2 = cv2.channel.pitch.latest_frame(self.tfollow, clip_min=True)
                 index2 = num.where(cv2.channel.fft_power.latest_frame_data(
                     len(x2))>=cv2.noise_threshold)
                 indices = num.intersect1d(index1, index2)
@@ -560,7 +560,8 @@ class DifferentialPitchWidget(QWidget):
                     self.figure.plot(
                         x, y, style=':', line_width=4, color=cv2.color)
 
-        self.figure.update()
+        self.figure.set_xlim(xstart, xstart+self.tfollow)
+        #self.figure.update()
         self.repaint()
 
     @qc.pyqtSlot()
