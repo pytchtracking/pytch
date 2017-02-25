@@ -449,7 +449,3 @@ class MicrophoneRecorder(DataProvider):
                                     self.nchannels)).T
             for i, channel in enumerate(self.channels):
                 channel.append(r[i])
-
-    def play_sound(self, freq):
-        ''' keyboard output '''
-        print('play frequency: ', freq)

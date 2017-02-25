@@ -72,6 +72,7 @@ class Key(QWidget):
         self.repaint()
 
     def mouseReleaseEvent(self, mouse_ev):
+        self.playKeyBoard.emit(0)
         self.pressed = False
         self.repaint()
 
@@ -96,7 +97,7 @@ class KeyBoard(QWidget):
         for ir, r in enumerate(rects):
             noctave = int(ir/12)
             key = Key(octave=noctave, semitone=ir%12, parent=self)
-            key.playKeyBoard.connect(self.on_keyplay)
+            key.playKeyBoard.connect(self.keyBoardKeyPressed)
             self.keys.append(key)
 
     def get_key_rects(self):
@@ -130,9 +131,6 @@ class KeyBoard(QWidget):
         rects = self.get_key_rects()
         for r, k in zip(rects, self.keys):
             k.setGeometry(r)
-
-    def on_keyplay(self, f):
-        self.keyBoardKeyPressed.emit(f)
 
     def connect_channel_views(self, channel_views_widget):
         for cv in channel_views_widget.channel_views:

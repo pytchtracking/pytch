@@ -318,6 +318,7 @@ class ChannelView(QWidget):
         self.setLayout(layout)
 
         self.noise_threshold = 0
+        self.freq_keyboard = 0
 
         self.trace_widget = PlotWidget()
         self.trace_widget.grids = []
@@ -374,8 +375,7 @@ class ChannelView(QWidget):
 
     @qc.pyqtSlot(int)
     def on_keyboard_key_pressed(self, f):
-        print('x', f)
-        self.spectrum.axvline(f)
+        self.freq_keyboard = f
 
     @qc.pyqtSlot()
     def on_clear(self):
@@ -413,6 +413,9 @@ class ChannelView(QWidget):
         if power > self.noise_threshold:
             x = c.get_latest_pitch(self.standard_frequency)
             self.spectrum.axvline(pitch2f(x, _standard_frequency))
+        if self.freq_keyboard:
+            self.spectrum.axvline(self.freq_keyboard, color='aluminium4',
+                                  style='dashed', line_width=4)
         self.trace_widget.update()
         self.spectrum.update()
 
@@ -751,7 +754,6 @@ class MainWidget(QWidget):
 
         self.keyboard = KeyBoard(self)
         self.keyboard.setVisible(False)
-        self.keyboard.keyBoardKeyPressed.connect(dinput.play_sound)
         self.keyboard.connect_channel_views(self.channel_views_widget)
         self.top_layout.addWidget(self.keyboard, 0, 0, 1, -1)
 
