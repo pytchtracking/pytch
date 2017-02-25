@@ -663,6 +663,9 @@ class MainWidget(QWidget):
 
     def __init__(self, settings, *args, **kwargs):
         QWidget.__init__(self, *args, **kwargs)
+        self.tabbed_pitch_widget = QTabWidget()
+        self.tabbed_pitch_widget.setSizePolicy(QSizePolicy.Minimum,
+                                          QSizePolicy.Minimum)
 
         self.setMouseTracking(True)
         self.top_layout = QGridLayout()
@@ -752,11 +755,7 @@ class MainWidget(QWidget):
         self.keyboard.connect_channel_views(self.channel_views_widget)
         self.top_layout.addWidget(self.keyboard, 0, 0, 1, -1)
 
-        tabbed_pitch_widget = QTabWidget()
-        tabbed_pitch_widget.setSizePolicy(QSizePolicy.Minimum,
-                                          QSizePolicy.Minimum)
-
-        self.top_layout.addWidget(tabbed_pitch_widget, 1, 1)
+        #self.top_layout.addWidget(self.tabbed_pitch_widget, 1, 1)
 
         self.pitch_view = PitchWidget(channel_views)
 
@@ -764,10 +763,10 @@ class MainWidget(QWidget):
         self.pitch_diff_view = PitchLevelDifferenceViews(channel_views)
         #self.pitch_diff_view_colorized = PitchLevelMikadoViews(channel_views)
 
-        tabbed_pitch_widget.addTab(self.pitch_view, 'Pitches')
-        tabbed_pitch_widget.addTab(self.pitch_view_all_diff, 'Differential')
-        tabbed_pitch_widget.addTab(self.pitch_diff_view, 'Current')
-        #tabbed_pitch_widget.addTab(self.pitch_diff_view_colorized, 'Mikado')
+        self.tabbed_pitch_widget.addTab(self.pitch_view, 'Pitches')
+        self.tabbed_pitch_widget.addTab(self.pitch_view_all_diff, 'Differential')
+        self.tabbed_pitch_widget.addTab(self.pitch_diff_view, 'Current')
+        #self.tabbed_pitch_widget.addTab(self.pitch_diff_view_colorized, 'Mikado')
 
         self.menu.connect_channel_views(self.channel_views_widget)
 
@@ -824,7 +823,12 @@ class MainWindow(QMainWindow):
 
         controls_dock_widget = QDockWidget()
         controls_dock_widget.setWidget(self.main_widget.menu)
+
+        views_dock_widget = QDockWidget()
+        views_dock_widget.setWidget(self.main_widget.tabbed_pitch_widget)
+
         self.addDockWidget(qc.Qt.LeftDockWidgetArea, controls_dock_widget)
+        self.addDockWidget(qc.Qt.RightDockWidgetArea, views_dock_widget)
 
         self.show()
 
