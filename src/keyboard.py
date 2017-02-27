@@ -14,6 +14,11 @@ keys = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 _semitones = [1, 3, 6, 8, 10]
 
 
+def f2midi(f):
+    ''' https://en.wikipedia.org/wiki/MIDI_tuning_standard '''
+    return int(69 + 12*num.log2(f/440))
+
+
 class Key(qw.QWidget):
 
     playKeyBoard = qc.pyqtSignal(int)
