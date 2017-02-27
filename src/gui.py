@@ -561,7 +561,10 @@ class DifferentialPitchWidget(QWidget):
                         x, y, style=':', line_width=4, color=cv2.color)
 
         self.figure.set_xlim(xstart, xstart+self.tfollow)
-        #self.figure.update()
+
+        # update needed on OSX
+        self.figure.update()
+
         self.repaint()
 
     @qc.pyqtSlot()

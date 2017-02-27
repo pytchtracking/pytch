@@ -442,9 +442,6 @@ class PlotWidget(__PlotSuperClass):
         self.setContentsMargins(1, 1, 1, 1)
         self.track_start = None
 
-        self.yscale = 1.
-        self.tfollow = 0
-
         self.ymin = None
         self.ymax = None
         self.xmin = None
@@ -612,19 +609,15 @@ class PlotWidget(__PlotSuperClass):
 
         self.colormap.set_vlim(self._ymin, self._ymax)
 
-        if self.tfollow:
-            self._xmin = num.max((xvisible_max - self.tfollow, 0))
-            self._xmax = num.max((xvisible_max, self.tfollow))
+        if not self.xmin:
+            self._xmin = num.min(xvisible)
         else:
-            if not self.xmin:
-                self._xmin = num.min(xvisible)
-            else:
-                self._xmin = self.xmin
+            self._xmin = self.xmin
 
-            if not self.xmax:
-                self._xmax = xvisible_max
-            else:
-                self._xmax = self.xmax
+        if not self.xmax:
+            self._xmax = xvisible_max
+        else:
+            self._xmax = self.xmax
 
         w, h = self.wh
 
