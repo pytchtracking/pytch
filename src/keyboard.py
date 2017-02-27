@@ -2,7 +2,7 @@ import logging
 
 from PyQt5 import QtCore as qc
 from PyQt5 import QtGui as qg
-from PyQt5.QtWidgets import QWidget
+from PyQt5 import QtWidgets as qw
 
 from pytch.gui_util import _colors
 
@@ -14,7 +14,7 @@ keys = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 _semitones = [1, 3, 6, 8, 10]
 
 
-class Key(QWidget):
+class Key(qw.QWidget):
 
     playKeyBoard = qc.pyqtSignal(int)
 
@@ -54,7 +54,6 @@ class Key(QWidget):
         painter.drawRect(rect)
         if self.want_label:
             x1, y1, x2, y2 = rect.getCoords()
-            # painter.drawStaticText(self.static_label)
             painter.save()
             if self.is_semitone:
                 painter.setPen(qg.QPen(qc.Qt.white))
@@ -62,13 +61,11 @@ class Key(QWidget):
             painter.restore()
 
     def mousePressEvent(self, mouse_ev):
-        point = self.mapFromGlobal(mouse_ev.globalPos())
-
         if mouse_ev.button() == qc.Qt.LeftButton:
             self.pressed = True
             self.playKeyBoard.emit(self.f)
         else:
-            QWidget.mousePressEvent(mouse_ev)
+            super(Key, self).mousePressEvent(mouse_ev)
         self.repaint()
 
     def mouseReleaseEvent(self, mouse_ev):
@@ -76,10 +73,17 @@ class Key(QWidget):
         self.pressed = False
         self.repaint()
 
+    @qc.pyqtSlot()
+    def on_toggle_labels(self):
+        self.want_label += 1
+        self.want_label %= 2
+        self.repaint()
 
-class KeyBoard(QWidget):
+
+class KeyBoard(qw.QWidget):
 
     keyBoardKeyPressed = qc.pyqtSignal(int)
+    toggle_tabels = qc.pyqtSignal()
 
     def __init__(self, *args, **kwargs):
         super(KeyBoard, self).__init__(*args, **kwargs)
@@ -88,8 +92,16 @@ class KeyBoard(QWidget):
         self.setMaximumHeight(200)
         self.setMinimumHeight(100)
         self.n_octaves = 3
+
         self.keys = []
+        self.setup_right_click_menu()
         self.setup()
+
+    def setup_right_click_menu(self):
+        self.right_click_menu = qw.QMenu('Keyboard Settings', self)
+        action = qw.QAction(str('Toggle labels'), self.right_click_menu)
+        action.triggered.connect(self.toggle_tabels)
+        self.right_click_menu.addAction(action)
 
     def setup(self):
         rects = self.get_key_rects()
@@ -97,6 +109,7 @@ class KeyBoard(QWidget):
             noctave = int(ir/12)
             key = Key(octave=noctave, semitone=ir%12, parent=self)
             key.playKeyBoard.connect(self.keyBoardKeyPressed)
+            self.toggle_tabels.connect(key.on_toggle_labels)
             self.keys.append(key)
 
     def get_key_rects(self):
@@ -127,10 +140,23 @@ class KeyBoard(QWidget):
         return rects
 
     def resizeEvent(self, event):
+        ''' required to move all :py:class:`pytch.keyboard.Key` instances to
+        their approproate locations'''
         rects = self.get_key_rects()
         for r, k in zip(rects, self.keys):
             k.setGeometry(r)
 
     def connect_channel_views(self, channel_views_widget):
+        ''' Connect Keyboard's signals to channel views.
+
+        :param channel_views_widget: instance of
+            :py:class:`pytch.gui.ChannelViewsWidget
+        '''
         for cv in channel_views_widget.channel_views:
             self.keyBoardKeyPressed.connect(cv.on_keyboard_key_pressed)
+
+    def mousePressEvent(self, mouse_ev):
+        if mouse_ev.button() == qc.Qt.RightButton:
+            self.right_click_menu.exec_(mouse_ev.pos())
+        else:
+            super(Keyboard, selr).mousePressEvent(mouse_ev)
