@@ -28,6 +28,20 @@ fmax = 2000.
 _standard_frequency = 220.
 
 
+def draw_label(painter, center, radius, text, color):
+    ''' draw white circle with colored frame and colored label'''
+    painter.save()
+    painter.setBrush(qc.Qt.white)
+    pen = painter.pen()
+    pen.setColor(qg.QColor(*_colors[color]))
+    pen.setWidth(3)
+    painter.setRenderHint(qg.QPainter.Antialiasing)
+    painter.setPen(pen)
+    painter.drawEllipse(center, radius, radius)
+    painter.drawText(center, text)
+    painter.restore()
+
+
 class LineEditWithLabel(QWidget):
     def __init__(self, label, default=None, *args, **kwargs):
         QWidget.__init__(self, *args, **kwargs)
