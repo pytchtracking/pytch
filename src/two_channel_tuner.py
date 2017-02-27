@@ -50,11 +50,6 @@ class Worker():
             channel.fft.append(amp_spec)
             channel.fft_power.append_value(num.sum(amp_spec)/channel.sampling_rate)
 
-            #total_power = num.sum(channel.fft)/len(channel.freqs)
-            #new_pitch_Cent = -9999999.
-            #else:
-            #pitch = channel.pitch_o(frame_work.astype(num.float32))[0]
-            #new_pitch_Cent = channel.pitch_o(frame_work)[0]
             channel.pitch.append_value(f2pitch(channel.pitch_o(frame_work)[0], _standard_frequency))
             #channel.pitch.append_value(channel.pitch_o(frame_work)[0])
         #    #pitch_confidence2 = pitch_o.get_confidence()
