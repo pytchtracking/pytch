@@ -214,8 +214,8 @@ class GaugeWidget(__PlotSuperClass):
         painter.save()
         painter.setPen(self.pen)
         if self._val:
-            span_angle = -self.proj.clipped(self._val) * 16.
-            painter.drawArc(rect, 2880, span_angle)
+            span_angle = (-self.proj.clipped(self._val) + self.proj(0))*16.
+            painter.drawArc(rect, self.proj(0)*16., span_angle)
         painter.restore()
 
         self.draw_deco(painter)

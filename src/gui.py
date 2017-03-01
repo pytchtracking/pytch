@@ -594,6 +594,7 @@ class PitchLevelDifferenceViews(QWidget):
         layout = QGridLayout()
         self.setLayout(layout)
         self.widgets = []
+        ylim = (-1500, 1500.)
 
         self.right_click_menu = QMenu('Tick Settings', self)
         self.right_click_menu.triggered.connect(self.on_xtick_increment_select)
@@ -615,6 +616,7 @@ class PitchLevelDifferenceViews(QWidget):
                 if i1>=i2:
                     continue
                 w = GaugeWidget(parent=self)
+                w.set_ylim(*ylim)
                 w.set_title('Channels: %s | %s' % (i1+1, i2+1))
                 self.widgets.append((cv1, cv2, w))
                 layout.addWidget(w, i1, i2)
