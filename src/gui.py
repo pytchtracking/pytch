@@ -640,9 +640,9 @@ class PitchLevelDifferenceViews(QWidget):
     def on_draw(self):
         naverage = 3
         for cv1, cv2, w in self.widgets:
-            power1 = num.sum(cv1.channel.fft_power.latest_frame_data(naverage))
-            power2 = num.sum(cv1.channel.fft_power.latest_frame_data(naverage))
-            if power1 > cv1.noise_threshold and power2>cv2.noise_threshold:
+            power1 = cv1.channel.fft_power.latest_frame_data(naverage)
+            power2 = cv1.channel.fft_power.latest_frame_data(naverage)
+            if all(power1>cv1.noise_threshold) and all(power2>cv1.noise_threshold):
                 d1 = cv1.channel.pitch.latest_frame_data(naverage)
                 d2 = cv2.channel.pitch.latest_frame_data(naverage)
                 w.set_data(num.mean(d1)-num.mean(d2))
