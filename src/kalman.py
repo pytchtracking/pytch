@@ -15,6 +15,7 @@ def construct_test_data(z):
     z *= num.sin(num.linspace(0, num.pi*5., n_iter))
     z *= num.sin(num.linspace(0, num.pi*3., n_iter))
     z *= num.sin(num.linspace(0, num.pi/2., n_iter))
+    z[:len(z)/2] += 1.
     return z
 
 
@@ -60,7 +61,7 @@ if __name__ == '__main__':
     sz = (n_iter,) # size of array
     x = -0.37727 # truth value (typo in example at top of p. 13 calls this z)
     z_true = num.ones(n_iter, dtype=num.float)*x # correct values
-    #z_true = construct_test_data(z_true)
+    z_true = construct_test_data(z_true)
 
     #z = construct_test_data(z)      # These are the "measured" values.
     z = z_true+num.random.normal(0, 0.2, size=sz) # observations (normal about x, sigma=0.1)
@@ -68,8 +69,9 @@ if __name__ == '__main__':
 
     Q = 1e-5 # process variance
 
-
-    R = 0.1**2 # estimate of measurement variance, change to see effect
+    # R small: responsive
+    # R large: more smooth
+    R = 0.8**2 # estimate of measurement variance, change to see effect
 
     # intial guesses
     P = 1.
