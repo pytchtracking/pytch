@@ -265,7 +265,7 @@ class SamplingRateException(Exception):
 class Channel(RingBuffer):
     def __init__(self, sampling_rate, fftsize=8192):
 
-        self.buffer_length_seconds = 14
+        self.buffer_length_seconds = 40
         RingBuffer.__init__(self, sampling_rate, self.buffer_length_seconds)
 
         self.__pitch_algorithm = 'yinfft'
