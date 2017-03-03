@@ -296,12 +296,12 @@ class Channel(RingBuffer):
             sampling_rate=sr,
             buffer_length_seconds=self.sampling_rate*self.buffer_length_seconds/self.fftsize)
 
-    def append_value_pitch(self, val):
+    def append_value_pitch(self, val, apply_kalman=False):
         ''' Append a new pitch value to pitch buffer. Apply Kalman filter
         before appending'''
-        self.pitch.append_value(
-            self.kalman_pitch_filter.evaluate(val)
-        )
+        if apply_kalman:
+            val = self.kalman_pitch_filter.evaluate(val)
+        self.pitch.append_value(val)
 
     @property
     def fftsize(self):
