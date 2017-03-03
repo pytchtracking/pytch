@@ -523,7 +523,10 @@ class PitchWidget(QWidget):
                 os.makedirs(_fn)
             for i, cv in enumerate(self.channel_views):
                 fn = os.path.join(_fn, 'channel%s.txt' %i)
-                cv.channel.pitch.save_as(fn)
+                x, y = cv.channel.pitch.xdata, cv.channel.pitch.ydata
+                index = num.where(cv.channel.fft_power.latest_frame_data(
+                    len(x))>=cv.noise_threshold)
+                num.savetxt(fn, num.vstack((x[index], y[index])).T)
 
     @qc.pyqtSlot(qg.QMouseEvent)
     def mousePressEvent(self, mouse_ev):
