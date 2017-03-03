@@ -67,17 +67,28 @@ if __name__ == '__main__':
     '''
 
     try:
+        # read data from file
         infile = sys.argv[1]
 
         f = num.loadtxt(infile)
         x, y = f.T
+
+        # remove pitches, which are below this value:
+        pitch_threshold = -2000
+        i_filtered = num.where(y>pitch_threshold)
+
+        x = x[i_filtered]
+        y = y[i_filtered]
         n_iter = len(x)
         y_true = None
 
     except IndexError:
+
+        # if data cannot be read from file, create test_data:
         n_iter = 2000
-        x = -0.37727 # truth value (typo in example at top of p. 13 calls this z)
-        y = num.ones(n_iter, dtype=num.float)*x # correct values
+        y_shift = -0.37727 # truth value (typo in example at top of p. 13 calls this z)
+        y = num.ones(n_iter, dtype=num.float)*y_shift # correct values
+        x = num.arange(n_iter)
         y_true = construct_test_data(y)
 
         #z = construct_test_data(z)      # These are the "measured" values.
@@ -85,14 +96,14 @@ if __name__ == '__main__':
     sz = (n_iter,) # size of array
     xhat = num.zeros(sz)             # a posteri estimate of x
 
-    Q = 1e-5 # process variance
+    Q = 1e-4 # process variance
 
     # R small: responsive
     # R large: more smooth
-    R = 0.8**2 # estimate of measurement variance, change to see effect
+    R = 0.03**2 # estimate of measurement variance, change to see effect
 
     # intial guesses
-    P = 1.
+    P = 0.
 
     # create a *Kalman* filter object
     kalman = Kalman(P, R, Q)
@@ -107,9 +118,9 @@ if __name__ == '__main__':
 
     plt.figure()
     if y_true is not None:
-        plt.plot(y_true, color='g',label='truth value')
-    plt.plot(y,'k+',label='noisy measurements')
-    plt.plot(xhat,'b-',label='a posteri estimate')
+        plt.plot(x, y_true, color='g',label='truth value')
+    plt.plot(x, y,'k+',label='noisy measurements')
+    plt.plot(x, xhat,'b-',label='a posteri estimate')
     fig = plt.gcf()
     plt.text(0.5, 0.01, 'Q: %s, R: %s, P:%s'% (Q, R, P),
              transform=fig.transFigure)
