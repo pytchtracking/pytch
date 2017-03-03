@@ -55,16 +55,34 @@ class Kalman():
 
 
 if __name__ == '__main__':
+
+    import sys
     import matplotlib.pyplot as plt
     # intial parameters
-    n_iter = 2000
-    sz = (n_iter,) # size of array
-    x = -0.37727 # truth value (typo in example at top of p. 13 calls this z)
-    z_true = num.ones(n_iter, dtype=num.float)*x # correct values
-    z_true = construct_test_data(z_true)
 
-    #z = construct_test_data(z)      # These are the "measured" values.
-    z = z_true+num.random.normal(0, 0.2, size=sz) # observations (normal about x, sigma=0.1)
+    '''
+    python kalman.py [inputfile.txt]
+
+    where inputfile is a two column ascii file with x and y values
+    '''
+
+    try:
+        infile = sys.argv[1]
+
+        f = num.loadtxt(infile)
+        x, y = f.T
+        n_iter = len(x)
+        y_true = None
+
+    except IndexError:
+        n_iter = 2000
+        x = -0.37727 # truth value (typo in example at top of p. 13 calls this z)
+        y = num.ones(n_iter, dtype=num.float)*x # correct values
+        y_true = construct_test_data(y)
+
+        #z = construct_test_data(z)      # These are the "measured" values.
+        y = y_true+num.random.normal(0, 0.2, size=n_iter) # observations (normal about x, sigma=0.1)
+    sz = (n_iter,) # size of array
     xhat = num.zeros(sz)             # a posteri estimate of x
 
     Q = 1e-5 # process variance
@@ -80,7 +98,7 @@ if __name__ == '__main__':
     kalman = Kalman(P, R, Q)
 
     for k in range(1, n_iter):
-        new_sample = z[k]       # grab a new sample from the data set
+        new_sample = y[k]       # grab a new sample from the data set
 
         # get a filtered new estimate:
         xhat[k] = kalman.evaluate(
@@ -88,9 +106,13 @@ if __name__ == '__main__':
             previous_estimate=xhat[k-1])
 
     plt.figure()
-    plt.plot(z,'k+',label='noisy measurements')
+    if y_true is not None:
+        plt.plot(y_true, color='g',label='truth value')
+    plt.plot(y,'k+',label='noisy measurements')
     plt.plot(xhat,'b-',label='a posteri estimate')
-    plt.plot(z_true, color='g',label='truth value')
+    fig = plt.gcf()
+    plt.text(0.5, 0.01, 'Q: %s, R: %s, P:%s'% (Q, R, P),
+             transform=fig.transFigure)
     plt.legend()
     plt.title('Estimate vs. iteration step', fontweight='bold')
     plt.xlabel('Time')
