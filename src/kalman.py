@@ -15,7 +15,6 @@ def construct_test_data(z):
     z *= num.sin(num.linspace(0, num.pi*5., n_iter))
     z *= num.sin(num.linspace(0, num.pi*3., n_iter))
     z *= num.sin(num.linspace(0, num.pi/2., n_iter))
-    z[:len(z)/2] += 1.
     return z
 
 
@@ -28,13 +27,13 @@ class Kalman():
         self.R = R
         self.Q = Q
 
-    def evaluate(self, new_sample, previous_estimate, weight=1.):
+    def evaluate(self, new_sample, previous_estimate, weight=1., dt=None):
         ''' Calculate the next estimate, based on the
         *new_sample* and the *previous_sample*'''
 
         # time update
         xhatminus = previous_estimate
-        Pminus = self.P + self.Q
+        Pminus = self.P + self.Q * dt*100.
 
         # measurement update
         K = Pminus / (Pminus + self.R) * weight
@@ -85,11 +84,16 @@ if __name__ == '__main__':
     except IndexError:
 
         # if data cannot be read from file, create test_data:
-        n_iter = 2000
+        n_iter = 200
         y_shift = -0.37727 # truth value (typo in example at top of p. 13 calls this z)
         y = num.ones(n_iter, dtype=num.float)*y_shift # correct values
         x = num.arange(n_iter)
+
+        i_gap = len(x)/2
+
+        x[i_gap:] += 10
         y_true = construct_test_data(y)
+        y_true[:i_gap] += 10.
 
         #z = construct_test_data(z)      # These are the "measured" values.
         y = y_true+num.random.normal(0, 0.2, size=n_iter) # observations (normal about x, sigma=0.1)
@@ -110,11 +114,12 @@ if __name__ == '__main__':
 
     for k in range(1, n_iter):
         new_sample = y[k]       # grab a new sample from the data set
-
+        dt = x[k] - x[k-1]
         # get a filtered new estimate:
         xhat[k] = kalman.evaluate(
             new_sample=new_sample,
-            previous_estimate=xhat[k-1])
+            previous_estimate=xhat[k-1],
+            dt=dt)
 
     plt.figure()
     if y_true is not None:
