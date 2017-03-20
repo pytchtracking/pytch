@@ -5,7 +5,7 @@ import os
 import time
 import shutil
 
-from distutils.core import setup
+from distutils.core import setup, Extension
 from distutils.command.build_ext import build_ext
 
 
@@ -29,7 +29,7 @@ class custom_build_app(build_ext):
                 # 'PyQt4.QtDesigner',
         ]
         }
-        
+
         setup(
             app=APP,
             data_files=DATA_FILES,
@@ -61,12 +61,12 @@ setup(
     scripts=['apps/pytch'],
     cmdclass={
         'py2app': custom_build_app,
-    }
+    },
+    # ext_modules=[
+    #     Extension('midi_ext',
+    #               extra_compile_args=['-Wextra'],
+    #               sources=[os.path.join('src', 'midi_ext.c')]),
+    # ]
 
-    #package_dir={'': 'pytch'},
-    #packages=[''],
-    #packages=['qtest'],
-    #py_modules=['pytch'],
-    #py_modules=['src/utils'],
 )
 
