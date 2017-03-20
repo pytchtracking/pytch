@@ -31,28 +31,12 @@ class Worker():
 
             amp_spec = num.abs(num.fft.rfft(frame_work))
             channel.fft.append(amp_spec)
-            channel.fft_power.append_value(num.sum(amp_spec)/channel.sampling_rate)
+            #channel.fft_power.append_value(num.sum(amp_spec)/channel.sampling_rate)
 
-            channel.pitch.append_value(f2pitch(channel.pitch_o(frame_work)[0], _standard_frequency))
-            #channel.pitch.append_value(channel.pitch_o(frame_work)[0])
-        #    #pitch_confidence2 = pitch_o.get_confidence()
-
-        #    self.pitchlog_vect1 = num.roll(self.pitchlog_vect1, -1)
-        #    self.pitchlog_vect2 = num.roll(self.pitchlog_vect2, -1)
-
-        #    self.new_pitch1Cent = 1200.* math.log((self.new_pitch1+.1)/120., 2)
-        #    self.new_pitch2Cent = 1200.* math.log((self.new_pitch2+.1)/120., 2)
-
-        #    self.pitchlog_vect1[-1] = self.new_pitch1Cent
-        #    self.pitchlog_vect2[-1] = self.new_pitch2Cent
-
-        #    #ivCents = abs(self.new_pitch2Cent - self.new_pitch1Cent)
-        #    #if 0< ivCents <= 1200:
-        #    #    plot gauge
-
-        #    # plot self.new_pitcj1Cent - self.newptch2Cent und anders rum
-        #    #self.signalReady.emit()
-        #self.processingFinished.emit()
+            channel.pitch_confidence.append_value(
+                channel.pitch_o.get_confidence())
+            channel.pitch.append_value(f2pitch(channel.pitch_o(
+                frame_work)[0], _standard_frequency))
 
         logger.debug('finished processing')
 
