@@ -1,11 +1,8 @@
 # -*- coding: utf-8 -*-
 
-import math
-from aubio import pitch
 import numpy as num
-import time
 
-from pytch.util import DummySignal, f2pitch
+from pytch.util import f2pitch
 
 import logging
 
@@ -24,20 +21,6 @@ class Worker():
         self.channels = channels
         self.nchannels = len(self.channels)
         self.cross_spectra_combinations = []
-        self.spectral_smoothing = False
-        self.set_pitch_algorithm(0)
-
-    def set_spectral_smoothing(self, state):
-        self.spectral_smoothing = state
-
-    def set_pitch_algorithm(self, ialgorithm):
-        '''
-        :param ialgorithm:
-        index of desired algorithm'''
-
-        for ic, channel in enumerate(self.channels):
-            tolerance = 0.8
-            win_s = channel.fftsize
 
     def process(self):
         ''' Do the work'''
