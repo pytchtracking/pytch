@@ -295,6 +295,9 @@ class Channel(RingBuffer):
         self.pitch = RingBuffer(
             sampling_rate=sr,
             buffer_length_seconds=self.sampling_rate*self.buffer_length_seconds/self.fftsize)
+        self.pitch_confidence = RingBuffer(
+            sampling_rate=sr,
+            buffer_length_seconds=self.sampling_rate*self.buffer_length_seconds/self.fftsize)
 
     def append_value_pitch(self, val, apply_kalman=False):
         ''' Append a new pitch value to pitch buffer. Apply Kalman filter

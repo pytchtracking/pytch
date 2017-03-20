@@ -2,6 +2,7 @@ import logging
 import sys
 import numpy as num
 import os
+import math
 
 from pytch.two_channel_tuner import Worker
 
@@ -176,12 +177,15 @@ class MenuWidget(QFrame):
         self.save_as_button = QPushButton('Save as')
         layout.addWidget(self.save_as_button, 0, 3)
 
-        layout.addWidget(QLabel('Noise Threshold'), 4, 0)
+        layout.addWidget(QLabel('Confidence Threshold'), 4, 0)
         self.noise_thresh_slider = QSlider()
-        self.noise_thresh_slider.setRange(0, 2000)
-        self.noise_thresh_slider.setValue(500)
+        self.noise_thresh_slider.setRange(0, 15)
+        self.noise_thresh_slider.setTickPosition(QSlider.TicksBelow)
         self.noise_thresh_slider.setOrientation(qc.Qt.Horizontal)
         layout.addWidget(self.noise_thresh_slider, 4, 1)
+
+        self.noise_thresh_label = QLabel('')
+        layout.addWidget(self.noise_thresh_label, 4, 2)
 
         layout.addWidget(QLabel('Gain'), 5, 0)
         self.sensitivity_slider = QSlider()
@@ -241,9 +245,16 @@ class MenuWidget(QFrame):
     def on_spectrum_type_select(self, arg):
         self.spectrum_type_selected.emit(arg)
 
-    def connect_to_noise_threshold(self, widget):
+    @qc.pyqtSlot(str)
+    def update_noise_thresh_label(self, arg):
+        self.noise_thresh_label.setText(str(arg/10.))
+
+    def connect_to_confidence_threshold(self, widget):
         self.noise_thresh_slider.valueChanged.connect(
-            widget.on_noise_threshold_changed)
+            widget.on_confidence_threshold_changed)
+        self.noise_thresh_slider.valueChanged.connect(
+            self.update_noise_thresh_label)
+        self.noise_thresh_slider.setValue(widget.confidence_threshold*10)
 
     def connect_channel_views(self, channel_views):
         self.box_show_traces.stateChanged.connect(
@@ -331,7 +342,7 @@ class ChannelView(QWidget):
         layout = QHBoxLayout()
         self.setLayout(layout)
 
-        self.noise_threshold = 0
+        self.confidence_threshold = 0.9
         self.freq_keyboard = 0
 
         self.trace_widget = PlotWidget()
@@ -398,20 +409,6 @@ class ChannelView(QWidget):
 
     @qc.pyqtSlot()
     def on_draw(self):
-        self.draw()
-
-    @qc.pyqtSlot(int)
-    def on_noise_threshold_changed(self, threshold):
-        '''
-        self.channel_views_widget.
-        '''
-        self.noise_threshold = threshold
-
-    @qc.pyqtSlot(float)
-    def on_standard_frequency_changed(self, f=1):
-        self.standard_frequency = f
-
-    def draw(self):
         c = self.channel
         self.trace_widget.plot(*c.latest_frame(
             tfollow), ndecimate=25, color=self.color, line_width=1)
@@ -423,8 +420,8 @@ class ChannelView(QWidget):
                     #f2pitch(c.freqs, self.standard_frequency), num.mean(d, axis=0), ndecimate=2,
                     color=self.color, ignore_nan=True)
 
-        power = num.sum(c.fft_power.latest_frame_data(1))
-        if power > self.noise_threshold:
+        confidence = c.pitch_confidence.latest_frame_data(1)
+        if confidence > self.confidence_threshold:
             x = c.get_latest_pitch(self.standard_frequency)
             self.spectrum.axvline(pitch2f(x, _standard_frequency))
         if self.freq_keyboard:
@@ -433,6 +430,17 @@ class ChannelView(QWidget):
                 line_width=4)
         self.trace_widget.update()
         self.spectrum.update()
+
+    @qc.pyqtSlot(int)
+    def on_confidence_threshold_changed(self, threshold):
+        '''
+        self.channel_views_widget.
+        '''
+        self.confidence_threshold = threshold/10.
+
+    @qc.pyqtSlot(float)
+    def on_standard_frequency_changed(self, f=1):
+        self.standard_frequency = f
 
     def show_trace_widget(self, show=True):
         self.trace_widget.setVisible(show)
@@ -494,6 +502,8 @@ class PitchWidget(QWidget):
         save_as_action = QAction('Save pitches', self.right_click_menu)
         save_as_action.triggered.connect(self.on_save_as)
         self.right_click_menu.addAction(save_as_action)
+        self.track_start = None
+        self.tfollow = 2.
 
         layout.addWidget(self.figure)
 
@@ -501,13 +511,15 @@ class PitchWidget(QWidget):
     def on_draw(self):
         for cv in self.channel_views:
             x, y = cv.channel.pitch.latest_frame(
-                tfollow, clip_min=True)
-            index = num.where(cv.channel.fft_power.latest_frame_data(
-                len(x))>=cv.noise_threshold)
+                self.tfollow, clip_min=True)
+            index = num.where(cv.channel.pitch_confidence.latest_frame_data(
+                len(x))>=cv.confidence_threshold)
+            #index = num.where(cv.channel.fft_power.latest_frame_data(
+            #    len(x))>=cv.confidence_threshold)
             self.figure.plot(x[index], y[index], style='o', line_width=4,
                              color=cv.color)
             xstart = num.min(x)
-            self.figure.set_xlim(xstart, xstart+tfollow)
+            self.figure.set_xlim(xstart, xstart+self.tfollow)
         self.figure.update()
         self.repaint()
 
@@ -558,15 +570,15 @@ class DifferentialPitchWidget(QWidget):
         for i1, cv1 in enumerate(self.channel_views):
             x1, y1 = cv1.channel.pitch.latest_frame(self.tfollow, clip_min=True)
             xstart = num.min(x1)
-            index1 = num.where(cv1.channel.fft_power.latest_frame_data(
-                len(x1))>=cv1.noise_threshold)
+            index1 = num.where(cv1.channel.pitch_confidence.latest_frame_data(
+                len(x1))>=cv1.confidence_threshold)
 
             for i2, cv2 in enumerate(self.channel_views):
                 if i1>=i2:
                     continue
                 x2, y2 = cv2.channel.pitch.latest_frame(self.tfollow, clip_min=True)
-                index2 = num.where(cv2.channel.fft_power.latest_frame_data(
-                    len(x2))>=cv2.noise_threshold)
+                index2 = num.where(cv2.channel.pitch_confidence.latest_frame_data(
+                    len(x2))>=cv2.confidence_threshold)
                 indices = num.intersect1d(index1, index2)
                 indices_grouped = consecutive(indices)
                 for group in indices_grouped:
@@ -643,9 +655,9 @@ class PitchLevelDifferenceViews(QWidget):
     def on_draw(self):
         naverage = 3
         for cv1, cv2, w in self.widgets:
-            power1 = cv1.channel.fft_power.latest_frame_data(naverage)
-            power2 = cv1.channel.fft_power.latest_frame_data(naverage)
-            if all(power1>cv1.noise_threshold) and all(power2>cv1.noise_threshold):
+            confidence1 = cv1.channel.pitch_confidence.latest_frame_data(naverage)
+            confidence2 = cv2.channel.pitch_confidence.latest_frame_data(naverage)
+            if all(confidence1>cv1.confidence_threshold) and all(confidence2>cv2.confidence_threshold):
                 d1 = cv1.channel.pitch.latest_frame_data(naverage)
                 d2 = cv2.channel.pitch.latest_frame_data(naverage)
                 w.set_data(num.mean(d1)-num.mean(d2))
@@ -769,7 +781,7 @@ class MainWidget(QWidget):
             cv = ChannelView(channel, color=_color_names[3+3*ichannel])
             self.signal_widgets_clear.connect(cv.on_clear)
             self.signal_widgets_draw.connect(cv.on_draw)
-            self.menu.connect_to_noise_threshold(cv)
+            self.menu.connect_to_confidence_threshold(cv)
             channel_views.append(cv)
 
         self.channel_views_widget = ChannelViews(channel_views)
