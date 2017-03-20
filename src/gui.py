@@ -337,7 +337,6 @@ class ChannelView(QWidget):
         self.channel = channel
 
         self.color = color
-        self.setMouseTracking(True)
 
         layout = QHBoxLayout()
         self.setLayout(layout)
@@ -558,15 +557,11 @@ class PitchWidget(QWidget):
             #tmin0, tmax0 = self.xlim
 
             scale = -dy*4.
-            #scale = -dy/2
-            #dtr = scale*(tmax0-tmin0) - (tmax0-tmin0)
             frac = x0/ float(self.width())
-            #dt = dx*(tmax0-tmin0)*scale
-            #dt = dx*(tmax0-tmin0)*scale
 
             #self.interrupt_following()
-            self.tfollow += min(max(2., 2 + self.tfollow * scale), 30)
-            #self.tfollow = min(max(2., 2 + self.tfollow * scale), 30)
+            #self.tfollow += min(max(2., 2 + self.tfollow * scale), 30)
+            self.tfollow = min(max(2., 2 + self.tfollow * scale), 30)
             self.update()
 
     @qc.pyqtSlot(qg.QMouseEvent)
@@ -595,6 +590,15 @@ class DifferentialPitchWidget(QWidget):
         self.figure.grids = [FixGrid(delta=100.)]
 
         layout.addWidget(self.figure)
+        self.right_click_menu = QMenu('Tick Settings', self)
+        self.right_click_menu.triggered.connect(
+            self.on_tick_increment_select)
+        set_choices_grouped(self.right_click_menu)
+
+    @qc.pyqtSlot(QAction)
+    def on_tick_increment_select(self, action):
+        self.figure.grids = [FixGrid(int(action.text()))]
+        self.figure.set_ytick_increment(int(action.text())*5)
 
     @qc.pyqtSlot()
     def on_draw(self):
@@ -627,9 +631,31 @@ class DifferentialPitchWidget(QWidget):
 
         self.repaint()
 
+    @qc.pyqtSlot(qg.QMouseEvent)
+    def mousePressEvent(self, mouse_ev):
+        if mouse_ev.button() == qc.Qt.RightButton:
+            self.right_click_menu.exec_(qg.QCursor.pos())
+        else:
+            try:
+                QWidget.mousePressEvent(mouse_ev)
+            except TypeError as e:
+                logger.warn(e)
+
     @qc.pyqtSlot()
     def on_clear(self):
         self.figure.clear()
+
+
+def set_choices_grouped(menu):
+    group = QActionGroup(menu)
+    group.setExclusive(True)
+    for tick_increment in [10, 20, 50, 100]:
+        action = QAction(str(tick_increment), menu)
+        action.setCheckable(True)
+        if tick_increment == 20:
+            action.setChecked(True)
+        group.addAction(action)
+        menu.addAction(action)
 
 
 class PitchLevelDifferenceViews(QWidget):
@@ -643,19 +669,8 @@ class PitchLevelDifferenceViews(QWidget):
         ylim = (-1500, 1500.)
 
         self.right_click_menu = QMenu('Tick Settings', self)
-        self.right_click_menu.triggered.connect(self.on_xtick_increment_select)
-
-        self.tick_choices = []
-        group = QActionGroup(self)
-        group.setExclusive(True)
-        for tick_increment in [10, 20, 50, 100]:
-            action = QAction(str(tick_increment), self.right_click_menu)
-            action.setCheckable(True)
-            if tick_increment == 20:
-                action.setChecked(True)
-            self.tick_choices.append(action)
-            group.addAction(action)
-            self.right_click_menu.addAction(action)
+        self.right_click_menu.triggered.connect(self.on_tick_increment_select)
+        set_choices_grouped(self.right_click_menu)
 
         for i1, cv1 in enumerate(self.channel_views):
             for i2, cv2 in enumerate(self.channel_views):
@@ -678,7 +693,7 @@ class PitchLevelDifferenceViews(QWidget):
                 logger.warn(e)
 
     @qc.pyqtSlot(QAction)
-    def on_xtick_increment_select(self, action):
+    def on_tick_increment_select(self, action):
         for cv1, cv2, widget in self.widgets:
             widget.xtick_increment = int(action.text())
 

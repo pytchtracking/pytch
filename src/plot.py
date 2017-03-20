@@ -469,6 +469,7 @@ class PlotWidget(__PlotSuperClass):
 
         self._ymin = 0.
         self._ymax = 1.
+        self._yinc = None
         self._xmin = 0.
         self._xmax = 1.
         self._xinc = None
@@ -476,7 +477,7 @@ class PlotWidget(__PlotSuperClass):
         self.left = 0.15
         self.right = 1.
         self.bottom = 0.1
-        self.top = 0.1
+        self.top = 0.05
 
         self.xlabels = True
         self.ylabels = True
@@ -711,6 +712,9 @@ class PlotWidget(__PlotSuperClass):
     def set_xtick_increment(self, increment):
         self._xinc = increment
 
+    def set_ytick_increment(self, increment):
+        self._yinc = increment
+
     def draw_x_ticks(self, painter):
         w, h = self.wh
         xmin, xmax, xinc = self.xscaler.make_scale((self._xmin, self._xmax))
@@ -734,7 +738,8 @@ class PlotWidget(__PlotSuperClass):
         if self.scroll_increment == 0:
             self.scroll_increment = yinc/4
 
-        ticks = num.arange(ymin, ymax, yinc)
+        _yinc = self._yinc or yinc
+        ticks = num.arange(ymin, ymax, _yinc)
         ticks_proj = self.yproj(ticks)
         lines = [qc.QLineF(w * self.left * 0.8, yval, w*self.left, yval)
                  for yval in ticks_proj]
