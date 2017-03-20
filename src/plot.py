@@ -457,7 +457,7 @@ class PlotWidget(__PlotSuperClass):
     def __init__(self, *args, **kwargs):
         super(PlotWidget, self).__init__(*args, **kwargs)
 
-        self.setContentsMargins(1, 1, 1, 1)
+        self.setContentsMargins(0, 0, 0, 0)
         self.wheel_pos = 0
         self.scroll_increment = 0
         self.track_start = None

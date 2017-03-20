@@ -335,6 +335,7 @@ class ChannelView(QWidget):
         '''
         QWidget.__init__(self, *args, **kwargs)
         self.channel = channel
+        self.setContentsMargins(-10, -10, -10, -10)
 
         self.color = color
 
@@ -501,6 +502,7 @@ class PitchWidget(QWidget):
         self.right_click_menu.addAction(save_as_action)
         self.track_start = None
         self.tfollow = 2.
+        self.setContentsMargins(-10, -10, -10, -10)
 
         layout.addWidget(self.figure)
 
@@ -581,6 +583,7 @@ class DifferentialPitchWidget(QWidget):
     ''' Diffs as line'''
     def __init__(self, channel_views, *args, **kwargs):
         QWidget.__init__(self, *args, **kwargs)
+        self.setContentsMargins(-10, -10, -10, -10)
         self.channel_views = channel_views
         layout = QGridLayout()
         self.setLayout(layout)
