@@ -245,7 +245,7 @@ class MenuWidget(QFrame):
     def on_spectrum_type_select(self, arg):
         self.spectrum_type_selected.emit(arg)
 
-    @qc.pyqtSlot(str)
+    @qc.pyqtSlot(int)
     def update_noise_thresh_label(self, arg):
         self.noise_thresh_label.setText(str(arg/10.))
 
