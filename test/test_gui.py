@@ -5,6 +5,7 @@ import numpy as num
 
 from PyQt5.QtWidgets import QApplication, QMainWindow, QHBoxLayout
 from PyQt5 import QtGui as qg
+from PyQt5 import QtCore as qc
 from pytch import gui, plot
 
 
@@ -22,6 +23,11 @@ class MainWindowQClose(QMainWindow):
             self.close()
         QMainWindow.keyPressEvent(self, key_event)
 
+    def paintEvent(self, e):
+        painter = qg.QPainter(self)
+        rect = self.rect()
+        center = rect.center()
+        gui.draw_label(painter, center, 20, 'A', 'red')
 
 class GUITestCase():
 
@@ -83,7 +89,8 @@ class GUITestCase():
         app = QApplication(sys.argv)
         main_window = MainWindowQClose()
         gauge = plot.GaugeWidget()
-        gauge.set_data(3000.)
+        gauge.set_ylim(-1000., 1000)
+        gauge.set_data(100.)
         main_window.setCentralWidget(gauge)
 
         main_window.show()
@@ -114,13 +121,14 @@ class GUITestCase():
         main_window.repaint()
         sys.exit(app.exec_())
 
+
 if __name__=='__main__':
     #unittest.main()
     t = GUITestCase()
     #t.test_scaling()
     #t.test_PitchWidget()
     #t.test_ColormapWidget()
-    #t.test_gauge()
+    t.test_gauge()
     #t.test_graphicsview()
-    t.test_keyboard()
+    #t.test_keyboard()
 
