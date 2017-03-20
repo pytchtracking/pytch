@@ -2,7 +2,6 @@ import logging
 import sys
 import numpy as num
 import os
-import math
 
 from pytch.two_channel_tuner import Worker
 
@@ -590,18 +589,53 @@ class DifferentialPitchWidget(QWidget):
         self.figure = PlotWidget()
         self.figure.set_ylim(-1500., 1500)
         self.tfollow = 10
-        self.figure.grids = [FixGrid(delta=100.)]
 
         layout.addWidget(self.figure)
         self.right_click_menu = QMenu('Tick Settings', self)
         self.right_click_menu.triggered.connect(
             self.on_tick_increment_select)
-        set_choices_grouped(self.right_click_menu)
+        set_choices_grouped(self.right_click_menu, default=100)
+        action = QAction('Minor ticks', self.right_click_menu)
+        action.setCheckable(True)
+        action.setChecked(True)
+        self.right_click_menu.addAction(action)
+        self.__want_minor_grid = True
+        self.set_grids(100)
 
     @qc.pyqtSlot(QAction)
     def on_tick_increment_select(self, action):
-        self.figure.grids = [FixGrid(int(action.text()))]
-        self.figure.set_ytick_increment(int(action.text())*5)
+        action_text = action.text()
+        if action_text == 'Minor ticks':
+            if action.isChecked():
+                self.want_minor_grid = True
+            else:
+                self.want_minor_grid = False
+        else:
+            val = int(action.text())
+            self.set_grids(val)
+
+    @property
+    def want_minor_grid(self):
+        return self.__want_minor_grid
+
+    @want_minor_grid.setter
+    def want_minor_grid(self, _bool):
+        self.__want_minor_grid = _bool
+        if _bool:
+            self.figure.grids = [self.grid_major, self.grid_minor]
+        else:
+            self.figure.grids = [self.grid_major]
+
+    def set_grids(self, minor_value):
+        self.grid_major = FixGrid(
+            minor_value*5, pen_color='aluminium2', style='solid')
+        self.grid_minor = FixGrid(minor_value)
+        self.figure.set_ytick_increment(minor_value*5)
+
+        if self.want_minor_grid:
+            self.figure.grids = [self.grid_major, self.grid_minor]
+        else:
+            self.figure.grids = [self.grid_major]
 
     @qc.pyqtSlot()
     def on_draw(self):
@@ -649,13 +683,13 @@ class DifferentialPitchWidget(QWidget):
         self.figure.clear()
 
 
-def set_choices_grouped(menu):
+def set_choices_grouped(menu, default=20):
     group = QActionGroup(menu)
     group.setExclusive(True)
     for tick_increment in [10, 20, 50, 100]:
         action = QAction(str(tick_increment), menu)
         action.setCheckable(True)
-        if tick_increment == 20:
+        if tick_increment == default:
             action.setChecked(True)
         group.addAction(action)
         menu.addAction(action)
@@ -672,7 +706,8 @@ class PitchLevelDifferenceViews(QWidget):
         ylim = (-1500, 1500.)
 
         self.right_click_menu = QMenu('Tick Settings', self)
-        self.right_click_menu.triggered.connect(self.on_tick_increment_select)
+        self.right_click_menu.triggered.connect(
+            self.on_tick_increment_select)
         set_choices_grouped(self.right_click_menu)
 
         for i1, cv1 in enumerate(self.channel_views):

@@ -280,7 +280,7 @@ class GaugeWidget(__PlotSuperClass):
 
 
 class Grid():
-    def __init__(self, horizontal=True, vertical=True):
+    def __init__(self, horizontal=True, vertical=True, *args, **kwargs):
         self.vertical = vertical
         self.horizontal = horizontal
 
@@ -289,17 +289,17 @@ class Grid():
 
 
 class AutoGrid():
-    def __init__(self, *args, **kwargs):
+    def __init__(self, pen_color='aluminium2', style=':', line_width=1, *args, **kwargs):
         Grid.__init__(self, *args, **kwargs)
-
-        pen_color = 'aluminium2'
-        style = ':'
-        line_width = 1
 
         self.data_lims_v = (None, None)
         self.data_lims_h = (None, None)
         self.lines_h = []
         self.lines_v = []
+
+        self.set_pen(pen_color, style, line_width)
+
+    def set_pen(self, pen_color, style, line_width):
         self.grid_pen = qg.QPen(
             qg.QColor(*_colors[pen_color]), line_width, _pen_styles[style])
 
