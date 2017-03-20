@@ -188,6 +188,7 @@ class GaugeWidget(__PlotSuperClass):
         self.proj.set_out_range(out_min, out_max)
         self.arc_start = 90*16
         self.set_ylim(0., 1500.)
+        self.scroll_increment = 100
 
         self.scaler = AutoScaler(
             no_exp_interval=(-3, 2), approx_ticks=7,
@@ -200,6 +201,7 @@ class GaugeWidget(__PlotSuperClass):
         self.xtick_increment = 20
         self.pen = qg.QPen(self.color, 20, qc.Qt.SolidLine)
         self.pen.setCapStyle(qc.Qt.FlatCap)
+        self.wheel_pos = 0
 
     def set_ylim(self, ymin, ymax):
         ''' Set range of Gauge.'''
@@ -262,6 +264,19 @@ class GaugeWidget(__PlotSuperClass):
 
     def sizeHint(self):
         return qc.QSize(400, 400)
+
+    @qc.pyqtSlot(qg.QMouseEvent)
+    def wheelEvent(self, wheel_event):
+        self.wheel_pos += wheel_event.angleDelta().y()
+        n = self.wheel_pos / 120
+        self.wheel_pos = self.wheel_pos % 120
+        if n == 0:
+            return
+
+        self.set_ylim(self.ymin-self.scroll_increment*n,
+                      self.ymax+self.scroll_increment*n)
+        #if wheel_event.modifiers() & qc.Qt.ControlModifier:
+        #    self.zoom_tracks(anchor, wdelta)
 
 
 class Grid():
@@ -443,6 +458,8 @@ class PlotWidget(__PlotSuperClass):
         super(PlotWidget, self).__init__(*args, **kwargs)
 
         self.setContentsMargins(1, 1, 1, 1)
+        self.wheel_pos = 0
+        self.scroll_increment = 0
         self.track_start = None
 
         self.ymin = None
@@ -714,6 +731,9 @@ class PlotWidget(__PlotSuperClass):
         ymin, ymax, yinc = self.yscaler.make_scale(
             (self._ymin, self._ymax)
         )
+        if self.scroll_increment == 0:
+            self.scroll_increment = yinc/4
+
         ticks = num.arange(ymin, ymax, yinc)
         ticks_proj = self.yproj(ticks)
         lines = [qc.QLineF(w * self.left * 0.8, yval, w*self.left, yval)
@@ -729,6 +749,17 @@ class PlotWidget(__PlotSuperClass):
 
     def draw_background(self, painter):
         painter.fillRect(self.rect(), self.background_brush)
+
+    @qc.pyqtSlot(qg.QMouseEvent)
+    def wheelEvent(self, wheel_event):
+        self.wheel_pos += wheel_event.angleDelta().y()
+        n = self.wheel_pos / 120
+        self.wheel_pos = self.wheel_pos % 120
+        if n == 0:
+            return
+
+        self.set_ylim(self.ymin-self.scroll_increment*n,
+                      self.ymax+self.scroll_increment*n)
 
     #def mousePressEvent(self, mouse_ev):
     #    point = self.mapFromGlobal(mouse_ev.globalPos())
