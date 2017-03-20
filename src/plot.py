@@ -1,4 +1,5 @@
 import numpy as num
+import math
 import scipy.interpolate as interpolate
 import logging
 
@@ -182,8 +183,10 @@ class GaugeWidget(__PlotSuperClass):
         self._val = 0
         self.set_title('')
         self.proj = Projection()
-        self.proj.set_out_range(0., 180.)
-
+        out_min = -150.
+        out_max = 150.
+        self.proj.set_out_range(out_min, out_max)
+        self.arc_start = 90*16
         self.set_ylim(0., 1500.)
 
         self.scaler = AutoScaler(
@@ -214,8 +217,8 @@ class GaugeWidget(__PlotSuperClass):
         painter.save()
         painter.setPen(self.pen)
         if self._val:
-            span_angle = (-self.proj.clipped(self._val) + self.proj(0))*16.
-            painter.drawArc(rect, self.proj(0)*16., span_angle)
+            span_angle = (self.proj.clipped(self._val))*16
+            painter.drawArc(rect, self.arc_start, -span_angle)
         painter.restore()
 
         self.draw_deco(painter)
@@ -233,7 +236,7 @@ class GaugeWidget(__PlotSuperClass):
         xmin, xmax, xinc = self.scaler.make_scale(self.proj.get_in_range())
         ticks = num.arange(xmin, xmax+self.xtick_increment,
                            self.xtick_increment, dtype=num.int)
-        ticks_proj = self.proj(ticks) + 180.
+        ticks_proj = self.proj(ticks) - 90
 
         line = qc.QLine(self.halfside * 0.9, 0, self.halfside, 0)
         subline = qc.QLine(self.halfside * 0.95, 0, self.halfside, 0)
@@ -639,6 +642,10 @@ class PlotWidget(__PlotSuperClass):
         background_color = qg.QColor(*_colors[color])
         self.background_brush = qg.QBrush(background_color)
 
+    @property
+    def xlim(self):
+        return (self._xmin, self._xmax)
+
     def set_xlim(self, xmin, xmax):
         ''' Set x data range. If unset scale to min|max of ydata range '''
         self.xmin = xmin
@@ -663,6 +670,7 @@ class PlotWidget(__PlotSuperClass):
 
     def draw_deco(self, painter):
         painter.save()
+        painter.setRenderHint(qg.QPainter.Antialiasing)
         self.draw_axes(painter)
 
         if self.yticks:
@@ -722,25 +730,40 @@ class PlotWidget(__PlotSuperClass):
     def draw_background(self, painter):
         painter.fillRect(self.rect(), self.background_brush)
 
-    def mousePressEvent(self, mouse_ev):
-        point = self.mapFromGlobal(mouse_ev.globalPos())
-        if mouse_ev.button() == qc.Qt.LeftButton:
-            self.track_start = (point.x(), point.y())
-            self.last_y = point.y()
-        else:
-            super(PlotWidget, self).mousePressEvent(mouse_ev)
+    #def mousePressEvent(self, mouse_ev):
+    #    point = self.mapFromGlobal(mouse_ev.globalPos())
+    #    if mouse_ev.button() == qc.Qt.LeftButton:
+    #        self.track_start = (point.x(), point.y())
+    #        self.last_y = point.y()
+    #    else:
+    #        super(PlotWidget, self).mousePressEvent(mouse_ev)
 
-    def mouseReleaseEvent(self, mouse_event):
-        self.track_start = None
+    #def mouseReleaseEvent(self, mouse_event):
+    #    self.track_start = None
 
-    def mouseMoveEvent(self, mouse_ev):
-        point = self.mapFromGlobal(mouse_ev.globalPos())
-        x0, y0 = self.track_start
-        if self.track_start:
-            xzoom = (y0 - self.last_y)/self.height()
-            self.last_y = point.y()
+    #def mouseMoveEvent(self, mouse_ev):
+    #    ''' from pyrocko's pile viewer'''
+    #    point = self.mapFromGlobal(mouse_ev.globalPos())
 
-        self.xzoom = xzoom/10.
+    #    if self.track_start is not None:
+    #        x0, y0 = self.track_start
+    #        dx = (point.x()- x0)/float(self.width())
+    #        dy = (point.y() - y0)/float(self.height())
+    #        #if self.ypart(y0) == 1:
+    #        #dy = 0
+
+    #        tmin0, tmax0 = self.xlim
+
+    #        scale = math.exp(-dy*5.)
+    #        dtr = scale*(tmax0-tmin0) - (tmax0-tmin0)
+    #        frac = x0/ float(self.width())
+    #        dt = dx*(tmax0-tmin0)*scale
+
+    #        #self.interrupt_following()
+    #        self.set_xlim(
+    #            tmin0 - dt - dtr*frac,
+    #            tmax0 - dt + dtr*(1.-frac))
+    #        self.update()
 
 
 class MikadoWidget(PlotWidget):
