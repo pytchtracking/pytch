@@ -228,7 +228,7 @@ class MenuWidget(QFrame):
 
     def setup_palette(self):
         pal = self.palette()
-        pal.setColor(qg.QPalette.Background, qg.QColor(*_colors['aluminium3']))
+        pal.setColor(qg.QPalette.Background, qg.QColor(*_colors['aluminium1']))
         self.setPalette(pal)
         self.setAutoFillBackground(True)
 
@@ -448,8 +448,6 @@ class ChannelView(QWidget):
     def mousePressEvent(self, mouse_ev):
         if mouse_ev.button() == qc.Qt.RightButton:
             self.right_click_menu.exec_(qg.QCursor.pos())
-        else:
-            QWidget.mousePressEvent(mouse_ev)
 
     @qc.pyqtSlot(str)
     def on_spectrum_type_select(self, arg):
@@ -536,19 +534,52 @@ class PitchWidget(QWidget):
             for i, cv in enumerate(self.channel_views):
                 fn = os.path.join(_fn, 'channel%s.txt' %i)
                 x, y = cv.channel.pitch.xdata, cv.channel.pitch.ydata
-                index = num.where(cv.channel.fft_power.latest_frame_data(
-                    len(x))>=cv.noise_threshold)
+                index = num.where(cv.channel.pitch_confidence.latest_frame_data(
+                    len(x))>=cv.confidence_threshold)
                 num.savetxt(fn, num.vstack((x[index], y[index])).T)
+
+
+    def mouseReleaseEvent(self, mouse_event):
+        self.track_start = None
+
+    def mouseMoveEvent(self, mouse_ev):
+        ''' from pyrocko's pile viewer'''
+        point = self.mapFromGlobal(mouse_ev.globalPos())
+
+        self.change = self.tfollow
+        if self.track_start is not None:
+
+            x0, y0 = self.track_start
+            dx = (point.x()- x0)/float(self.width())
+            dy = (point.y() - y0)/float(self.height())
+            #if self.ypart(y0) == 1:
+            #dy = 0
+
+            #tmin0, tmax0 = self.xlim
+
+            scale = -dy*4.
+            #scale = -dy/2
+            #dtr = scale*(tmax0-tmin0) - (tmax0-tmin0)
+            frac = x0/ float(self.width())
+            #dt = dx*(tmax0-tmin0)*scale
+            #dt = dx*(tmax0-tmin0)*scale
+
+            #self.interrupt_following()
+            self.tfollow += min(max(2., 2 + self.tfollow * scale), 30)
+            #self.tfollow = min(max(2., 2 + self.tfollow * scale), 30)
+            self.update()
 
     @qc.pyqtSlot(qg.QMouseEvent)
     def mousePressEvent(self, mouse_ev):
         if mouse_ev.button() == qc.Qt.RightButton:
             self.right_click_menu.exec_(qg.QCursor.pos())
         else:
-            try:
-                QWidget.mousePressEvent(mouse_ev)
-            except TypeError as e:
-                logger.warn(e)
+            point = self.mapFromGlobal(mouse_ev.globalPos())
+            if mouse_ev.button() == qc.Qt.LeftButton:
+                self.track_start = (point.x(), point.y())
+                self.last_y = point.y()
+            else:
+                super(PlotWidget, self).mousePressEvent(mouse_ev)
 
 
 class DifferentialPitchWidget(QWidget):
