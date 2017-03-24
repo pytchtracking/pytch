@@ -11,6 +11,7 @@ from PyQt5 import QtGui as qg
 from PyQt5.QtWidgets import QWidget, QSizePolicy
 
 
+d2r = num.pi/180.
 logger = logging.getLogger(__name__)
 
 try:
@@ -186,7 +187,8 @@ class GaugeWidget(__PlotSuperClass):
         out_min = -150.
         out_max = 150.
         self.proj.set_out_range(out_min, out_max)
-        self.arc_start = 90*16
+        #self.arc_start = 90*16
+        self.arc_start = 180*16
         self.set_ylim(0., 1500.)
         self.scroll_increment = 100
 
@@ -208,6 +210,9 @@ class GaugeWidget(__PlotSuperClass):
         self.ymin = ymin
         self.ymax = ymax
         self.proj.set_in_range(self.ymin, self.ymax)
+
+    def get_ylim(self):
+        return self.ymin, self.ymax
 
     def do_draw(self, painter):
         ''' This is executed when self.repaint() is called'''
@@ -238,18 +243,23 @@ class GaugeWidget(__PlotSuperClass):
         xmin, xmax, xinc = self.scaler.make_scale(self.proj.get_in_range())
         ticks = num.arange(xmin, xmax+self.xtick_increment,
                            self.xtick_increment, dtype=num.int)
-        ticks_proj = self.proj(ticks) - 90
+
+        ticks_proj = self.proj(ticks) + 180
 
         line = qc.QLine(self.halfside * 0.9, 0, self.halfside, 0)
         subline = qc.QLine(self.halfside * 0.95, 0, self.halfside, 0)
-        anchor = qc.QPoint(self.halfside * 0.68, 0)
         for i, degree in enumerate(ticks_proj):
             painter.save()
-            painter.rotate(degree)
             if i % 5 == 0:
-                painter.drawText(anchor, str(ticks[i]))
+                rotate_rad = degree*d2r
+                x = self.halfside*0.8*num.cos(rotate_rad) - 15
+                y = self.halfside*0.8*num.sin(rotate_rad)
+                rect = qc.QRectF(x, y, 30, 10)
+                painter.drawText(rect, qc.Qt.AlignCenter, str(ticks[i]))
+                painter.rotate(degree)
                 painter.drawLine(line)
             else:
+                painter.rotate(degree)
                 painter.drawLine(subline)
             painter.restore()
 
