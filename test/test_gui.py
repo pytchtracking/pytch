@@ -16,6 +16,7 @@ class MainWindowQClose(QMainWindow):
         QMainWindow.__init__(self, *args, **kwargs)
         self.layout = QHBoxLayout()
         self.setLayout(self.layout)
+        self.setMouseTracking(True)
 
     def keyPressEvent(self, key_event):
         ''' react on keyboard keys when they are pressed.'''
@@ -85,12 +86,105 @@ class GUITestCase():
         main_window.repaint()
         sys.exit(app.exec_())
 
+    #def test_spectrogram(self):
+    #    app = QApplication(sys.argv)
+    #    main_window = MainWindowQClose()
+    #    n = 30
+    #    a = num.zeros((n, n, 3), dtype=num.uint32)
+    #    #a = num.zeros((n, n, 3))
+    #    for i in range(n):
+    #        for j in range(n):
+    #            a[j, i] = (0, 0, 1)
+    #            #a[j, i] = (123, 123, 123)
+
+    #    print(a)
+    #    print('start')
+    #    #spec = plot.Spectrogram.from_numpy_array(a)
+    #    img = qg.QImage(n, n, qg.QImage.Format_RGB32)
+    #    vptr = img.bits()
+    #    vptr.setsize(int(n*n*3*8))
+    #    imgarr = num.ndarray(shape=(n, n, 3), dtype=num.uint32, buffer=vptr)
+    #    #imgarr = num.ndarray(shape=(30, 30, 3), dtype=num.uint32, buffer=memoryview(vptr))
+    #    imgarr.setflags(write=True)
+    #    imgarr = memoryview(a)
+    #    print(imgarr)
+    #    spec = plot.Spectrogram(img)
+    #    print('stop')
+    #    main_window.setCentralWidget(spec)
+    #    main_window.show()
+    #    main_window.repaint()
+    #    img = None
+    #    imgarr = None
+    #    sys.exit(app.exec_())
+
+    def test_spectrogram(self):
+        app = QApplication(sys.argv)
+        main_window = MainWindowQClose()
+        n = 3000
+        #a = num.zeros((n, n, 3), dtype=num.ubyte)
+        #a = num.zeros((n, n, 3), dtype=num.uint32)
+        #a = num.zeros((n, n), dtype=num.uint32)
+        a = num.loadtxt('spectrogram_data.txt', dtype=num.float)
+        #a = num.exp(a)
+        #a += num.abs(num.min(a))
+        #a = a/num.max(a)
+        print(a)
+        x = num.arange(n)
+        y = num.arange(n)
+        a = num.asarray(a, dtype=num.uint32)
+        #a = num.zeros((n, n, 3))
+        #for i in range(n):
+        #    for j in range(n):
+        #        a[j, i] = i*4+j*2
+        print(a)
+        print('start')
+        a = num.ascontiguousarray(a)
+        #a = num.require(a, num.uint8, 'C')
+        plot_widget = gui.PlotWidget()
+        plot_widget.setup_annotation_boxes()
+        plot_widget.colormesh(x, y, a)
+        #spec = plot.Spectrogram.from_numpy_array(a)
+        #img = qg.QImage(n, n, qg.QImage.Format_RGB32)
+        #vptr = img.bits()
+        #vptr.setsize(int(n*n*3*8))
+        #imgarr = num.ndarray(shape=(n, n, 3), dtype=num.uint32, buffer=memoryview(vptr))
+        ##imgarr = num.ndarray(shape=(30, 30, 3), dtype=num.uint32, buffer=memoryview(vptr))
+        #imgarr.setflags(write=True)
+        ##imgarr[:, :, :] = a
+        #imgarr = num.copy(a)
+        #print(imgarr)
+        #spec = plot.Spectrogram(img.copy())
+        print('stop')
+        main_window.setCentralWidget(plot_widget)
+        main_window.show()
+        main_window.repaint()
+        img = None
+        imgarr = None
+        sys.exit(app.exec_())
+
+    def test_asdfspectrogram(self):
+        app = QApplication(sys.argv)
+        main_window = MainWindowQClose()
+        n = 100
+        a = num.random.randint(0,256,size=(100,100,3)).astype(num.uint32)
+        b = (255 << 24 | a[:,:,0] << 16 | a[:,:,1] << 8 | a[:,:,2]).flatten() # pack RGB values
+        im = qg.QImage(b, 100, 100, qg.QImage.Format_RGB32)        
+        
+        spec = plot.Spectrogram.from_numpy_array(a)
+        print('stop')
+        main_window.setCentralWidget(spec)
+        main_window.show()
+        main_window.repaint()
+        img = None
+        imgarr = None
+        sys.exit(app.exec_())
+
     def test_gauge(self):
         app = QApplication(sys.argv)
         main_window = MainWindowQClose()
         gauge = plot.GaugeWidget()
         gauge.set_ylim(-1000., 1000)
-        gauge.set_data(100.)
+        gauge.set_data(-400.)
         main_window.setCentralWidget(gauge)
 
         main_window.show()
@@ -128,6 +222,7 @@ if __name__=='__main__':
     #t.test_scaling()
     #t.test_PitchWidget()
     #t.test_ColormapWidget()
+    #t.test_spectrogram()
     t.test_gauge()
     #t.test_graphicsview()
     #t.test_keyboard()
