@@ -1,4 +1,7 @@
 import logging
+import math
+import pyaudio
+import numpy as num
 
 from PyQt5 import QtCore as qc
 from PyQt5 import QtGui as qg
@@ -19,9 +22,48 @@ def f2midi(f):
     return int(69 + 12*num.log2(f/440))
 
 
+class Synthy(qc.QObject):
+
+    def __init__(self):
+        qc.QObject.__init__(self)
+
+        self.p = pyaudio.PyAudio()
+        self.stream = self.p.open(format=pyaudio.paFloat32,
+                        channels=1, rate=44100, output=1)
+        self.stream.start_stream()
+        self.stop_playing = False
+
+    def sine(self, frequency, length, rate):
+        length = int(length * rate)
+        factor = float(frequency) * (math.pi * 2) / rate
+        return num.sin(num.arange(length) * factor)
+
+
+    def play_tone(self, frequency=440, length=1., rate=44100):
+        chunks = []
+        chunks.append(self.sine(frequency, length, rate))
+        chunk = num.concatenate(chunks) * 0.25
+        self.stream.write(chunk.astype(num.float32).tostring())
+
+    @qc.pyqtSlot()
+    def stop(self):
+        self.stop_playing = True
+
+    @qc.pyqtSlot(int)
+    def play(self, frequency):
+        self.stop_playing = False
+        while not self.stop_playing:
+            self.play_tone(frequency)
+
+    def close(self):
+        self.stream.stop_stream()
+        self.p.terminate()
+
+
 class Key(qw.QWidget):
 
     playKeyBoard = qc.pyqtSignal(int)
+    stopKeyBoard = qc.pyqtSignal()
 
     def __init__(self, octave, semitone, *args, **kwargs):
         super(Key, self).__init__(*args, **kwargs)
@@ -65,6 +107,7 @@ class Key(qw.QWidget):
             painter.drawText(x1 + (x2-x1)/2, y2, self.name)
             painter.restore()
 
+    @qc.pyqtSlot(qg.QMouseEvent)
     def mousePressEvent(self, mouse_ev):
         if mouse_ev.button() == qc.Qt.LeftButton:
             self.pressed = True
@@ -73,8 +116,9 @@ class Key(qw.QWidget):
             super(Key, self).mousePressEvent(mouse_ev)
         self.repaint()
 
+    @qc.pyqtSlot(qg.QMouseEvent)
     def mouseReleaseEvent(self, mouse_ev):
-        self.playKeyBoard.emit(0)
+        self.stopKeyBoard.emit()
         self.pressed = False
         self.repaint()
 
@@ -87,6 +131,7 @@ class Key(qw.QWidget):
 
 class KeyBoard(qw.QWidget):
 
+    keyBoardKeyReleased = qc.pyqtSignal()
     keyBoardKeyPressed = qc.pyqtSignal(int)
     toggle_tabels = qc.pyqtSignal()
 
@@ -97,6 +142,11 @@ class KeyBoard(qw.QWidget):
         self.setMaximumHeight(200)
         self.setMinimumHeight(100)
         self.n_octaves = 3
+
+        self.synthy = Synthy()
+        self.synthy_thread = qc.QThread()
+        self.synthy.moveToThread(self.synthy_thread)
+        self.synthy_thread.start()
 
         self.keys = []
         self.setup_right_click_menu()
@@ -114,8 +164,17 @@ class KeyBoard(qw.QWidget):
             noctave = int(ir/12)
             key = Key(octave=noctave, semitone=ir%12, parent=self)
             key.playKeyBoard.connect(self.keyBoardKeyPressed)
+            key.playKeyBoard.connect(self.synthy.play)
+            key.stopKeyBoard.connect(self.stop_synthy)
             self.toggle_tabels.connect(key.on_toggle_labels)
             self.keys.append(key)
+
+    def stop_synthy(self):
+        self.synthy.stop()
+        self.keyBoardKeyPressed.emit(0)
+
+    def start_synthy(self, f):
+        self.synthy.play(f)
 
     def get_key_rects(self):
         ''' Get rectangles for tone keys'''
@@ -164,4 +223,4 @@ class KeyBoard(qw.QWidget):
         if mouse_ev.button() == qc.Qt.RightButton:
             self.right_click_menu.exec_(mouse_ev.pos())
         else:
-            super(Keyboard, selr).mousePressEvent(mouse_ev)
+            super(Keyboard, self).mousePressEvent(mouse_ev)
