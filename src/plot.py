@@ -33,6 +33,28 @@ except ImportError:
     __PlotSuperClass = PlotWidgetBase
 
 
+class PlotBase(__PlotSuperClass):
+    def __init__(self, *args, **kwargs):
+        super(PlotBase, self).__init__(*args, **kwargs)
+        self.wheel_pos = 0
+
+    @qc.pyqtSlot(qg.QMouseEvent)
+    def wheelEvent(self, wheel_event):
+        self.wheel_pos += wheel_event.angleDelta().y()
+        n = self.wheel_pos / 120
+        self.wheel_pos = self.wheel_pos % 120
+        if n == 0:
+            return
+
+        if wheel_event.modifiers() & qc.Qt.ShiftModifier:
+            self.set_ylim(self.ymin-self.scroll_increment*n,
+                          self.ymax+self.scroll_increment*n)
+        else:
+            self.set_ylim(self.ymin-self.scroll_increment*n,
+                          self.ymax-self.scroll_increment*n)
+        self.repaint()
+
+
 class InterpolatedColormap:
     ''' Continuously interpolating colormap '''
     def __init__(self, name=''):
@@ -176,7 +198,8 @@ class ColormapWidget(QWidget):
         return qc.QSize(100, 400)
 
 
-class GaugeWidget(__PlotSuperClass):
+
+class GaugeWidget(PlotBase):
     def __init__(self, *args, **kwargs):
         super(GaugeWidget, self).__init__(*args, **kwargs)
 
@@ -184,11 +207,9 @@ class GaugeWidget(__PlotSuperClass):
         self._val = 0
         self.set_title('')
         self.proj = Projection()
-        out_min = -150.
-        out_max = 150.
+        out_min = -130.
+        out_max = 130.
         self.proj.set_out_range(out_min, out_max)
-        #self.arc_start = 90*16
-        self.arc_start = 180*16
         self.set_ylim(0., 1500.)
         self.scroll_increment = 100
 
@@ -223,8 +244,10 @@ class GaugeWidget(__PlotSuperClass):
         painter.translate(self.width()/2., self.height()/2.)
         painter.save()
         painter.setPen(self.pen)
+        self.arc_start = -(self.proj(0)+180) * 16
+        pmin, pmax = self.proj.get_in_range()
         if self._val:
-            span_angle = (self.proj.clipped(self._val))*16
+            span_angle = self.proj(self._val)*16 + self.arc_start+180*16.
             painter.drawArc(rect, self.arc_start, -span_angle)
         painter.restore()
 
@@ -240,21 +263,26 @@ class GaugeWidget(__PlotSuperClass):
 
     def draw_ticks(self, painter):
         # needs some performance polishing !!!
-        xmin, xmax, xinc = self.scaler.make_scale(self.proj.get_in_range())
+        xmin, xmax = self.proj.get_in_range()
+
         ticks = num.arange(xmin, xmax+self.xtick_increment,
                            self.xtick_increment, dtype=num.int)
-
         ticks_proj = self.proj(ticks) + 180
 
         line = qc.QLine(self.halfside * 0.9, 0, self.halfside, 0)
         subline = qc.QLine(self.halfside * 0.95, 0, self.halfside, 0)
+        painter.save()
+        font = painter.font()
+        font.setPointSize(8)
+        painter.setFont(font)
+        text_box_with = 100
         for i, degree in enumerate(ticks_proj):
             painter.save()
             if i % 5 == 0:
                 rotate_rad = degree*d2r
-                x = self.halfside*0.8*num.cos(rotate_rad) - 15
+                x = self.halfside*0.8*num.cos(rotate_rad) - text_box_with/2
                 y = self.halfside*0.8*num.sin(rotate_rad)
-                rect = qc.QRectF(x, y, 30, 10)
+                rect = qc.QRectF(x, y, text_box_with, text_box_with/5)
                 painter.drawText(rect, qc.Qt.AlignCenter, str(ticks[i]))
                 painter.rotate(degree)
                 painter.drawLine(line)
@@ -262,6 +290,7 @@ class GaugeWidget(__PlotSuperClass):
                 painter.rotate(degree)
                 painter.drawLine(subline)
             painter.restore()
+        painter.restore()
 
     def set_title(self, title):
         self.title = title
@@ -274,19 +303,6 @@ class GaugeWidget(__PlotSuperClass):
 
     def sizeHint(self):
         return qc.QSize(400, 400)
-
-    @qc.pyqtSlot(qg.QMouseEvent)
-    def wheelEvent(self, wheel_event):
-        self.wheel_pos += wheel_event.angleDelta().y()
-        n = self.wheel_pos / 120
-        self.wheel_pos = self.wheel_pos % 120
-        if n == 0:
-            return
-
-        self.set_ylim(self.ymin-self.scroll_increment*n,
-                      self.ymax+self.scroll_increment*n)
-        #if wheel_event.modifiers() & qc.Qt.ControlModifier:
-        #    self.zoom_tracks(anchor, wdelta)
 
 
 class Grid():
@@ -460,15 +476,35 @@ class Polyline():
         painter.restore()
 
 
+class Spectrogram(PlotBase):
+    def __init__(self, img, x, y, *args, **kwargs):
+        super(Spectrogram, self).__init__(*args, **kwargs)
+        self.img = img
+        self.x = x
+        self.y = y
+        self.rect = None
 
-class PlotWidget(__PlotSuperClass):
+    def draw(self, painter, xproj, yproj):
+        rect = qc.QRectF(qc.QPointF(0, 0), qc.QPointF(400, 400))
+        painter.drawImage(rect, self.img)
+
+    @classmethod
+    def from_numpy_array(cls, x, y, z):
+        '''
+        :param a: RGB array
+        '''
+        img = qg.QImage(
+            z.ctypes.data, z.shape[1], z.shape[0], qg.QImage.Format_RGB32)
+        return cls(img, x, y)
+
+
+class PlotWidget(PlotBase):
     ''' a plotwidget displays data (x, y coordinates). '''
 
     def __init__(self, *args, **kwargs):
         super(PlotWidget, self).__init__(*args, **kwargs)
 
         self.setContentsMargins(0, 0, 0, 0)
-        self.wheel_pos = 0
         self.scroll_increment = 0
         self.track_start = None
 
@@ -613,6 +649,10 @@ class PlotWidget(__PlotSuperClass):
         pen = self.get_pen(**pen_args)
         self.scene_items.append(AxHLine(y=y, pen=pen))
 
+    def colormesh(self, x, y, z, **pen_args):
+        spec = Spectrogram.from_numpy_array(x=x, y=y, z=z)
+        self.scene_items.append(spec)
+
     def fill_between(self, xdata, ydata1, ydata2, *args, **kwargs):
         x = num.hstack((xdata, xdata[::-1]))
         y = num.hstack((ydata1, ydata2[::-1]))
@@ -678,11 +718,13 @@ class PlotWidget(__PlotSuperClass):
         ''' Set x data range. If unset scale to min|max of ydata range '''
         self.xmin = xmin
         self.xmax = xmax
+        self.xproj.set_in_range(self.xmin, self.xmax)
 
     def set_ylim(self, ymin, ymax):
         ''' Set x data range. If unset scales to min|max of ydata range'''
         self.ymin = ymin
         self.ymax = ymax
+        self.yproj.set_in_range(self.ymin, self.ymax)
 
     @property
     def xrange_visible(self):
@@ -764,17 +806,6 @@ class PlotWidget(__PlotSuperClass):
 
     def draw_background(self, painter):
         painter.fillRect(self.rect(), self.background_brush)
-
-    @qc.pyqtSlot(qg.QMouseEvent)
-    def wheelEvent(self, wheel_event):
-        self.wheel_pos += wheel_event.angleDelta().y()
-        n = self.wheel_pos / 120
-        self.wheel_pos = self.wheel_pos % 120
-        if n == 0:
-            return
-
-        self.set_ylim(self.ymin-self.scroll_increment*n,
-                      self.ymax+self.scroll_increment*n)
 
     #def mousePressEvent(self, mouse_ev):
     #    point = self.mapFromGlobal(mouse_ev.globalPos())
