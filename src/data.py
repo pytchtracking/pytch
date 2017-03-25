@@ -288,7 +288,8 @@ class Channel(RingBuffer):
             ndimension2=self.fftsize/2+1,
             # sampling_rate=self.sampling_rate/self.fftsize,   # Hop size
             sampling_rate = sr,
-            buffer_length_seconds=self.buffer_length_seconds)
+            buffer_length_seconds=self.buffer_length_seconds,
+            dtype=num.uint32)
         self.fft_power = RingBuffer(
             sampling_rate=sr,
             buffer_length_seconds=self.buffer_length_seconds)
