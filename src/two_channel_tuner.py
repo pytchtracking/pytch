@@ -29,7 +29,8 @@ class Worker():
         for ic, channel in enumerate(self.channels):
             frame_work = channel.latest_frame_data(channel.fftsize)
 
-            amp_spec = num.abs(num.fft.rfft(frame_work))
+            #amp_spec = num.clip(num.log(num.abs(num.fft.rfft(frame_work)))*3000, 0, 2**32)
+            amp_spec = num.clip(num.abs(num.fft.rfft(frame_work)), 0, 2**32)
             channel.fft.append(amp_spec)
             #channel.fft_power.append_value(num.sum(amp_spec)/channel.sampling_rate)
 
