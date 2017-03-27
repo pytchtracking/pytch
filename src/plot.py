@@ -419,7 +419,7 @@ class AxHLine():
         self.y = y
         self.pen = pen
 
-    def draw(self, painter, xproj, yproj):
+    def draw(self, painter, xproj, yproj, rect=None):
         xmin, xmax = xproj.get_out_range()
         y = yproj(self.y)
 
@@ -434,7 +434,7 @@ class AxVLine():
         self.x = x
         self.pen = pen
 
-    def draw(self, painter, xproj, yproj):
+    def draw(self, painter, xproj, yproj, rect=None):
         ymin, ymax = yproj.get_out_range()
         x = xproj(self.x)
 
@@ -451,7 +451,7 @@ class Points():
         self.y = y
         self.pen = pen
 
-    def draw(self, painter, xproj, yproj):
+    def draw(self, painter, xproj, yproj, rect=None):
         qpoints = make_QPolygonF(xproj(self.x), yproj(self.y))
         painter.save()
         painter.setPen(self.pen)
@@ -467,7 +467,7 @@ class Polyline():
         self.y = y
         self.pen = pen
 
-    def draw(self, painter, xproj, yproj):
+    def draw(self, painter, xproj, yproj, rect=None):
         qpoints = make_QPolygonF(xproj(self.x), yproj(self.y))
 
         painter.save()
@@ -484,8 +484,7 @@ class Spectrogram(PlotBase):
         self.y = y
         self.rect = None
 
-    def draw(self, painter, xproj, yproj):
-        rect = qc.QRectF(qc.QPointF(0, 0), qc.QPointF(400, 400))
+    def draw(self, painter, xproj, yproj, rect=None):
         painter.drawImage(rect, self.img)
 
     @classmethod
@@ -735,8 +734,9 @@ class PlotWidget(PlotBase):
         underlying data and scales the content to fit into the widget.'''
         self.draw_background(painter)
         self.draw_deco(painter)
+        rect = self.rect()
         for item in self.scene_items:
-            item.draw(painter, self.xproj, self.yproj)
+            item.draw(painter, self.xproj, self.yproj, rect=rect)
 
     def draw_deco(self, painter):
         painter.save()

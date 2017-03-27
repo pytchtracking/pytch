@@ -9,7 +9,7 @@ from pytch.data import MicrophoneRecorder, getaudiodevices, pitch_algorithms
 from pytch.gui_util import FloatQLineEdit
 from pytch.gui_util import make_QPolygonF, _color_names, _colors # noqa
 from pytch.util import consecutive, f2pitch, pitch2f
-from pytch.plot import PlotWidget, GaugeWidget, MikadoWidget, FixGrid
+from pytch.plot import PlotWidget, GaugeWidget, MikadoWidget, FixGrid, Spectrogram
 from pytch.keyboard import KeyBoard
 
 from PyQt5 import QtCore as qc
@@ -327,6 +327,30 @@ class ChannelViews(QWidget):
             cv.on_standard_frequency_changed(f)
 
 
+class SpectrogramWidget(PlotWidget):
+    def __init__(self, channel, *args, **kwargs):
+        PlotWidget.__init__(self, *args, **kwargs)
+        self.channel = channel
+        self.ny, self.nx = 300, 680
+        self.img = qg.QImage(self.ny, self.nx, qg.QImage.Format_RGB32)
+        buffer = self.img.bits()
+        buffer.setsize(self.ny*self.nx*2**8)
+        self.imgarray = num.ndarray(shape=(self.nx, self.ny), dtype=num.uint32, buffer=buffer)
+        x = num.arange(self.nx)
+        y = num.arange(self.ny)
+        self.spectrogram = Spectrogram(img=self.img, x=x, y=y)
+        self.scene_items.append(self.spectrogram)
+
+    @qc.pyqtSlot()
+    def update_spectrogram(self):
+        c = self.channel
+        y = c.freqs[: self.ny]
+        x = c.xdata[-self.nx:]
+        d = c.fft.latest_frame_data(self.nx)
+        self.imgarray[:, :] = memoryview(d[:, :self.ny])
+        self.update()
+
+
 class SpectrumWidget(PlotWidget):
     def __init__(self, *args, **kwargs):
         PlotWidget.__init__(self, *args, **kwargs)
@@ -335,6 +359,7 @@ class SpectrumWidget(PlotWidget):
         self.left = 0.
         self.yticks = False
         self.grids = [FixGrid(delta=100., horizontal=False)]
+
 
         # TODO: migrate functionanlity from ChannelView
 
@@ -364,7 +389,7 @@ class ChannelView(QWidget):
         self.trace_widget.set_ylim(-1000., 1000.)
         self.trace_widget.left = 0.
 
-        self.spectrogram_widget = PlotWidget()
+        self.spectrogram_widget = SpectrogramWidget(channel=channel)
 
         self.spectrum = SpectrumWidget(parent=self)
 
@@ -415,16 +440,9 @@ class ChannelView(QWidget):
         plot_action_group.setExclusive(True)
 
         self.spectrogram_refresh_timer = qc.QTimer()
-        self.spectrogram_refresh_timer.timeout.connect(self.update_spectrogram)
-        self.spectrogram_refresh_timer.start(500)
-
-    @qc.pyqtSlot()
-    def update_spectrogram(self):
-        c = self.channel
-        y = c.freqs
-        x = c.xdata
-        self.spectrogram_widget.colormesh(x, y, c.fft.data)
-        self.spectrogram_widget.update()
+        self.spectrogram_refresh_timer.timeout.connect(
+            self.spectrogram_widget.update_spectrogram)
+        self.spectrogram_refresh_timer.start(200)
 
     @qc.pyqtSlot(int)
     def on_keyboard_key_pressed(self, f):
