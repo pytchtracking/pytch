@@ -383,7 +383,7 @@ class ChannelView(QWidget):
         self.confidence_threshold = 0.9
         self.freq_keyboard = 0
 
-        self.trace_widget = PlotWidget()
+        self.trace_widget = PlotWidget(parent=self)
         self.trace_widget.grids = []
         self.trace_widget.yticks = False
         self.trace_widget.set_ylim(-1000., 1000.)
@@ -540,7 +540,7 @@ class PitchWidget(QWidget):
         self.channel_views = channel_views
         layout = QGridLayout()
         self.setLayout(layout)
-        self.figure = PlotWidget()
+        self.figure = PlotWidget(parent=self)
         self.figure.set_ylim(-1500., 1500)
         self.figure.grids = [FixGrid(delta=100.)]
         self.right_click_menu = QMenu('Save pitches', self)
@@ -564,7 +564,7 @@ class PitchWidget(QWidget):
             self.figure.plot(x[index], y[index], style='o', line_width=4,
                              color=cv.color)
             xstart = num.min(x)
-            self.figure.set_xlim(xstart, xstart+self.tfollow)
+            #self.figure.set_xlim(xstart, xstart+self.tfollow)
         self.figure.update()
         self.repaint()
 
@@ -623,7 +623,7 @@ class DifferentialPitchWidget(QWidget):
         self.channel_views = channel_views
         layout = QGridLayout()
         self.setLayout(layout)
-        self.figure = PlotWidget()
+        self.figure = PlotWidget(parent=self)
         self.figure.set_ylim(-1500., 1500)
         self.tfollow = 10
 

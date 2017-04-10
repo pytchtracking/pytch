@@ -38,6 +38,27 @@ class PlotBase(__PlotSuperClass):
         super(PlotBase, self).__init__(*args, **kwargs)
         self.wheel_pos = 0
 
+    def set_ylim(self, ymin, ymax):
+        ''' Set range of Gauge.'''
+        self.ymin = ymin
+        self.ymax = ymax
+        self._ymin = ymin
+        self._ymax = ymax
+        self.update_projections()
+
+    def update_projections(self):
+        w, h = self.width(), self.height()
+
+        mi, ma = self.xproj.get_out_range()
+        xzoom = self.xzoom * (ma-mi)
+        self.xproj.set_in_range(self._xmin - xzoom, self._xmax)
+        self.xproj.set_out_range(w * self.left, w * self.right)
+
+        self.yproj.set_in_range(self._ymin, self._ymax)
+        self.yproj.set_out_range(
+            h*(1-self.bottom),
+            h*self.top,)
+
     @qc.pyqtSlot(qg.QMouseEvent)
     def wheelEvent(self, wheel_event):
         self.wheel_pos += wheel_event.angleDelta().y()
@@ -47,21 +68,12 @@ class PlotBase(__PlotSuperClass):
             return
 
         modifier = QApplication.keyboardModifiers()
-        if modifier & qc.Qt.ShiftModifier:
-            self.set_ylim(self.ymin-self.scroll_increment*n,
-                          self.ymax+self.scroll_increment*n)
-            logger.info('SHIFT')
-        elif modifier & qc.Qt.AltModifier:
-            self.set_ylim(self.ymin-self.scroll_increment*n,
-                          self.ymax+self.scroll_increment*n)
-            logger.info('ALT')
-        elif modifier & qc.Qt.ControlModifier:
-            self.set_ylim(self.ymin-self.scroll_increment*n,
-                          self.ymax+self.scroll_increment*n)
-            logger.info('CONTROL')
+        if modifier & qc.Qt.ControlModifier:
+            self.set_ylim(self._ymin-self.scroll_increment*n,
+                          self._ymax+self.scroll_increment*n)
         else:
-            self.set_ylim(self.ymin-self.scroll_increment*n,
-                          self.ymax-self.scroll_increment*n)
+            self.set_ylim(self._ymin-self.scroll_increment*n,
+                          self._ymax-self.scroll_increment*n)
         self.repaint()
 
 
@@ -240,6 +252,8 @@ class GaugeWidget(PlotBase):
         ''' Set range of Gauge.'''
         self.ymin = ymin
         self.ymax = ymax
+        self._ymin = ymin
+        self._ymax = ymax
         self.proj.set_in_range(self.ymin, self.ymax)
 
     def get_ylim(self):
@@ -699,18 +713,7 @@ class PlotWidget(PlotBase):
         else:
             self._xmax = self.xmax
 
-        w, h = self.wh
-
-        mi, ma = self.xproj.get_out_range()
-        drange = ma-mi
-        xzoom = self.xzoom * drange
-        self.xproj.set_in_range(self._xmin - xzoom, self._xmax)
-        self.xproj.set_out_range(w * self.left, w * self.right)
-
-        self.yproj.set_in_range(self._ymin, self._ymax)
-        self.yproj.set_out_range(
-            h*(1-self.bottom),
-            h*self.top,)
+        self.update_projections()
 
     def set_background_color(self, color):
         '''
@@ -728,12 +731,6 @@ class PlotWidget(PlotBase):
         self.xmin = xmin
         self.xmax = xmax
         self.xproj.set_in_range(self.xmin, self.xmax)
-
-    def set_ylim(self, ymin, ymax):
-        ''' Set x data range. If unset scales to min|max of ydata range'''
-        self.ymin = ymin
-        self.ymax = ymax
-        self.yproj.set_in_range(self.ymin, self.ymax)
 
     @property
     def xrange_visible(self):
