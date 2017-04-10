@@ -8,7 +8,7 @@ from pytch.gui_util import make_QPolygonF, _color_names, _colors, _pen_styles   
 
 from PyQt5 import QtCore as qc
 from PyQt5 import QtGui as qg
-from PyQt5.QtWidgets import QWidget, QSizePolicy
+from PyQt5.QtWidgets import QWidget, QSizePolicy, QApplication
 
 
 d2r = num.pi/180.
@@ -46,7 +46,7 @@ class PlotBase(__PlotSuperClass):
         if n == 0:
             return
 
-        if wheel_event.modifiers() & qc.Qt.ShiftModifier:
+        if QApplication.keyboardModifiers() & qc.Qt.ShiftModifier:
             self.set_ylim(self.ymin-self.scroll_increment*n,
                           self.ymax+self.scroll_increment*n)
         else:
