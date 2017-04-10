@@ -46,9 +46,19 @@ class PlotBase(__PlotSuperClass):
         if n == 0:
             return
 
-        if QApplication.keyboardModifiers() & qc.Qt.ShiftModifier:
+        modifier = QApplication.keyboardModifiers()
+        if modifier & qc.Qt.ShiftModifier:
             self.set_ylim(self.ymin-self.scroll_increment*n,
                           self.ymax+self.scroll_increment*n)
+            logger.info('SHIFT')
+        elif modifier & qc.Qt.AltModifier:
+            self.set_ylim(self.ymin-self.scroll_increment*n,
+                          self.ymax+self.scroll_increment*n)
+            logger.info('ALT')
+        elif modifier & qc.Qt.ControlModifier:
+            self.set_ylim(self.ymin-self.scroll_increment*n,
+                          self.ymax+self.scroll_increment*n)
+            logger.info('CONTROL')
         else:
             self.set_ylim(self.ymin-self.scroll_increment*n,
                           self.ymax-self.scroll_increment*n)
