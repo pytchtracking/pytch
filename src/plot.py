@@ -34,9 +34,10 @@ logger.warn('no opengl support')
 
 class PlotBase(QWidget):
     def __init__(self, *args, **kwargs):
-        super(QWidget, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.wheel_pos = 0
         self.scroll_increment = 100
+        self.setFocusPolicy(qc.Qt.StrongFocus)
 
     def set_ylim(self, ymin, ymax):
         ''' Set range of Gauge.'''
@@ -84,19 +85,17 @@ class PlotBase(QWidget):
 
         self.do_draw(painter)
 
-    #@qc.pyqtSlot(qg.QKeyEvent)
-    #def keyPressEvent(self, key_event):
-    #    ''' react on keyboard keys when they are pressed.'''
-    #    key_text = key_event.text()
-    #    print(key_text)
-    #    if key_text == '+':
-    #        self.set_ylim(self._ymin-self.scroll_increment*n,
-    #                      self._ymax-self.scroll_increment*n)
-    #    elif key_text == '-':
-    #        self.set_ylim(self._ymin+self.scroll_increment*n,
-    #                      self._ymax+self.scroll_increment*n)
-
-    #    QWidget.keyPressEvent(self, key_event)
+    @qc.pyqtSlot(qg.QKeyEvent)
+    def keyPressEvent(self, key_event):
+        ''' react on keyboard keys when they are pressed.'''
+        key_text = key_event.text()
+        if key_text == '+':
+            self.set_ylim(self._ymin-self.scroll_increment,
+                          self._ymax+self.scroll_increment)
+        elif key_text == '-':
+            self.set_ylim(self._ymin+self.scroll_increment,
+                          self._ymax-self.scroll_increment)
+        super().keyPressEvent(key_event)
 
 
 class InterpolatedColormap:
@@ -246,7 +245,7 @@ class ColormapWidget(QWidget):
 
 class GaugeWidget(PlotBase):
     def __init__(self, *args, **kwargs):
-        super(GaugeWidget, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self.color = qg.QColor(0, 100, 100)
         self._val = 0
@@ -525,7 +524,7 @@ class Polyline():
 
 class PColormesh(PlotBase):
     def __init__(self, img, x, y, *args, **kwargs):
-        super(PColormesh, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.img = img
         self.x = x
         self.y = y
@@ -548,7 +547,7 @@ class PlotWidget(PlotBase):
     ''' a plotwidget displays data (x, y coordinates). '''
 
     def __init__(self, *args, **kwargs):
-        super(PlotWidget, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self.setContentsMargins(0, 0, 0, 0)
         self.scroll_increment = 0
@@ -617,20 +616,6 @@ class PlotWidget(PlotBase):
     @property
     def wh(self):
         return self.width(), self.height()
-
-    @qc.pyqtSlot(qg.QKeyEvent)
-    def keyPressEvent(self, key_event):
-        ''' react on keyboard keys when they are pressed.'''
-        key_text = key_event.text()
-        print('asdfsadf')
-        if key_text == 'q':
-            self.close()
-
-        elif key_text == 'f':
-            self.showMaximized()
-
-        super(PlotWidget, self).keyPressEvent(key_event)
-        #QWidget.keyPressEvent(self, key_event)
 
     def set_brush(self, color='black'):
         self.brush = qg.QBrush(qg.QColor(*_colors[color]))
@@ -888,7 +873,7 @@ class PlotWidget(PlotBase):
 
 class MikadoWidget(PlotWidget):
     def __init__(self, *args, **kwargs):
-        super(MikadoWidget, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def fill_between(self, xdata1, ydata1, xdata2, ydata2, *args, **kwargs):
         '''

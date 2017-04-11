@@ -326,11 +326,6 @@ class ChannelViews(QWidget):
         for cv in self.channel_views:
             cv.on_standard_frequency_changed(f)
 
-    @qc.pyqtSlot(qg.QKeyEvent)
-    def keyPressEvent(self, key_event):
-        ''' react on keyboard keys when they are pressed.'''
-        print(key_event.text())
-
 
 class SpectrogramWidget(PlotWidget):
     def __init__(self, channel, *args, **kwargs):
@@ -388,7 +383,7 @@ class ChannelView(QWidget):
         self.confidence_threshold = 0.9
         self.freq_keyboard = 0
 
-        self.trace_widget = PlotWidget(parent=self)
+        self.trace_widget = PlotWidget()
         self.trace_widget.grids = []
         self.trace_widget.yticks = False
         self.trace_widget.set_ylim(-1000., 1000.)
@@ -396,7 +391,7 @@ class ChannelView(QWidget):
 
         self.spectrogram_widget = SpectrogramWidget(channel=channel)
 
-        self.spectrum = SpectrumWidget(parent=self)
+        self.spectrum = SpectrumWidget()
 
         self.plot_spectrum = self.spectrum.plotlog
 
@@ -545,7 +540,7 @@ class PitchWidget(QWidget):
         self.channel_views = channel_views
         layout = QGridLayout()
         self.setLayout(layout)
-        self.figure = PlotWidget(parent=self)
+        self.figure = PlotWidget()
         self.figure.set_ylim(-1500., 1500)
         self.figure.grids = [FixGrid(delta=100.)]
         self.right_click_menu = QMenu('Save pitches', self)
@@ -628,7 +623,7 @@ class DifferentialPitchWidget(QWidget):
         self.channel_views = channel_views
         layout = QGridLayout()
         self.setLayout(layout)
-        self.figure = PlotWidget(parent=self)
+        self.figure = PlotWidget()
         self.figure.set_ylim(-1500., 1500)
         self.tfollow = 10
 
@@ -756,7 +751,7 @@ class PitchLevelDifferenceViews(QWidget):
             for i2, cv2 in enumerate(self.channel_views):
                 if i1>=i2:
                     continue
-                w = GaugeWidget(parent=self)
+                w = GaugeWidget()
                 w.set_ylim(*ylim)
                 w.set_title('Channels: %s | %s' % (i1+1, i2+1))
                 self.widgets.append((cv1, cv2, w))
@@ -791,9 +786,6 @@ class PitchLevelDifferenceViews(QWidget):
                 w.set_data(None)
             w.repaint()
 
-    @qc.pyqtSlot(qg.QKeyEvent)
-    def keyPressEvent(self, ev):
-        print('asdf')
 
 class PitchLevelMikadoViews(QWidget):
     def __init__(self, channel_views, *args, **kwargs):
@@ -976,22 +968,20 @@ class MainWidget(QWidget):
     def toggle_keyboard(self):
         self.keyboard.setVisible(not self.keyboard.isVisible())
 
-    @qc.pyqtSlot(qg.QKeyEvent)
-    def keyPressEvent(self, key_event):
-        print('sdf')
-
 
 class MainWindow(QMainWindow):
     ''' Top level Window. The entry point of the gui.'''
     def __init__(self, settings, *args, **kwargs):
         super(QMainWindow, self).__init__(*args, **kwargs)
-        self.main_widget = MainWidget(settings, parent=self)
+        self.main_widget = MainWidget(settings, )
+        self.main_widget.setFocusPolicy(qc.Qt.StrongFocus)
+
         self.setCentralWidget(self.main_widget)
 
-        controls_dock_widget = QDockWidget(parent=self)
+        controls_dock_widget = QDockWidget()
         controls_dock_widget.setWidget(self.main_widget.menu)
 
-        views_dock_widget = QDockWidget(parent=self)
+        views_dock_widget = QDockWidget()
         views_dock_widget.setWidget(self.main_widget.tabbed_pitch_widget)
 
         self.addDockWidget(qc.Qt.LeftDockWidgetArea, controls_dock_widget)
@@ -1002,23 +992,21 @@ class MainWindow(QMainWindow):
     def sizeHint(self):
         return qc.QSize(700, 600)
 
-    #@qc.pyqtSlot(qg.QKeyEvent)
-    #def keyPressEvent(self, key_event):
-    #    ''' react on keyboard keys when they are pressed.'''
-    #    key_text = key_event.text()
-    #    if key_text == 'q':
-    #        self.close()
+    @qc.pyqtSlot(qg.QKeyEvent)
+    def keyPressEvent(self, key_event):
+        ''' react on keyboard keys when they are pressed.'''
+        key_text = key_event.text()
+        if key_text == 'q':
+            self.close()
 
-    #    elif key_text == 'k':
-    #        self.main_widget.toggle_keyboard()
+        elif key_text == 'k':
+            self.main_widget.toggle_keyboard()
 
-    #    elif key_text == 'f':
-    #        self.showMaximized
+        elif key_text == 'f':
+            self.showMaximized
 
-    #    else:
-    #        #QMainWindow.keyPressEvent(self, key_event)
-    #        #QMainWindow.keyPressEvent(key_event)
-    #        super(QMainWindow, self).keyPressEvent(key_event)
+        else:
+            super().keyPressEvent(key_event)
 
 
 
@@ -1047,7 +1035,6 @@ def from_command_line(close_after=None, settings=None, check_opengl=False,
         settings.accept = True
 
     window = MainWindow(settings=settings)
-
     if close_after:
         close_timer = qc.QTimer()
         close_timer.timeout.connect(app.quit)
