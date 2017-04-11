@@ -243,7 +243,6 @@ class AutoScaler():
         return a
 
 
-
 class Projection(object):
     def __init__(self):
         self.xr = 0., 1.
@@ -264,11 +263,14 @@ class Projection(object):
     def get_in_range(self):
         return self.xr
 
-    def set_out_range(self, umin, umax):
+    def set_out_range(self, umin, umax, flip=False):
         if umax == umin:
             umax = umin + 1.
 
-        self.ur = umin, umax
+        if flip:
+            self.ur = umax, umin
+        else:
+            self.ur = umin, umax
         self.update()
 
     def get_out_range(self):

@@ -20,23 +20,23 @@ logger = logging.getLogger(__name__)
 #except ImportError:
 logger.warn('no opengl support')
 
-class PlotWidgetBase(QWidget):
 
-    def paintEvent(self, e):
-        painter = qg.QPainter(self)
+#class PlotWidgetBase(QWidget):
+#
+#    def __init__(self, *args, **kwargs):
+#        super(QWidget, self).__init__(*args, **kwargs)
+#
+#    def do_draw(self, painter):
+#        raise Exception('to be implemented in subclass')
+#
+#__PlotSuperClass = PlotWidgetBase
 
-        self.do_draw(painter)
 
-    def do_draw(self, painter):
-        raise Exception('to be implemented in subclass')
-
-__PlotSuperClass = PlotWidgetBase
-
-
-class PlotBase(__PlotSuperClass):
+class PlotBase(QWidget):
     def __init__(self, *args, **kwargs):
-        super(PlotBase, self).__init__(*args, **kwargs)
+        super(QWidget, self).__init__(*args, **kwargs)
         self.wheel_pos = 0
+        self.scroll_increment = 100
 
     def set_ylim(self, ymin, ymax):
         ''' Set range of Gauge.'''
@@ -56,8 +56,10 @@ class PlotBase(__PlotSuperClass):
 
         self.yproj.set_in_range(self._ymin, self._ymax)
         self.yproj.set_out_range(
-            h*(1-self.bottom),
-            h*self.top,)
+            h*(1.-self.top),
+            h*(1.-self.bottom),
+            flip=True
+        )
 
     @qc.pyqtSlot(qg.QMouseEvent)
     def wheelEvent(self, wheel_event):
@@ -75,6 +77,26 @@ class PlotBase(__PlotSuperClass):
             self.set_ylim(self._ymin-self.scroll_increment*n,
                           self._ymax-self.scroll_increment*n)
         self.repaint()
+
+    @qc.pyqtSlot(qg.QPaintEvent)
+    def paintEvent(self, e):
+        painter = qg.QPainter(self)
+
+        self.do_draw(painter)
+
+    #@qc.pyqtSlot(qg.QKeyEvent)
+    #def keyPressEvent(self, key_event):
+    #    ''' react on keyboard keys when they are pressed.'''
+    #    key_text = key_event.text()
+    #    print(key_text)
+    #    if key_text == '+':
+    #        self.set_ylim(self._ymin-self.scroll_increment*n,
+    #                      self._ymax-self.scroll_increment*n)
+    #    elif key_text == '-':
+    #        self.set_ylim(self._ymin+self.scroll_increment*n,
+    #                      self._ymax+self.scroll_increment*n)
+
+    #    QWidget.keyPressEvent(self, key_event)
 
 
 class InterpolatedColormap:
@@ -205,7 +227,8 @@ class ColormapWidget(QWidget):
 
     def paintEvent(self, e):
         rect = self.rect()
-        self.yproj.set_out_range(rect.top(), rect.bottom())
+        self.yproj.set_out_range((1.-rect.top()), rect.bottom(), flip=True)
+        #self.yproj.set_out_range((1.-rect.top()), rect.bottom())
 
         yvals = self.yproj(self.vals)
         painter = qg.QPainter(self)
@@ -233,7 +256,6 @@ class GaugeWidget(PlotBase):
         out_max = 130.
         self.proj.set_out_range(out_min, out_max)
         self.set_ylim(0., 1500.)
-        self.scroll_increment = 100
 
         self.scaler = AutoScaler(
             no_exp_interval=(-3, 2), approx_ticks=7,
@@ -392,7 +414,7 @@ class AutoGrid():
         ticks_proj = widget.xproj(num.arange(xmin, xmax, xinc))
 
         w, h = widget.wh
-        self.lines_v = [qc.QLineF(xval, h * widget.top, xval, h)
+        self.lines_v = [qc.QLineF(xval, h * (1.-widget.top), xval, h)
                  for xval in ticks_proj]
         self.data_lims_v = (widget._xmin, widget._xmax)
 
@@ -430,7 +452,7 @@ class FixGrid(AutoGrid):
         ticks_proj = widget.xproj(num.arange(xmin, xmax, self.delta))
 
         w, h = widget.wh
-        self.lines_v = [qc.QLineF(xval, h * widget.top, xval, h)
+        self.lines_v = [qc.QLineF(xval, h * (1.-widget.top), xval, h)
                  for xval in ticks_proj]
         self.data_lims_v = (widget._xmin, widget._xmax)
 
@@ -495,14 +517,15 @@ class Polyline():
         qpoints = make_QPolygonF(xproj(self.x), yproj(self.y))
 
         painter.save()
+        #painter.setMatrix(_flipy)
         painter.setPen(self.pen)
         painter.drawPolyline(qpoints)
         painter.restore()
 
 
-class Spectrogram(PlotBase):
+class PColormesh(PlotBase):
     def __init__(self, img, x, y, *args, **kwargs):
-        super(Spectrogram, self).__init__(*args, **kwargs)
+        super(PColormesh, self).__init__(*args, **kwargs)
         self.img = img
         self.x = x
         self.y = y
@@ -546,7 +569,7 @@ class PlotWidget(PlotBase):
         self.left = 0.15
         self.right = 1.
         self.bottom = 0.1
-        self.top = 0.05
+        self.top = 0.9
 
         self.xlabels = True
         self.ylabels = True
@@ -583,8 +606,8 @@ class PlotWidget(PlotBase):
         w, h = self.wh
         l = self.left
         r = self.right
-        t = self.bottom
-        b = self.top
+        b = self.bottom
+        t = self.top
 
         tl = qc.QPoint((1.-b) * h, l * w)
         size = qc.QSize(w * (1. - (l + (1.-r))),
@@ -595,16 +618,19 @@ class PlotWidget(PlotBase):
     def wh(self):
         return self.width(), self.height()
 
+    @qc.pyqtSlot(qg.QKeyEvent)
     def keyPressEvent(self, key_event):
         ''' react on keyboard keys when they are pressed.'''
         key_text = key_event.text()
+        print('asdfsadf')
         if key_text == 'q':
             self.close()
 
         elif key_text == 'f':
             self.showMaximized()
 
-        QWidget.keyPressEvent(self, key_event)
+        super(PlotWidget, self).keyPressEvent(key_event)
+        #QWidget.keyPressEvent(self, key_event)
 
     def set_brush(self, color='black'):
         self.brush = qg.QBrush(qg.QColor(*_colors[color]))
@@ -673,7 +699,7 @@ class PlotWidget(PlotBase):
         self.scene_items.append(AxHLine(y=y, pen=pen))
 
     def colormesh(self, x, y, z, **pen_args):
-        spec = Spectrogram.from_numpy_array(x=x, y=y, z=z)
+        spec = PColormesh.from_numpy_array(x=x, y=y, z=z)
         self.scene_items.append(spec)
 
     def fill_between(self, xdata, ydata1, ydata2, *args, **kwargs):
@@ -726,6 +752,16 @@ class PlotWidget(PlotBase):
     def xlim(self):
         return (self._xmin, self._xmax)
 
+    def canvas_rect(self):
+        ''' Rectangular containing the data visualization. '''
+        w, h = self.wh
+        tl = qc.QPoint(self.left*w, (1.-self.top)*h)
+        size = qc.QSize(w* (self.right-self.left), h* self.top-self.bottom)
+        rect = self.rect()
+        rect.setTopLeft(tl)
+        rect.setSize(size)
+        return rect
+
     def set_xlim(self, xmin, xmax):
         ''' Set x data range. If unset scale to min|max of ydata range '''
         self.xmin = xmin
@@ -741,7 +777,7 @@ class PlotWidget(PlotBase):
         underlying data and scales the content to fit into the widget.'''
         self.draw_background(painter)
         self.draw_deco(painter)
-        rect = self.rect()
+        rect = self.canvas_rect()
         for item in self.scene_items:
             item.draw(painter, self.xproj, self.yproj, rect=rect)
 
@@ -763,7 +799,7 @@ class PlotWidget(PlotBase):
     def draw_axes(self, painter):
         ''' draw x and y axis'''
         w, h = self.wh
-        points = [qc.QPoint(w*self.left, h*(1.-self.bottom)),
+        points = [qc.QPoint(w*self.left, h*(self.bottom)),
                   qc.QPoint(w*self.left, h*(1.-self.top)),
                   qc.QPoint(w*self.right, h*(1.-self.top))]
         painter.drawPoints(qg.QPolygon(points))
@@ -780,7 +816,7 @@ class PlotWidget(PlotBase):
         _xinc = self._xinc or xinc
         ticks = num.arange(xmin, xmax, _xinc)
         ticks_proj = self.xproj(ticks)
-        tick_anchor = self.top*h
+        tick_anchor = (1.-self.top)*h
         lines = [qc.QLineF(xval, tick_anchor * 0.8, xval, tick_anchor)
                  for xval in ticks_proj]
 

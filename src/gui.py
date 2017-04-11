@@ -9,7 +9,7 @@ from pytch.data import MicrophoneRecorder, getaudiodevices, pitch_algorithms
 from pytch.gui_util import FloatQLineEdit
 from pytch.gui_util import make_QPolygonF, _color_names, _colors # noqa
 from pytch.util import consecutive, f2pitch, pitch2f
-from pytch.plot import PlotWidget, GaugeWidget, MikadoWidget, FixGrid, Spectrogram
+from pytch.plot import PlotWidget, GaugeWidget, MikadoWidget, FixGrid, PColormesh
 from pytch.keyboard import KeyBoard
 
 from PyQt5 import QtCore as qc
@@ -326,6 +326,11 @@ class ChannelViews(QWidget):
         for cv in self.channel_views:
             cv.on_standard_frequency_changed(f)
 
+    @qc.pyqtSlot(qg.QKeyEvent)
+    def keyPressEvent(self, key_event):
+        ''' react on keyboard keys when they are pressed.'''
+        print(key_event.text())
+
 
 class SpectrogramWidget(PlotWidget):
     def __init__(self, channel, *args, **kwargs):
@@ -338,7 +343,7 @@ class SpectrogramWidget(PlotWidget):
         self.imgarray = num.ndarray(shape=(self.nx, self.ny), dtype=num.uint32, buffer=buffer)
         x = num.arange(self.nx)
         y = num.arange(self.ny)
-        self.spectrogram = Spectrogram(img=self.img, x=x, y=y)
+        self.spectrogram = PColormesh(img=self.img, x=x, y=y)
         self.scene_items.append(self.spectrogram)
 
     @qc.pyqtSlot()
@@ -564,7 +569,7 @@ class PitchWidget(QWidget):
             self.figure.plot(x[index], y[index], style='o', line_width=4,
                              color=cv.color)
             xstart = num.min(x)
-            #self.figure.set_xlim(xstart, xstart+self.tfollow)
+            self.figure.set_xlim(xstart, xstart+self.tfollow)
         self.figure.update()
         self.repaint()
 
@@ -786,6 +791,9 @@ class PitchLevelDifferenceViews(QWidget):
                 w.set_data(None)
             w.repaint()
 
+    @qc.pyqtSlot(qg.QKeyEvent)
+    def keyPressEvent(self, ev):
+        print('asdf')
 
 class PitchLevelMikadoViews(QWidget):
     def __init__(self, channel_views, *args, **kwargs):
@@ -968,18 +976,22 @@ class MainWidget(QWidget):
     def toggle_keyboard(self):
         self.keyboard.setVisible(not self.keyboard.isVisible())
 
+    @qc.pyqtSlot(qg.QKeyEvent)
+    def keyPressEvent(self, key_event):
+        print('sdf')
+
 
 class MainWindow(QMainWindow):
     ''' Top level Window. The entry point of the gui.'''
     def __init__(self, settings, *args, **kwargs):
-        QMainWindow.__init__(self, *args, **kwargs)
-        self.main_widget = MainWidget(settings)
+        super(QMainWindow, self).__init__(*args, **kwargs)
+        self.main_widget = MainWidget(settings, parent=self)
         self.setCentralWidget(self.main_widget)
 
-        controls_dock_widget = QDockWidget()
+        controls_dock_widget = QDockWidget(parent=self)
         controls_dock_widget.setWidget(self.main_widget.menu)
 
-        views_dock_widget = QDockWidget()
+        views_dock_widget = QDockWidget(parent=self)
         views_dock_widget.setWidget(self.main_widget.tabbed_pitch_widget)
 
         self.addDockWidget(qc.Qt.LeftDockWidgetArea, controls_dock_widget)
@@ -987,22 +999,27 @@ class MainWindow(QMainWindow):
 
         self.show()
 
-    def keyPressEvent(self, key_event):
-        ''' react on keyboard keys when they are pressed.'''
-        key_text = key_event.text()
-        if key_text == 'q':
-            self.close()
-
-        elif key_text == 'k':
-            self.main_widget.toggle_keyboard()
-
-        elif key_text == 'f':
-            self.showMaximized
-
-        QMainWindow.keyPressEvent(self, key_event)
-
     def sizeHint(self):
         return qc.QSize(700, 600)
+
+    #@qc.pyqtSlot(qg.QKeyEvent)
+    #def keyPressEvent(self, key_event):
+    #    ''' react on keyboard keys when they are pressed.'''
+    #    key_text = key_event.text()
+    #    if key_text == 'q':
+    #        self.close()
+
+    #    elif key_text == 'k':
+    #        self.main_widget.toggle_keyboard()
+
+    #    elif key_text == 'f':
+    #        self.showMaximized
+
+    #    else:
+    #        #QMainWindow.keyPressEvent(self, key_event)
+    #        #QMainWindow.keyPressEvent(key_event)
+    #        super(QMainWindow, self).keyPressEvent(key_event)
+
 
 
 def from_command_line(close_after=None, settings=None, check_opengl=False,
