@@ -686,6 +686,7 @@ class PlotWidget(PlotBase):
     def colormesh(self, x, y, z, **pen_args):
         spec = PColormesh.from_numpy_array(x=x, y=y, z=z)
         self.scene_items.append(spec)
+        self.update_datalims(x, y)
 
     def fill_between(self, xdata, ydata1, ydata2, *args, **kwargs):
         x = num.hstack((xdata, xdata[::-1]))
