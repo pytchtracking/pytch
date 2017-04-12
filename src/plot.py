@@ -227,7 +227,6 @@ class ColormapWidget(QWidget):
     def paintEvent(self, e):
         rect = self.rect()
         self.yproj.set_out_range((1.-rect.top()), rect.bottom(), flip=True)
-        #self.yproj.set_out_range((1.-rect.top()), rect.bottom())
 
         yvals = self.yproj(self.vals)
         painter = qg.QPainter(self)
@@ -240,7 +239,6 @@ class ColormapWidget(QWidget):
 
     def sizeHint(self):
         return qc.QSize(100, 400)
-
 
 
 class GaugeWidget(PlotBase):
@@ -516,7 +514,6 @@ class Polyline():
         qpoints = make_QPolygonF(xproj(self.x), yproj(self.y))
 
         painter.save()
-        #painter.setMatrix(_flipy)
         painter.setPen(self.pen)
         painter.drawPolyline(qpoints)
         painter.restore()
@@ -587,7 +584,6 @@ class PlotWidget(PlotBase):
             no_exp_interval=(-3, 2), approx_ticks=5,
             snap=True
         )
-        self.draw_fill = False
         self.draw_points = False
         self.set_brush()
         self._xvisible = num.empty(0)
@@ -691,8 +687,7 @@ class PlotWidget(PlotBase):
     def fill_between(self, xdata, ydata1, ydata2, *args, **kwargs):
         x = num.hstack((xdata, xdata[::-1]))
         y = num.hstack((ydata1, ydata2[::-1]))
-        self.draw_fill = True
-        self.set_data(x, y)
+        self.update_datalims(x, y)
 
     def plotlog(self, xdata=None, ydata=None, ndecimate=0, **style_kwargs):
         try:
