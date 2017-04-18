@@ -42,10 +42,8 @@ pytch
 hit return and sing!
 
 ## Todo
-- differential -> scale +- 1500 or abs() < +1500
-- differential grid (fix) 100 cent.
+- fix reference frequency
 - Gauge: keep last value (at least some seconds)
 - cross spectrum
 - add interaction to spectra (zoom)
-- colorize channels
 - add midi channels (as guide)
