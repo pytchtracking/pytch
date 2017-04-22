@@ -40,6 +40,7 @@ class PlotBase(__PlotSuperClass):
         self.wheel_pos = 0
         self.scroll_increment = 100
         self.setFocusPolicy(qc.Qt.StrongFocus)
+        self.set_background_color('white')
 
     def set_ylim(self, ymin, ymax):
         ''' Set range of Gauge.'''
@@ -98,6 +99,16 @@ class PlotBase(__PlotSuperClass):
             self.set_ylim(self._ymin+self.scroll_increment,
                           self._ymax-self.scroll_increment)
         super().keyPressEvent(key_event)
+
+    def set_background_color(self, color):
+        '''
+        :param color: color as string
+        '''
+        background_color = qg.QColor(*_colors[color])
+        self.background_brush = qg.QBrush(background_color)
+        pal = self.palette()
+        pal.setBrush(qg.QPalette.Background, self.background_brush)
+        self.setPalette(pal)
 
 
 class InterpolatedColormap:
@@ -217,7 +228,7 @@ class ColormapWidget(QWidget):
         size_policy = QSizePolicy()
         size_policy.setHorizontalPolicy(QSizePolicy.Maximum)
         self.setSizePolicy(size_policy)
-
+        self.set_background_color('white')
         self.update()
 
     def update(self):
@@ -236,11 +247,20 @@ class ColormapWidget(QWidget):
             patch = qc.QRect(qc.QPoint(rect.left(), yvals[i]),
                              qc.QPoint(rect.right(), yvals[i+1]))
             painter.save()
-            painter.fillRect(patch, qg.QBrush(self.colors[i]))
             painter.restore()
 
     def sizeHint(self):
         return qc.QSize(100, 400)
+
+    def set_background_color(self, color):
+        '''
+        :param color: color as string
+        '''
+        background_color = qg.QColor(*_colors[color])
+        self.background_brush = qg.QBrush(background_color)
+        pal = self.palette()
+        pal.setBrush(qg.QPalette.Background, self.background_brush)
+        self.setPalette(pal)
 
 
 class GaugeWidget(PlotBase):
@@ -593,7 +613,7 @@ class PlotWidget(PlotBase):
         self.yproj = Projection()
         self.xproj = Projection()
         self.colormap = Colormap()
-        self.set_background_color('white')
+        self.setAutoFillBackground(True)
 
     def clear(self):
         self.scene_items = []
@@ -724,13 +744,6 @@ class PlotWidget(PlotBase):
 
         self.update_projections()
 
-    def set_background_color(self, color):
-        '''
-        :param color: color as string
-        '''
-        background_color = qg.QColor(*_colors[color])
-        self.background_brush = qg.QBrush(background_color)
-
     @property
     def xlim(self):
         return (self._xmin, self._xmax)
@@ -758,7 +771,6 @@ class PlotWidget(PlotBase):
     def do_draw(self, painter):
         ''' this is executed e.g. when self.repaint() is called. Draws the
         underlying data and scales the content to fit into the widget.'''
-        self.draw_background(painter)
         self.draw_deco(painter)
         rect = self.canvas_rect()
         for item in self.scene_items:
@@ -829,9 +841,6 @@ class PlotWidget(PlotBase):
     def draw_labels(self, painter):
         self.setup_annotation_boxes()
         painter.drawText(self.x_annotation_rect, qc.Qt.AlignCenter, 'Time')
-
-    def draw_background(self, painter):
-        painter.fillRect(self.rect(), self.background_brush)
 
     #def mousePressEvent(self, mouse_ev):
     #    point = self.mapFromGlobal(mouse_ev.globalPos())
