@@ -334,12 +334,14 @@ class SpectrogramWidget(PlotWidget):
         self.ny, self.nx = 300, 680
         self.img = qg.QImage(self.ny, self.nx, qg.QImage.Format_RGB32)
         buffer = self.img.bits()
-        buffer.setsize(self.ny*self.nx*2**8)
-        self.imgarray = num.ndarray(shape=(self.nx, self.ny), dtype=num.uint32, buffer=buffer)
+        buffer.setsize(self.ny*self.nx*2**32)
+        self.imgarray = num.ndarray(shape=(self.nx, self.ny),
+                                    dtype=num.uint32, buffer=buffer)
         x = num.arange(self.nx)
         y = num.arange(self.ny)
         self.spectrogram = PColormesh(img=self.img, x=x, y=y)
         self.scene_items.append(self.spectrogram)
+        self.update_datalims(y, x)
 
     @qc.pyqtSlot()
     def update_spectrogram(self):
