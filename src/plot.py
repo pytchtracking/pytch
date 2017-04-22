@@ -14,25 +14,27 @@ from PyQt5.QtWidgets import QWidget, QSizePolicy, QApplication
 d2r = num.pi/180.
 logger = logging.getLogger(__name__)
 
-#try:
-#    from pytch.gui_util_opengl import GLWidget
-#    __PlotSuperClass = GLWidget
-#except ImportError:
-logger.warn('no opengl support')
+try:
+    from pytch.gui_util_opengl import GLWidget
+    __PlotSuperClass = GLWidget
+except ImportError:
+    logger.warn('no opengl support')
+    class PlotWidgetBase(QWidget):
+
+        def paintEvent(self, e):
+            painter = qg.QPainter(self)
+
+            self.do_draw(painter)
+
+        def do_draw(self, painter):
+            raise Exception('to be implemented in subclass')
+
+    __PlotSuperClass = PlotWidgetBase
 
 
-#class PlotWidgetBase(QWidget):
-#
-#    def __init__(self, *args, **kwargs):
-#        super(QWidget, self).__init__(*args, **kwargs)
-#
-#    def do_draw(self, painter):
-#        raise Exception('to be implemented in subclass')
-#
-#__PlotSuperClass = PlotWidgetBase
 
 
-class PlotBase(QWidget):
+class PlotBase(__PlotSuperClass):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.wheel_pos = 0
