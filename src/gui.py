@@ -333,10 +333,10 @@ class SpectrogramWidget(PlotWidget):
         self.channel = channel
         self.ny, self.nx = 300, 680
         self.img = qg.QImage(self.ny, self.nx, qg.QImage.Format_RGB32)
-        buffer = self.img.bits()
-        buffer.setsize(self.ny*self.nx*2**32)
+        buff = self.img.bits()
+        buff.setsize(self.ny*self.nx*2**32)
         self.imgarray = num.ndarray(shape=(self.nx, self.ny),
-                                    dtype=num.uint32, buffer=buffer)
+                                    dtype=num.uint32, buffer=buff)
         x = num.arange(self.nx)
         y = num.arange(self.ny)
         self.spectrogram = PColormesh(img=self.img, x=x, y=y)
@@ -393,7 +393,7 @@ class ChannelView(QWidget):
 
         self.spectrogram_widget = SpectrogramWidget(channel=channel)
 
-        self.spectrum = SpectrumWidget()
+        self.spectrum = SpectrumWidget(parent=self)
 
         self.plot_spectrum = self.spectrum.plotlog
 
@@ -461,12 +461,10 @@ class ChannelView(QWidget):
         self.trace_widget.plot(*c.latest_frame(
             tfollow), ndecimate=25, color=self.color, line_width=1)
         d = c.fft.latest_frame_data(self.fft_smooth_factor)
-
-        if d is not None:
-            self.plot_spectrum(
-                    c.freqs, num.mean(d, axis=0), ndecimate=2,
-                    #f2pitch(c.freqs, self.standard_frequency), num.mean(d, axis=0), ndecimate=2,
-                    color=self.color, ignore_nan=True)
+        self.plot_spectrum(
+                c.freqs, num.mean(d, axis=0), ndecimate=2,
+                #f2pitch(c.freqs, self.standard_frequency), num.mean(d, axis=0), ndecimate=2,
+                color=self.color, ignore_nan=True)
         confidence = c.pitch_confidence.latest_frame_data(1)
         if confidence > self.confidence_threshold:
             x = c.get_latest_pitch(self.standard_frequency)
