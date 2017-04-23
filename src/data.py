@@ -237,13 +237,6 @@ class RingBuffer2D(RingBuffer):
         self.i_filled %= self.data_len
         self.data[self.i_filled, :] = v
 
-    def latest_frame_data(self, n):
-        ''' Return the latest n samples data from buffer as array.'''
-        return num.take(self.data,
-                        num.arange(
-                            self.i_filled - n, self.i_filled),
-                        mode='wrap', axis=0)
-
 
 class DataProvider(object):
     ''' Base class defining common interface for data input to Worker'''
@@ -251,16 +244,9 @@ class DataProvider(object):
         self.frames = []
         atexit.register(self.terminate)
 
-    #def get_data(self):
-    #    return self.frames
-
     def terminate(self):
         # cleanup
         pass
-
-
-class SamplingRateException(Exception):
-    pass
 
 
 class Channel(RingBuffer):
