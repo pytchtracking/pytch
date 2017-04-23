@@ -136,6 +136,7 @@ class Buffer():
 
     def latest_frame_data(self, n):
         ''' Return the latest n samples data from buffer as array.'''
+        
         return self.data[max(self.i_filled-n, 0): self.i_filled]
 
     def append(self, d):
@@ -186,13 +187,11 @@ class RingBuffer(Buffer):
 
     def latest_frame_data(self, n):
         ''' Return the latest n samples data from buffer as array.'''
-        n %= self.data_len
-        i_filled = self.i_filled % self.data_len
-        if n > i_filled:
-            return num.roll(self.data, -i_filled)[-n:]
-        else:
-            return self.data[i_filled-n: i_filled]
-
+        return num.take(self.data,
+                        num.arange(
+                            self.i_filled - n, self.i_filled),
+                        mode='wrap', axis=0)
+        
     def latest_frame(self, seconds, clip_min=False):
         ''' Return the latest *seconds* data from buffer as x and y data tuple.'''
         istart, istop = self.latest_indices(seconds)
@@ -240,8 +239,10 @@ class RingBuffer2D(RingBuffer):
 
     def latest_frame_data(self, n):
         ''' Return the latest n samples data from buffer as array.'''
-        #return self.data[max(self.i_filled-n, 0): self.i_filled]
-        return num.roll(self.data, -self.i_filled, 0)[-n:]
+        return num.take(self.data,
+                        num.arange(
+                            self.i_filled - n, self.i_filled),
+                        mode='wrap', axis=0)
 
 
 class DataProvider(object):
