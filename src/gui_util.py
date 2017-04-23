@@ -243,6 +243,22 @@ class AutoScaler():
         return a
 
 
+class PlotWidgetBase(qw.QWidget):
+    '''
+    Alternative for :py:class:`pytch.gui_util_opengl.GLWidget` without
+    OpenGL support
+    '''
+
+    def paintEvent(self, e):
+        painter = qg.QPainter(self)
+
+        self.do_draw(painter)
+
+    def do_draw(self, painter):
+        raise Exception('to be implemented in subclass')
+
+
+
 class Projection(object):
     def __init__(self):
         self.xr = 0., 1.

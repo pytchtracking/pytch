@@ -3,7 +3,7 @@ import math
 import scipy.interpolate as interpolate
 import logging
 
-from pytch.gui_util import AutoScaler, Projection, minmax_decimation
+from pytch.gui_util import AutoScaler, Projection, minmax_decimation, PlotWidgetBase
 from pytch.gui_util import make_QPolygonF, _color_names, _colors, _pen_styles    # noqa
 
 from PyQt5 import QtCore as qc
@@ -19,19 +19,7 @@ try:
     __PlotSuperClass = GLWidget
 except ImportError:
     logger.warn('no opengl support')
-    class PlotWidgetBase(QWidget):
-
-        def paintEvent(self, e):
-            painter = qg.QPainter(self)
-
-            self.do_draw(painter)
-
-        def do_draw(self, painter):
-            raise Exception('to be implemented in subclass')
-
     __PlotSuperClass = PlotWidgetBase
-
-
 
 
 class PlotBase(__PlotSuperClass):
@@ -87,6 +75,7 @@ class PlotBase(__PlotSuperClass):
         painter = qg.QPainter(self)
 
         self.do_draw(painter)
+        painter.end()
 
     @qc.pyqtSlot(qg.QKeyEvent)
     def keyPressEvent(self, key_event):
@@ -246,8 +235,7 @@ class ColormapWidget(QWidget):
         for i in range(len(self.vals)-1):
             patch = qc.QRect(qc.QPoint(rect.left(), yvals[i]),
                              qc.QPoint(rect.right(), yvals[i+1]))
-            painter.save()
-            painter.restore()
+        painter.end()
 
     def sizeHint(self):
         return qc.QSize(100, 400)
@@ -541,13 +529,15 @@ class Polyline():
         painter.restore()
 
 
-class PColormesh(PlotBase):
+class PColormesh(PlotWidgetBase):
+    '''
+    2D array. Currently, opengl is not supported.'''
     def __init__(self, img, x, y, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.img = img
         self.x = x
         self.y = y
         self.rect = None
+        self.img = img
 
     def draw(self, painter, xproj, yproj, rect=None):
         painter.drawImage(rect, self.img)
