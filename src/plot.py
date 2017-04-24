@@ -525,6 +525,7 @@ class Polyline():
 
         painter.save()
         painter.setPen(self.pen)
+        painter.setRenderHint(qg.QPainter.Antialiasing)
         painter.drawPolyline(qpoints)
         painter.restore()
 
