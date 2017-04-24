@@ -171,54 +171,69 @@ class MenuWidget(QFrame):
         layout.addWidget(self.play_button, 0, 1)
 
         self.pause_button = QPushButton('Pause')
-        layout.addWidget(self.pause_button, 0, 2)
+        layout.addWidget(self.pause_button, 1, 0)
 
         self.save_as_button = QPushButton('Save as')
-        layout.addWidget(self.save_as_button, 0, 3)
+        layout.addWidget(self.save_as_button, 1, 1)
 
         layout.addWidget(QLabel('Confidence Threshold'), 4, 0)
         self.noise_thresh_slider = QSlider()
         self.noise_thresh_slider.setRange(0, 15)
         self.noise_thresh_slider.setTickPosition(QSlider.TicksBelow)
         self.noise_thresh_slider.setOrientation(qc.Qt.Horizontal)
+        self.noise_thresh_slider.valueChanged.connect(
+            lambda x: self.noise_thresh_label.setText(str(x/10.))
+        )
         layout.addWidget(self.noise_thresh_slider, 4, 1)
 
         self.noise_thresh_label = QLabel('')
         layout.addWidget(self.noise_thresh_label, 4, 2)
 
-        layout.addWidget(QLabel('Gain'), 5, 0)
+        layout.addWidget(QLabel('Derivative Filter'), 5, 0)
+        self.derivative_filter_slider = QSlider()
+        self.derivative_filter_slider.setRange(0., 10000.)
+        self.derivative_filter_slider.setValue(1000.)
+        self.derivative_filter_slider.setOrientation(qc.Qt.Horizontal)
+        layout.addWidget(self.derivative_filter_slider, 5, 1)
+        derivative_filter_label = QLabel('')
+        layout.addWidget(derivative_filter_label, 5, 2)
+        self.derivative_filter_slider.valueChanged.connect(
+            lambda x: derivative_filter_label.setText(str(x))
+        )
+
+        layout.addWidget(QLabel('Gain'), 6, 0)
         self.sensitivity_slider = QSlider()
         self.sensitivity_slider.setRange(1000., 500000.)
         self.sensitivity_slider.setValue(100000.)
         self.sensitivity_slider.setOrientation(qc.Qt.Horizontal)
-        layout.addWidget(self.sensitivity_slider, 5, 1)
+        layout.addWidget(self.sensitivity_slider, 6, 1)
 
-        layout.addWidget(QLabel('Select Algorithm'), 6, 0)
+        layout.addWidget(QLabel('Select Algorithm'), 7, 0)
         self.select_algorithm = QComboBox(self)
-        layout.addWidget(self.select_algorithm, 6, 1)
+        layout.addWidget(self.select_algorithm, 7, 1)
 
-        layout.addWidget(QLabel('Traces'), 7, 0)
+        layout.addWidget(QLabel('Traces'), 8, 0)
         self.box_show_traces = QCheckBox()
-        layout.addWidget(self.box_show_traces, 7, 1)
+        layout.addWidget(self.box_show_traces, 8, 1)
 
-        layout.addWidget(QLabel('Spectrogram'), 8, 0)
+        layout.addWidget(QLabel('Spectrogram'), 9, 0)
         self.box_show_spectrograms = QCheckBox()
-        layout.addWidget(self.box_show_spectrograms, 8, 1)
+        layout.addWidget(self.box_show_spectrograms, 9, 1)
 
         self.freq_box = FloatQLineEdit(self)
-        layout.addWidget(QLabel('Standard Frequency'), 9, 0)
-        layout.addWidget(self.freq_box, 9, 1)
+        layout.addWidget(QLabel('Standard Frequency'), 10, 0)
+        layout.addWidget(self.freq_box, 10, 1)
 
-        layout.addWidget(QLabel('Spectral type'), 10, 0)
+        layout.addWidget(QLabel('Spectral type'), 11, 0)
         select_spectral_type = QComboBox(self)
-        layout.addWidget(select_spectral_type, 10, 1)
+        layout.addWidget(select_spectral_type, 11, 1)
 
         for stype in ['log', 'linear', 'pitch']:
             select_spectral_type.addItem(stype)
         select_spectral_type.currentTextChanged.connect(
             self.on_spectrum_type_select)
 
-        layout.addItem(QSpacerItem(40, 20), 10, 1, qc.Qt.AlignTop)
+        layout.addItem(QSpacerItem(40, 20), 11, 1, qc.Qt.AlignTop)
 
         self.setFrameStyle(QFrame.Sunken)
         self.setLineWidth(1)
@@ -248,15 +263,9 @@ class MenuWidget(QFrame):
     def on_spectrum_type_select(self, arg):
         self.spectrum_type_selected.emit(arg)
 
-    @qc.pyqtSlot(int)
-    def update_noise_thresh_label(self, arg):
-        self.noise_thresh_label.setText(str(arg/10.))
-
     def connect_to_confidence_threshold(self, widget):
         self.noise_thresh_slider.valueChanged.connect(
             widget.on_confidence_threshold_changed)
-        self.noise_thresh_slider.valueChanged.connect(
-            self.update_noise_thresh_label)
         self.noise_thresh_slider.setValue(widget.confidence_threshold*10)
 
     def connect_channel_views(self, channel_views):
@@ -638,6 +647,11 @@ class DifferentialPitchWidget(QWidget):
         self.right_click_menu.addAction(action)
         self.__want_minor_grid = True
         self.set_grids(100)
+        self.derivative_filter = 2000    # pitch/seconds
+
+    @qc.pyqtSlot(int)
+    def on_derivative_filter_changed(self, max_derivative):
+        self.derivative_filter = max_derivative
 
     @qc.pyqtSlot(QAction)
     def on_tick_increment_select(self, action):
@@ -674,6 +688,14 @@ class DifferentialPitchWidget(QWidget):
         else:
             self.figure.grids = [self.grid_major]
 
+    def index_gradient_filter(self, x, y, max_gradient):
+        ''' Get index where the abs gradient of x, y is < max_gradient.'''
+        return num.where(num.abs(num.diff(y)/num.diff(x)) < max_gradient)
+
+    def gradient_filter(self, x, y, max_gradient):
+        i_accept = self.index_gradient_filter(x, y, max_gradient)
+        return x[i_accept], y[i_accept]
+
     @qc.pyqtSlot()
     def on_draw(self):
         for i1, cv1 in enumerate(self.channel_views):
@@ -681,13 +703,16 @@ class DifferentialPitchWidget(QWidget):
             xstart = num.min(x1)
             index1 = num.where(cv1.channel.pitch_confidence.latest_frame_data(
                 len(x1))>=cv1.confidence_threshold)
-
+            index1_grad = self.index_gradient_filter(x1, y1, self.derivative_filter)
+            index1 = num.intersect1d(index1, index1_grad)
             for i2, cv2 in enumerate(self.channel_views):
                 if i1>=i2:
                     continue
                 x2, y2 = cv2.channel.pitch.latest_frame(self.tfollow, clip_min=True)
+                index2_grad = self.index_gradient_filter(x2, y2, self.derivative_filter)
                 index2 = num.where(cv2.channel.pitch_confidence.latest_frame_data(
                     len(x2))>=cv2.confidence_threshold)
+                index2 = num.intersect1d(index2, index2_grad)
                 indices = num.intersect1d(index1, index2)
                 indices_grouped = consecutive(indices)
                 for group in indices_grouped:
@@ -926,6 +951,8 @@ class MainWidget(QWidget):
         self.tabbed_pitch_widget.addTab(self.pitch_diff_view, 'Current')
         #self.tabbed_pitch_widget.addTab(self.pitch_diff_view_colorized, 'Mikado')
 
+        self.menu.derivative_filter_slider.valueChanged.connect(
+            self.pitch_view_all_diff.on_derivative_filter_changed)
         self.menu.connect_channel_views(self.channel_views_widget)
 
         self.signal_widgets_clear.connect(self.pitch_view.on_clear)
