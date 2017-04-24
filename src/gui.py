@@ -694,9 +694,9 @@ class DifferentialPitchWidget(QWidget):
                     y = y1[group] - y2[group]
                     x = x1[group]
                     self.figure.plot(
-                        x, y, style='solid', line_width=4, color=cv1.color)
+                        x, y, style='solid', line_width=4, color=cv1.color, antialiasing=False)
                     self.figure.plot(
-                        x, y, style=':', line_width=4, color=cv2.color)
+                        x, y, style=':', line_width=4, color=cv2.color, antialiasing=False)
 
         self.figure.set_xlim(xstart, xstart+self.tfollow)
 

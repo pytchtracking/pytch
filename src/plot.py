@@ -466,7 +466,6 @@ class FixGrid(AutoGrid):
         return self.lines_v
 
 
-
 class AxHLine():
     def __init__(self, y, pen):
         self.y = y
@@ -499,14 +498,17 @@ class AxVLine():
 
 class Points():
     ''' Holds and draws data projected to screen dimensions.'''
-    def __init__(self, x, y, pen):
+    def __init__(self, x, y, pen, antialiasing=True):
         self.x = x
         self.y = y
         self.pen = pen
+        self.antialiasing = antialiasing
 
     def draw(self, painter, xproj, yproj, rect=None):
         qpoints = make_QPolygonF(xproj(self.x), yproj(self.y))
         painter.save()
+        if self.antialiasing:
+            painter.setRenderHint(qg.QPainter.Antialiasing)
         painter.setPen(self.pen)
         painter.drawPoints(qpoints)
         painter.restore()
@@ -515,17 +517,19 @@ class Points():
 
 class Polyline():
     ''' Holds and draws data projected to screen dimensions.'''
-    def __init__(self, x, y, pen):
+    def __init__(self, x, y, pen, antialiasing=True):
         self.x = x
         self.y = y
         self.pen = pen
+        self.antialiasing = antialiasing
 
     def draw(self, painter, xproj, yproj, rect=None):
         qpoints = make_QPolygonF(xproj(self.x), yproj(self.y))
 
         painter.save()
         painter.setPen(self.pen)
-        painter.setRenderHint(qg.QPainter.Antialiasing)
+        if self.antialiasing:
+            painter.setRenderHint(qg.QPainter.Antialiasing)
         painter.drawPolyline(qpoints)
         painter.restore()
 
@@ -646,7 +650,8 @@ class PlotWidget(PlotBase):
         self.title = title
 
     def plot(self, xdata=None, ydata=None, ndecimate=0,
-             style='solid', color='black', line_width=1, ignore_nan=False):
+             style='solid', color='black', line_width=1, ignore_nan=False,
+             antialiasing=True):
         ''' plot data
 
         :param *args:  ydata | xdata, ydata
@@ -678,9 +683,9 @@ class PlotWidget(PlotBase):
 
         pen = self.get_pen(color, line_width, style)
         if style == 'o':
-            self.scene_items.append(Points(x=xvisible, y=yvisible, pen=pen))
+            self.scene_items.append(Points(x=xvisible, y=yvisible, pen=pen, antialiasing=antialiasing))
         else:
-            self.scene_items.append(Polyline(x=xvisible, y=yvisible, pen=pen))
+            self.scene_items.append(Polyline(x=xvisible, y=yvisible, pen=pen, antialiasing=antialiasing))
 
         self.update_datalims(xvisible, yvisible)
 
