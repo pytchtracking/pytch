@@ -38,10 +38,12 @@ class Synthy(qc.QObject):
         factor = float(frequency) * (math.pi * 2) / rate
         return num.sin(num.arange(length) * factor)
 
-
     def play_tone(self, frequency=440, length=1., rate=44100):
         chunks = []
-        chunks.append(self.sine(frequency, length, rate))
+        y = num.zeros(int(length*rate))
+        for i in range(3):
+            y += (self.sine(frequency*(i+1), length, rate) / (i+1))
+        chunks.append(y)
         chunk = num.concatenate(chunks) * 0.25
         self.stream.write(chunk.astype(num.float32).tostring())
 
