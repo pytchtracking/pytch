@@ -581,7 +581,7 @@ class PitchWidget(QWidget):
         save_as_action.triggered.connect(self.on_save_as)
         self.right_click_menu.addAction(save_as_action)
         self.track_start = None
-        self.tfollow = 2.
+        self.tfollow = 3.
         self.setContentsMargins(-10, -10, -10, -10)
 
         layout.addWidget(self.figure)
@@ -674,7 +674,6 @@ class DifferentialPitchWidget(QWidget):
         self.setLayout(layout)
         self.figure = PlotWidget()
         self.figure.set_ylim(-1500., 1500)
-        self.tfollow = 10
 
         layout.addWidget(self.figure)
         self.right_click_menu = QMenu('Tick Settings', self)
@@ -695,7 +694,7 @@ class DifferentialPitchWidget(QWidget):
     @qc.pyqtSlot()
     def on_draw(self):
         for i1, cv1 in enumerate(self.channel_views):
-            x1, y1 = cv1.channel.pitch.latest_frame(self.tfollow, clip_min=True)
+            x1, y1 = cv1.channel.pitch.latest_frame(tfollow, clip_min=True)
             xstart = num.min(x1)
             index1 = num.where(cv1.channel.pitch_confidence.latest_frame_data(
                 len(x1))>=cv1.confidence_threshold)
@@ -704,7 +703,7 @@ class DifferentialPitchWidget(QWidget):
             for i2, cv2 in enumerate(self.channel_views):
                 if i1>=i2:
                     continue
-                x2, y2 = cv2.channel.pitch.latest_frame(self.tfollow, clip_min=True)
+                x2, y2 = cv2.channel.pitch.latest_frame(tfollow, clip_min=True)
                 index2_grad = index_gradient_filter(x2, y2, self.derivative_filter)
                 index2 = num.where(cv2.channel.pitch_confidence.latest_frame_data(
                     len(x2))>=cv2.confidence_threshold)
@@ -719,7 +718,7 @@ class DifferentialPitchWidget(QWidget):
                     self.figure.plot(
                         x, y, style=':', line_width=4, color=cv2.color, antialiasing=False)
 
-        self.figure.set_xlim(xstart, xstart+self.tfollow)
+        self.figure.set_xlim(xstart, xstart+tfollow)
 
         # update needed on OSX
         self.figure.update()
