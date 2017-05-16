@@ -54,6 +54,11 @@ def consecutive(arr):
     return num.split(arr, num.where(num.diff(arr) != 1)[0]+1)
 
 
+def index_gradient_filter(x, y, max_gradient):
+    ''' Get index where the abs gradient of x, y is < max_gradient.'''
+    return num.where(num.abs(num.diff(y)/num.diff(x)) < max_gradient)
+
+
 def smooth(x,window_len=11,window='hanning'):
     """
     from http://scipy-cookbook.readthedocs.io/items/SignalSmooth.html

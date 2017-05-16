@@ -8,7 +8,7 @@ from pytch.two_channel_tuner import Worker
 from pytch.data import MicrophoneRecorder, getaudiodevices, pitch_algorithms
 from pytch.gui_util import FloatQLineEdit
 from pytch.gui_util import make_QPolygonF, _color_names, _colors # noqa
-from pytch.util import consecutive, f2cent, cent2f
+from pytch.util import consecutive, f2cent, cent2f, index_gradient_filter
 from pytch.plot import PlotWidget, GaugeWidget, MikadoWidget, FixGrid, PColormesh
 from pytch.keyboard import KeyBoard
 
@@ -566,7 +566,6 @@ class PitchWidget(QWidget):
         self.setLayout(layout)
         self.figure = PlotWidget()
         self.figure.set_ylim(-1500., 1500)
-        #self.figure.grids = [FixGrid(delta=100.)]
         self.right_click_menu = QMenu('Tick Settings', self)
         self.right_click_menu.triggered.connect(
             self.figure.on_tick_increment_select)
@@ -577,8 +576,6 @@ class PitchWidget(QWidget):
         self.right_click_menu.addAction(action)
         self.figure.set_grids(100.)
 
-        #self.right_click_menu = QMenu('Save pitches', self)
-        #self.right_click_menu.triggered.connect(self.on_save_as)
         save_as_action = QAction('Save pitches', self.right_click_menu)
         save_as_action.triggered.connect(self.on_save_as)
         self.right_click_menu.addAction(save_as_action)
@@ -594,9 +591,15 @@ class PitchWidget(QWidget):
             x, y = cv.channel.pitch.latest_frame(
                 self.tfollow, clip_min=True)
             index = num.where(cv.channel.pitch_confidence.latest_frame_data(
-                len(x))>=cv.confidence_threshold)
-            self.figure.plot(x[index], y[index], style='o', line_width=4,
-                             color=cv.color)
+                len(x))>=cv.confidence_threshold)[0]
+            # TODO: attach filter 2000 to slider
+            index_grad = index_gradient_filter(x, y, 2000)
+            index = num.intersect1d(index, index_grad)
+            indices_grouped = consecutive(index)
+            for group in indices_grouped:
+                self.figure.plot(
+                    x[group], y[group], color=cv.color, line_width=4)
+
             xstart = num.min(x)
             self.figure.set_xlim(xstart, xstart+self.tfollow)
         self.figure.update()
@@ -688,14 +691,6 @@ class DifferentialPitchWidget(QWidget):
     def on_derivative_filter_changed(self, max_derivative):
         self.derivative_filter = max_derivative
 
-    def index_gradient_filter(self, x, y, max_gradient):
-        ''' Get index where the abs gradient of x, y is < max_gradient.'''
-        return num.where(num.abs(num.diff(y)/num.diff(x)) < max_gradient)
-
-    def gradient_filter(self, x, y, max_gradient):
-        i_accept = self.index_gradient_filter(x, y, max_gradient)
-        return x[i_accept], y[i_accept]
-
     @qc.pyqtSlot()
     def on_draw(self):
         for i1, cv1 in enumerate(self.channel_views):
@@ -703,13 +698,13 @@ class DifferentialPitchWidget(QWidget):
             xstart = num.min(x1)
             index1 = num.where(cv1.channel.pitch_confidence.latest_frame_data(
                 len(x1))>=cv1.confidence_threshold)
-            index1_grad = self.index_gradient_filter(x1, y1, self.derivative_filter)
+            index1_grad = index_gradient_filter(x1, y1, self.derivative_filter)
             index1 = num.intersect1d(index1, index1_grad)
             for i2, cv2 in enumerate(self.channel_views):
                 if i1>=i2:
                     continue
                 x2, y2 = cv2.channel.pitch.latest_frame(self.tfollow, clip_min=True)
-                index2_grad = self.index_gradient_filter(x2, y2, self.derivative_filter)
+                index2_grad = index_gradient_filter(x2, y2, self.derivative_filter)
                 index2 = num.where(cv2.channel.pitch_confidence.latest_frame_data(
                     len(x2))>=cv2.confidence_threshold)
                 index2 = num.intersect1d(index2, index2_grad)
