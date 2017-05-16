@@ -8,7 +8,7 @@ import pyaudio
 from scipy.io import wavfile
 from aubio import pitch
 from pytch.kalman import Kalman
-from pytch.util import f2cent
+from pytch.util import f2cent, cent2f
 
 
 _lock = threading.Lock()
@@ -277,6 +277,9 @@ class Channel(RingBuffer):
     def pitch_proxy(self, data):
         return f2cent(data, self.standard_frequency) + self.pitch_shift
 
+    def undo_pitch_proxy(self, data):
+        return cent2f(data-self.pitch_shift, self.standard_frequency)
+
     def update(self):
         nfft = (int(self.fftsize), self.delta)
         self.freqs = num.fft.rfftfreq(*nfft)
@@ -326,7 +329,6 @@ class Channel(RingBuffer):
         self.setup_pitch()
 
     def get_latest_pitch(self):
-        #return f2cent(self.pitch.latest_frame_data(1), standard_frequency)
         return self.pitch.latest_frame_data(1)
 
     def setup_pitch(self):

@@ -487,8 +487,9 @@ class ChannelView(QWidget):
                 color=self.color, ignore_nan=True)
         confidence = c.pitch_confidence.latest_frame_data(1)
         if confidence > self.confidence_threshold:
-            x = c.get_latest_pitch()
-            self.spectrum.axvline(cent2f(x, c.standard_frequency))
+            x = c.undo_pitch_proxy(c.get_latest_pitch())
+            self.spectrum.axvline(x)
+
         if self.freq_keyboard:
             self.spectrum.axvline(
                 self.freq_keyboard, color='aluminium4', style='dashed',
