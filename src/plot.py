@@ -8,7 +8,7 @@ from pytch.gui_util import make_QPolygonF, _color_names, _colors, _pen_styles   
 
 from PyQt5 import QtCore as qc
 from PyQt5 import QtGui as qg
-from PyQt5.QtWidgets import QWidget, QSizePolicy, QApplication
+from PyQt5.QtWidgets import QWidget, QSizePolicy, QApplication, QAction
 
 
 d2r = num.pi/180.
@@ -592,6 +592,8 @@ class PlotWidget(PlotBase):
 
         self.clear()
         self.grids = [AutoGrid()]
+        self.__want_minor_grid = True
+
         self.yscaler = AutoScaler(
             no_exp_interval=(-3, 2), approx_ticks=5,
             snap=True
@@ -837,6 +839,39 @@ class PlotWidget(PlotBase):
     def draw_labels(self, painter):
         self.setup_annotation_boxes()
         painter.drawText(self.x_annotation_rect, qc.Qt.AlignCenter, 'Time')
+
+    @qc.pyqtSlot(QAction)
+    def on_tick_increment_select(self, action):
+        action_text = action.text()
+        if action_text == 'Minor ticks':
+            self.want_minor_grid = action.isChecked()
+        else:
+            val = int(action.text())
+            self.set_grids(val)
+
+    @property
+    def want_minor_grid(self):
+        return self.__want_minor_grid
+
+    @want_minor_grid.setter
+    def want_minor_grid(self, _bool):
+        self.__want_minor_grid = _bool
+        if _bool:
+            self.grids = [self.grid_major, self.grid_minor]
+        else:
+            self.grids = [self.grid_major]
+
+    def set_grids(self, minor_value):
+        self.grid_major = FixGrid(
+            minor_value*5, pen_color='aluminium2', style='solid')
+        self.grid_minor = FixGrid(minor_value)
+        self.set_ytick_increment(minor_value*5)
+
+        if self.want_minor_grid:
+            self.grids = [self.grid_major, self.grid_minor]
+        else:
+            self.grids = [self.grid_major]
+
 
     #def mousePressEvent(self, mouse_ev):
     #    point = self.mapFromGlobal(mouse_ev.globalPos())

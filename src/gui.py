@@ -220,20 +220,24 @@ class MenuWidget(QFrame):
         self.box_show_spectrograms = QCheckBox()
         layout.addWidget(self.box_show_spectrograms, 9, 1)
 
-        self.freq_box = FloatQLineEdit(self)
-        layout.addWidget(QLabel('Standard Frequency'), 10, 0)
+        self.freq_box = FloatQLineEdit(parent=self, default=220)
+        layout.addWidget(QLabel('Standard Frequency [Hz]'), 10, 0)
         layout.addWidget(self.freq_box, 10, 1)
 
-        layout.addWidget(QLabel('Spectral type'), 11, 0)
+        self.pitch_shift_box = FloatQLineEdit(parent=self, default='0.')
+        layout.addWidget(QLabel('Pitch Shift [Cent]'), 11, 0)
+        layout.addWidget(self.pitch_shift_box, 11, 1)
+
+        layout.addWidget(QLabel('Spectral type'), 12, 0)
         select_spectral_type = QComboBox(self)
-        layout.addWidget(select_spectral_type, 11, 1)
+        layout.addWidget(select_spectral_type, 12, 1)
 
         for stype in ['log', 'linear', 'pitch']:
             select_spectral_type.addItem(stype)
         select_spectral_type.currentTextChanged.connect(
             self.on_spectrum_type_select)
 
-        layout.addItem(QSpacerItem(40, 20), 11, 1, qc.Qt.AlignTop)
+        layout.addItem(QSpacerItem(40, 20), 12, 1, qc.Qt.AlignTop)
 
         self.setFrameStyle(QFrame.Sunken)
         self.setLineWidth(1)
@@ -281,6 +285,9 @@ class MenuWidget(QFrame):
 
         self.freq_box.accepted_value.connect(
             channel_views.on_standard_frequency_changed)
+
+        self.pitch_shift_box.accepted_value.connect(
+            channel_views.on_pitch_shift_changed)
 
         #self.freq_box.setText(str(channel_views.standard_frequency))
 
@@ -334,6 +341,11 @@ class ChannelViews(QWidget):
     def on_standard_frequency_changed(self, f):
         for cv in self.channel_views:
             cv.on_standard_frequency_changed(f)
+
+    @qc.pyqtSlot(float)
+    def on_pitch_shift_changed(self, f):
+        for cv in self.channel_views:
+            cv.on_pitch_shift_changed(f)
 
 
 class SpectrogramWidget(PlotWidget):
@@ -492,8 +504,12 @@ class ChannelView(QWidget):
         self.confidence_threshold = threshold/10.
 
     @qc.pyqtSlot(float)
-    def on_standard_frequency_changed(self, f=1):
+    def on_standard_frequency_changed(self, f):
         self.channel.standard_frequency = f
+
+    @qc.pyqtSlot(float)
+    def on_pitch_shift_changed(self, shift):
+        self.channel.pitch_shift = shift
 
     def show_trace_widget(self, show=True):
         self.trace_widget.setVisible(show)
@@ -550,9 +566,19 @@ class PitchWidget(QWidget):
         self.setLayout(layout)
         self.figure = PlotWidget()
         self.figure.set_ylim(-1500., 1500)
-        self.figure.grids = [FixGrid(delta=100.)]
-        self.right_click_menu = QMenu('Save pitches', self)
-        self.right_click_menu.triggered.connect(self.on_save_as)
+        #self.figure.grids = [FixGrid(delta=100.)]
+        self.right_click_menu = QMenu('Tick Settings', self)
+        self.right_click_menu.triggered.connect(
+            self.figure.on_tick_increment_select)
+        set_tick_choices(self.right_click_menu, default=100)
+        action = QAction('Minor ticks', self.right_click_menu)
+        action.setCheckable(True)
+        action.setChecked(True)
+        self.right_click_menu.addAction(action)
+        self.figure.set_grids(100.)
+
+        #self.right_click_menu = QMenu('Save pitches', self)
+        #self.right_click_menu.triggered.connect(self.on_save_as)
         save_as_action = QAction('Save pitches', self.right_click_menu)
         save_as_action.triggered.connect(self.on_save_as)
         self.right_click_menu.addAction(save_as_action)
@@ -622,6 +648,17 @@ class PitchWidget(QWidget):
     #        #self.figure.set_ylim(ymin+dy*10, ymax+dy*10)
     #        self.update()
 
+    @qc.pyqtSlot(qg.QMouseEvent)
+    def mousePressEvent(self, mouse_ev):
+        if mouse_ev.button() == qc.Qt.RightButton:
+            self.right_click_menu.exec_(qg.QCursor.pos())
+        else:
+            try:
+                QWidget.mousePressEvent(mouse_ev)
+            except TypeError as e:
+                logger.warn(e)
+
+
 
 class DifferentialPitchWidget(QWidget):
     ''' Diffs as line'''
@@ -638,54 +675,18 @@ class DifferentialPitchWidget(QWidget):
         layout.addWidget(self.figure)
         self.right_click_menu = QMenu('Tick Settings', self)
         self.right_click_menu.triggered.connect(
-            self.on_tick_increment_select)
-        set_choices_grouped(self.right_click_menu, default=100)
+            self.figure.on_tick_increment_select)
+        set_tick_choices(self.right_click_menu, default=100)
         action = QAction('Minor ticks', self.right_click_menu)
         action.setCheckable(True)
         action.setChecked(True)
         self.right_click_menu.addAction(action)
-        self.__want_minor_grid = True
-        self.set_grids(100)
+        self.figure.set_grids(100)
         self.derivative_filter = 2000    # pitch/seconds
 
     @qc.pyqtSlot(int)
     def on_derivative_filter_changed(self, max_derivative):
         self.derivative_filter = max_derivative
-
-    @qc.pyqtSlot(QAction)
-    def on_tick_increment_select(self, action):
-        action_text = action.text()
-        if action_text == 'Minor ticks':
-            if action.isChecked():
-                self.want_minor_grid = True
-            else:
-                self.want_minor_grid = False
-        else:
-            val = int(action.text())
-            self.set_grids(val)
-
-    @property
-    def want_minor_grid(self):
-        return self.__want_minor_grid
-
-    @want_minor_grid.setter
-    def want_minor_grid(self, _bool):
-        self.__want_minor_grid = _bool
-        if _bool:
-            self.figure.grids = [self.grid_major, self.grid_minor]
-        else:
-            self.figure.grids = [self.grid_major]
-
-    def set_grids(self, minor_value):
-        self.grid_major = FixGrid(
-            minor_value*5, pen_color='aluminium2', style='solid')
-        self.grid_minor = FixGrid(minor_value)
-        self.figure.set_ytick_increment(minor_value*5)
-
-        if self.want_minor_grid:
-            self.figure.grids = [self.grid_major, self.grid_minor]
-        else:
-            self.figure.grids = [self.grid_major]
 
     def index_gradient_filter(self, x, y, max_gradient):
         ''' Get index where the abs gradient of x, y is < max_gradient.'''
@@ -744,7 +745,7 @@ class DifferentialPitchWidget(QWidget):
         self.figure.clear()
 
 
-def set_choices_grouped(menu, default=20):
+def set_tick_choices(menu, default=20):
     group = QActionGroup(menu)
     group.setExclusive(True)
     for tick_increment in [10, 20, 50, 100]:
@@ -772,7 +773,7 @@ class PitchLevelDifferenceViews(QWidget):
         self.right_click_menu = QMenu('Tick Settings', self)
         self.right_click_menu.triggered.connect(
             self.on_tick_increment_select)
-        set_choices_grouped(self.right_click_menu)
+        set_tick_choices(self.right_click_menu)
 
         for i1, cv1 in enumerate(self.channel_views):
             for i2, cv2 in enumerate(self.channel_views):

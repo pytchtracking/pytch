@@ -272,9 +272,10 @@ class Channel(RingBuffer):
         Q = 1e-6
         self.kalman_pitch_filter = Kalman(P, R, Q)
         self.standard_frequency = 220.
+        self.pitch_shift = 0.
 
     def pitch_proxy(self, data):
-        return f2cent(data, self.standard_frequency)
+        return f2cent(data, self.standard_frequency) + self.pitch_shift
 
     def update(self):
         nfft = (int(self.fftsize), self.delta)

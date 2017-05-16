@@ -349,7 +349,7 @@ def minmax_decimation(d, ndecimate):
 class FloatQLineEdit(qw.QLineEdit):
     accepted_value = qc.pyqtSignal(float)
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, default=None, *args, **kwargs):
         qw.QLineEdit.__init__(self, *args, **kwargs)
         self.setValidator(qg.QDoubleValidator())
         self.setFocusPolicy(qc.Qt.ClickFocus|qc.Qt.TabFocus)
@@ -357,6 +357,8 @@ class FloatQLineEdit(qw.QLineEdit):
         p = self.parent()
         if p:
             self.returnPressed.connect(p.setFocus)
+        if default:
+            self.setText(str(default))
 
     def check(self):
         self.accepted_value.emit(float(self.text()))
