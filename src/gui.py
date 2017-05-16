@@ -8,7 +8,7 @@ from pytch.two_channel_tuner import Worker
 from pytch.data import MicrophoneRecorder, getaudiodevices, pitch_algorithms
 from pytch.gui_util import FloatQLineEdit
 from pytch.gui_util import make_QPolygonF, _color_names, _colors # noqa
-from pytch.util import consecutive, f2pitch, pitch2f
+from pytch.util import consecutive, f2cent, cent2f
 from pytch.plot import PlotWidget, GaugeWidget, MikadoWidget, FixGrid, PColormesh
 from pytch.keyboard import KeyBoard
 
@@ -282,7 +282,7 @@ class MenuWidget(QFrame):
         self.freq_box.accepted_value.connect(
             channel_views.on_standard_frequency_changed)
 
-        self.freq_box.setText(str(channel_views.standard_frequency))
+        #self.freq_box.setText(str(channel_views.standard_frequency))
 
         for cv in channel_views.channel_views:
             self.spectrum_type_selected.connect(cv.on_spectrum_type_select)
@@ -301,7 +301,7 @@ class ChannelViews(QWidget):
         self.channel_views = channel_views
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
-        self.standard_frequency = _standard_frequency
+        #self.standard_frequency = _standard_frequency
 
         for c_view in self.channel_views:
             self.layout.addWidget(c_view)
@@ -407,7 +407,7 @@ class ChannelView(QWidget):
         self.plot_spectrum = self.spectrum.plotlog
 
         self.fft_smooth_factor = 4
-        self.standard_frequency = _standard_frequency
+        #self.standard_frequency = _standard_frequency
 
         layout.addWidget(self.trace_widget)
         layout.addWidget(self.spectrum)
@@ -472,12 +472,11 @@ class ChannelView(QWidget):
         d = c.fft.latest_frame_data(self.fft_smooth_factor)
         self.plot_spectrum(
                 c.freqs, num.mean(d, axis=0), ndecimate=2,
-                #f2pitch(c.freqs, self.standard_frequency), num.mean(d, axis=0), ndecimate=2,
                 color=self.color, ignore_nan=True)
         confidence = c.pitch_confidence.latest_frame_data(1)
         if confidence > self.confidence_threshold:
-            x = c.get_latest_pitch(self.standard_frequency)
-            self.spectrum.axvline(pitch2f(x, _standard_frequency))
+            x = c.get_latest_pitch()
+            self.spectrum.axvline(cent2f(x, c.standard_frequency))
         if self.freq_keyboard:
             self.spectrum.axvline(
                 self.freq_keyboard, color='aluminium4', style='dashed',
@@ -494,7 +493,7 @@ class ChannelView(QWidget):
 
     @qc.pyqtSlot(float)
     def on_standard_frequency_changed(self, f=1):
-        self.standard_frequency = f
+        self.channel.standard_frequency = f
 
     def show_trace_widget(self, show=True):
         self.trace_widget.setVisible(show)
@@ -521,7 +520,7 @@ class ChannelView(QWidget):
             self.spectrum.set_xlim(0, 2000)
         elif arg == 'pitch':
             def plot_pitch(*args, **kwargs):
-                f = f2pitch(args[0], _standard_frequency)
+                f = f2cent(args[0], _standard_frequency)
                 self.spectrum.plot(f, *args[1:], **kwargs)
 
             self.plot_spectrum = plot_pitch
@@ -767,6 +766,9 @@ class PitchLevelDifferenceViews(QWidget):
         self.widgets = []
         ylim = (-1500, 1500.)
 
+        # TODO add slider
+        self.naverage = 7
+
         self.right_click_menu = QMenu('Tick Settings', self)
         self.right_click_menu.triggered.connect(
             self.on_tick_increment_select)
@@ -799,14 +801,13 @@ class PitchLevelDifferenceViews(QWidget):
 
     @qc.pyqtSlot()
     def on_draw(self):
-        naverage = 3
         for cv1, cv2, w in self.widgets:
-            confidence1 = cv1.channel.pitch_confidence.latest_frame_data(naverage)
-            confidence2 = cv2.channel.pitch_confidence.latest_frame_data(naverage)
+            confidence1 = cv1.channel.pitch_confidence.latest_frame_data(self.naverage)
+            confidence2 = cv2.channel.pitch_confidence.latest_frame_data(self.naverage)
             if all(confidence1>cv1.confidence_threshold) and all(confidence2>cv2.confidence_threshold):
-                d1 = cv1.channel.pitch.latest_frame_data(naverage)
-                d2 = cv2.channel.pitch.latest_frame_data(naverage)
-                w.set_data(num.mean(d1)-num.mean(d2))
+                d1 = cv1.channel.pitch.latest_frame_data(self.naverage)
+                d2 = cv2.channel.pitch.latest_frame_data(self.naverage)
+                w.set_data(num.median(d1-d2))
             else:
                 w.set_data(None)
             w.repaint()

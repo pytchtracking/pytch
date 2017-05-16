@@ -2,11 +2,11 @@
 
 import numpy as num
 
-from pytch.util import f2pitch
+#from pytch.util import f2pitch
 
 import logging
 
-_standard_frequency = 220.
+#_standard_frequency = 220.
 logger = logging.getLogger(__name__)
 
 
@@ -36,8 +36,9 @@ class Worker():
 
             channel.pitch_confidence.append_value(
                 channel.pitch_o.get_confidence())
-            channel.pitch.append_value(f2pitch(channel.pitch_o(
-                frame_work)[0], _standard_frequency))
+            #channel.pitch.append_value(f2pitch(channel.pitch_o(
+            channel.pitch.append_value(channel.pitch_o(
+                frame_work)[0])
 
         logger.debug('finished processing')
 

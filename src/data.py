@@ -8,6 +8,7 @@ import pyaudio
 from scipy.io import wavfile
 from aubio import pitch
 from pytch.kalman import Kalman
+from pytch.util import f2cent
 
 
 _lock = threading.Lock()
@@ -69,16 +70,19 @@ class Buffer():
 
     new data is prepended, so that the latest data point is in self.data[0]'''
     def __init__(self, sampling_rate, buffer_length_seconds, dtype=num.float32,
-                 tmin=0):
+                 tmin=0, proxy=None):
         self.tmin = tmin
         self.tmax = self.tmin + buffer_length_seconds
         self.sampling_rate = sampling_rate
         self.data_len = int(buffer_length_seconds * sampling_rate)
         self.dtype = dtype
         self.empty()
-
         self.i_filled = 0
         self._x = num.arange(self.data_len, dtype=self.dtype) * self.delta + self.tmin
+        self.proxy = self._proxy if not proxy else proxy
+
+    def _proxy(self, data):
+        return data
 
     def empty(self):
         self.data = num.empty((int(self.data_len)),
@@ -93,7 +97,7 @@ class Buffer():
             try:
                 from pyrocko import trace, io
             except ImportError as e:
-                logger.warn('no pyrocko installation found!')
+                logger.warn('%e \n no pyrocko installation found!' % e)
                 return
 
             tr = trace.Trace(tmin=self.tmin, deltat=self.deltat, ydata=self.ydata)
@@ -115,7 +119,7 @@ class Buffer():
 
     @property
     def ydata(self):
-        return self.data[:self.i_filled]
+        return self.proxy(self.data[:self.i_filled])
 
     @property
     def xdata(self):
@@ -132,12 +136,11 @@ class Buffer():
     def latest_frame(self, seconds):
         ''' Return the latest *seconds* data from buffer as x and y data tuple.'''
         istart, istop = self.latest_indices(seconds)
-        return (self._x[istart: istop], self.data[istart: istop])
+        return (self._x[istart: istop], self.proxy(self.data[istart: istop]))
 
     def latest_frame_data(self, n):
         ''' Return the latest n samples data from buffer as array.'''
-        
-        return self.data[max(self.i_filled-n, 0): self.i_filled]
+        return self.proxy(self.data[max(self.i_filled-n, 0): self.i_filled])
 
     def append(self, d):
         ''' Append data frame *d* to Buffer'''
@@ -187,11 +190,13 @@ class RingBuffer(Buffer):
 
     def latest_frame_data(self, n):
         ''' Return the latest n samples data from buffer as array.'''
-        return num.take(self.data,
+        return self.proxy(
+            num.take(self.data,
                         num.arange(
                             self.i_filled - n, self.i_filled),
                         mode='wrap', axis=0)
-        
+        )
+
     def latest_frame(self, seconds, clip_min=False):
         ''' Return the latest *seconds* data from buffer as x and y data tuple.'''
         istart, istop = self.latest_indices(seconds)
@@ -202,6 +207,7 @@ class RingBuffer(Buffer):
         else:
             istart = 0
         return (x[istart:], self.latest_frame_data(n-istart))
+
 
 class RingBuffer2D(RingBuffer):
     def __init__(self, ndimension2, *args, **kwargs):
@@ -265,6 +271,10 @@ class Channel(RingBuffer):
         R = 0.01**2
         Q = 1e-6
         self.kalman_pitch_filter = Kalman(P, R, Q)
+        self.standard_frequency = 220.
+
+    def pitch_proxy(self, data):
+        return f2cent(data, self.standard_frequency)
 
     def update(self):
         nfft = (int(self.fftsize), self.delta)
@@ -282,7 +292,8 @@ class Channel(RingBuffer):
             buffer_length_seconds=self.buffer_length_seconds)
         self.pitch = RingBuffer(
             sampling_rate=sr,
-            buffer_length_seconds=self.sampling_rate*self.buffer_length_seconds/self.fftsize)
+            buffer_length_seconds=self.sampling_rate*self.buffer_length_seconds/self.fftsize,
+            proxy=self.pitch_proxy)
         self.pitch_confidence = RingBuffer(
             sampling_rate=sr,
             buffer_length_seconds=self.sampling_rate*self.buffer_length_seconds/self.fftsize)
@@ -313,8 +324,8 @@ class Channel(RingBuffer):
         self.update()
         self.setup_pitch()
 
-    def get_latest_pitch(self, standard_frequency):
-        #return f2pitch(self.pitch.latest_frame_data(1), standard_frequency)
+    def get_latest_pitch(self):
+        #return f2cent(self.pitch.latest_frame_data(1), standard_frequency)
         return self.pitch.latest_frame_data(1)
 
     def setup_pitch(self):

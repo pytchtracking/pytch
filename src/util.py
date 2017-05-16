@@ -10,11 +10,11 @@ def dummy():
     return
 
 
-def f2pitch(f, standard_frequency):
-    return 1200. * num.log2((f + .1)/standard_frequency)
+def f2cent(f, standard_frequency):
+    return 1200. * num.log2((num.maximum(f, 0.) + .1)/standard_frequency)
 
 
-def pitch2f(p, standard_frequency):
+def cent2f(p, standard_frequency):
     return num.exp2(p/1200.) * standard_frequency - 0.1
 
 
