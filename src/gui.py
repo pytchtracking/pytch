@@ -798,11 +798,12 @@ class PitchLevelDifferenceViews(QWidget):
     @qc.pyqtSlot()
     def on_draw(self):
         for cv1, cv2, w in self.widgets:
-            confidence1 = cv1.channel.pitch_confidence.latest_frame_data(self.naverage)
-            confidence2 = cv2.channel.pitch_confidence.latest_frame_data(self.naverage)
-            if all(confidence1>cv1.confidence_threshold) and all(confidence2>cv2.confidence_threshold):
-                d1 = cv1.channel.pitch.latest_frame_data(self.naverage)
-                d2 = cv2.channel.pitch.latest_frame_data(self.naverage)
+            confidence1 = num.where(cv1.channel.pitch_confidence.latest_frame_data(self.naverage)>cv1.confidence_threshold)
+            confidence2 = num.where(cv2.channel.pitch_confidence.latest_frame_data(self.naverage)>cv2.confidence_threshold)
+            confidence = num.intersect1d(confidence1, confidence2)
+            if len(confidence)>1:
+                d1 = cv1.channel.pitch.latest_frame_data(self.naverage)[confidence]
+                d2 = cv2.channel.pitch.latest_frame_data(self.naverage)[confidence]
                 w.set_data(num.median(d1-d2))
             else:
                 w.set_data(None)
