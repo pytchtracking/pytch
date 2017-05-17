@@ -566,6 +566,7 @@ class PitchWidget(QWidget):
         layout = QGridLayout()
         self.setLayout(layout)
         self.figure = PlotWidget()
+        self.figure.xlabels = False
         self.figure.set_ylim(-1500., 1500)
         self.right_click_menu = QMenu('Tick Settings', self)
         self.right_click_menu.triggered.connect(
@@ -673,6 +674,7 @@ class DifferentialPitchWidget(QWidget):
         layout = QGridLayout()
         self.setLayout(layout)
         self.figure = PlotWidget()
+        self.figure.xlabels = False
         self.figure.set_ylim(-1500., 1500)
 
         layout.addWidget(self.figure)
