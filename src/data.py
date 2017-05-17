@@ -261,7 +261,7 @@ class Channel(RingBuffer):
         self.buffer_length_seconds = 40
         RingBuffer.__init__(self, sampling_rate, self.buffer_length_seconds)
 
-        self.__pitch_algorithm = 'yinfft'
+        self.__algorithm = 'yinfft'
         self.name = ''
         self.pitch_o = None
         self.fftsize = fftsize
@@ -320,7 +320,7 @@ class Channel(RingBuffer):
 
     @property
     def pitch_algorithm(self):
-        return self.__pitch_algorithm
+        return self.__algorithm
 
     @pitch_algorithm.setter
     def pitch_algorithm(self, alg):
