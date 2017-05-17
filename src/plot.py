@@ -466,10 +466,15 @@ class FixGrid(AutoGrid):
         return self.lines_v
 
 
-class AxHLine():
-    def __init__(self, y, pen):
-        self.y = y
+class SceneItem():
+    def __init__(self, pen):
         self.pen = pen
+
+
+class AxHLine(SceneItem):
+    def __init__(self, y, pen):
+        SceneItem.__init__(self, pen=pen)
+        self.y = y
 
     def draw(self, painter, xproj, yproj, rect=None):
         xmin, xmax = xproj.get_out_range()
@@ -481,10 +486,11 @@ class AxHLine():
         painter.restore()
 
 
+
 class AxVLine():
     def __init__(self, x, pen):
+        SceneItem.__init__(self, pen=pen)
         self.x = x
-        self.pen = pen
 
     def draw(self, painter, xproj, yproj, rect=None):
         ymin, ymax = yproj.get_out_range()
@@ -499,9 +505,9 @@ class AxVLine():
 class Points():
     ''' Holds and draws data projected to screen dimensions.'''
     def __init__(self, x, y, pen, antialiasing=True):
+        SceneItem.__init__(self, pen=pen)
         self.x = x
         self.y = y
-        self.pen = pen
         self.antialiasing = antialiasing
 
     def draw(self, painter, xproj, yproj, rect=None):
@@ -518,9 +524,9 @@ class Points():
 class Polyline():
     ''' Holds and draws data projected to screen dimensions.'''
     def __init__(self, x, y, pen, antialiasing=True):
+        SceneItem.__init__(self, pen=pen)
         self.x = x
         self.y = y
-        self.pen = pen
         self.antialiasing = antialiasing
 
     def draw(self, painter, xproj, yproj, rect=None):
