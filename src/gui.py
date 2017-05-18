@@ -801,7 +801,6 @@ class PitchLevelDifferenceViews(QWidget):
 
         # TODO add slider
         self.naverage = 7
-
         ylim = (-1500, 1500.)
         for i1, cv1 in enumerate(self.channel_views):
             for i2, cv2 in enumerate(self.channel_views):
@@ -876,6 +875,17 @@ class MainWidget(QWidget):
     def __init__(self, settings, *args, **kwargs):
         QWidget.__init__(self, *args, **kwargs)
         self.tabbed_pitch_widget = QTabWidget()
+
+        pal = self.tabbed_pitch_widget.palette()
+        self.tabbed_pitch_widget.setAutoFillBackground(True)
+        pal.setColor(qg.QPalette.Background, qg.QColor(*_colors['white']))
+        self.tabbed_pitch_widget.setPalette(pal)
+
+        pal = self.palette()
+        self.setAutoFillBackground(True)
+        pal.setColor(qg.QPalette.Background, qg.QColor(*_colors['white']))
+        self.setPalette(pal)
+
         self.tabbed_pitch_widget.setSizePolicy(QSizePolicy.Minimum,
                                           QSizePolicy.Minimum)
 
