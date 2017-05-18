@@ -17,7 +17,7 @@ from PyQt5 import QtGui as qg
 from PyQt5.QtWidgets import QApplication, QWidget, QHBoxLayout, QLabel
 from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QComboBox
 from PyQt5.QtWidgets import QAction, QSlider, QPushButton, QDockWidget
-from PyQt5.QtWidgets import QCheckBox, QSizePolicy, QFrame, QMenu
+from PyQt5.QtWidgets import QCheckBox, QSizePolicy, QFrame, QMenu, QWidgetAction
 from PyQt5.QtWidgets import QGridLayout, QSpacerItem, QDialog, QLineEdit
 from PyQt5.QtWidgets import QDialogButtonBox, QTabWidget, QActionGroup, QFileDialog
 
@@ -518,6 +518,7 @@ class ChannelView(QWidget):
     def show_spectrogram_widget(self, show=True):
         self.spectrogram_widget.setVisible(show)
 
+    @qc.pyqtSlot(qg.QMouseEvent)
     def mousePressEvent(self, mouse_ev):
         if mouse_ev.button() == qc.Qt.RightButton:
             self.right_click_menu.exec_(qg.QCursor.pos())
@@ -557,17 +558,47 @@ class ChannelView(QWidget):
                 break
 
 
-class PitchWidget(QWidget):
-    ''' Pitches of each trace as discrete samples.'''
+class CheckBoxSelect(QWidget):
+    check_box_toggled = qc.pyqtSignal(int)
 
-    def __init__(self, channel_views, *args, **kwargs):
+    def __init__(self, value, parent):
+        QWidget.__init__(self, parent=parent)
+        self.value = value
+        self.check_box = QPushButton(str(self.value), parent=self)
+        self.action = QWidgetAction(self)
+        self.action.setDefaultWidget(self.check_box)
+        self.check_box.clicked.connect(self.on_state_changed)
+
+    @qc.pyqtSlot(int)
+    def on_state_changed(self):
+        self.check_box_toggled.emit(self.value)
+
+def set_tick_choices(menu, default=20):
+    group = QActionGroup(menu)
+    group.setExclusive(True)
+    for tick_increment in [10, 20, 50, 100]:
+        action = QAction(str(tick_increment), menu)
+        action.setCheckable(True)
+        if tick_increment == default:
+            action.setChecked(True)
+        group.addAction(action)
+        menu.addAction(action)
+
+
+class OverView(QWidget):
+    highlighted_pitches = set([0.])
+
+    def __init__(self, *args, **kwargs):
         QWidget.__init__(self, *args, **kwargs)
-        self.channel_views = channel_views
+
         layout = QGridLayout()
         self.setLayout(layout)
         self.figure = PlotWidget()
         self.figure.xlabels = False
         self.figure.set_ylim(-1500., 1500)
+        self.figure.set_grids(100.)
+        layout.addWidget(self.figure)
+
         self.right_click_menu = QMenu('Tick Settings', self)
         self.right_click_menu.triggered.connect(
             self.figure.on_tick_increment_select)
@@ -576,7 +607,43 @@ class PitchWidget(QWidget):
         action.setCheckable(True)
         action.setChecked(True)
         self.right_click_menu.addAction(action)
-        self.figure.set_grids(100.)
+        self.attach_highlight_pitch_menu()
+
+    def attach_highlight_pitch_menu(self):
+        pmenu = QMenu('Highlight pitches', self)
+        pmenu.addSeparator()
+        for v in ['', 1200, 700, 500]:
+            action = QWidgetAction(pmenu)
+            check_box_widget = CheckBoxSelect(v, pmenu)
+            check_box_widget.check_box_toggled.connect(
+                self.on_check_box_widget_toggled)
+            pmenu.addAction(check_box_widget.action)
+
+        self.right_click_menu.addMenu(pmenu)
+
+    @qc.pyqtSlot(qg.QMouseEvent)
+    def mousePressEvent(self, mouse_ev):
+        if mouse_ev.button() == qc.Qt.RightButton:
+            self.right_click_menu.exec_(qg.QCursor.pos())
+        else:
+            QWidget.mousePressEvent(self, mouse_ev)
+
+    @qc.pyqtSlot(int)
+    def on_check_box_widget_toggled(self, value):
+        if value in self.highlighted_pitches:
+            self.highlighted_pitches.remove(value)
+            self.highlighted_pitches.remove(-1*value)
+        else:
+            self.highlighted_pitches.add(value)
+            self.highlighted_pitches.add(-1*value)
+
+
+class PitchWidget(OverView):
+    ''' Pitches of each trace as discrete samples.'''
+
+    def __init__(self, channel_views, *args, **kwargs):
+        OverView.__init__(self, *args, **kwargs)
+        self.channel_views = channel_views
 
         save_as_action = QAction('Save pitches', self.right_click_menu)
         save_as_action.triggered.connect(self.on_save_as)
@@ -584,8 +651,6 @@ class PitchWidget(QWidget):
         self.track_start = None
         self.tfollow = 3.
         self.setContentsMargins(-10, -10, -10, -10)
-
-        layout.addWidget(self.figure)
 
     @qc.pyqtSlot()
     def on_draw(self):
@@ -604,6 +669,9 @@ class PitchWidget(QWidget):
 
             xstart = num.min(x)
             self.figure.set_xlim(xstart, xstart+self.tfollow)
+
+        for high_pitch in self.highlighted_pitches:
+            self.figure.axhline(high_pitch, line_width=2)
         self.figure.update()
         self.repaint()
 
@@ -623,7 +691,6 @@ class PitchWidget(QWidget):
                 index = num.where(cv.channel.pitch_confidence.latest_frame_data(
                     len(x))>=cv.confidence_threshold)
                 num.savetxt(fn, num.vstack((x[index], y[index])).T)
-
 
     #def mouseReleaseEvent(self, mouse_event):
     #    self.track_start = None
@@ -653,40 +720,24 @@ class PitchWidget(QWidget):
     #        #self.figure.set_ylim(ymin+dy*10, ymax+dy*10)
     #        self.update()
 
-    @qc.pyqtSlot(qg.QMouseEvent)
-    def mousePressEvent(self, mouse_ev):
-        if mouse_ev.button() == qc.Qt.RightButton:
-            self.right_click_menu.exec_(qg.QCursor.pos())
-        else:
-            try:
-                QWidget.mousePressEvent(mouse_ev)
-            except TypeError as e:
-                logger.warn(e)
+    #@qc.pyqtSlot(qg.QMouseEvent)
+    #def mousePressEvent(self, mouse_ev):
+    #    if mouse_ev.button() == qc.Qt.RightButton:
+    #        self.right_click_menu.exec_(qg.QCursor.pos())
+    #    else:
+    #        try:
+    #            QWidget.mousePressEvent(mouse_ev)
+    #        except TypeError as e:
+    #            logger.warn(e)
 
 
 
-class DifferentialPitchWidget(QWidget):
+class DifferentialPitchWidget(OverView):
     ''' Diffs as line'''
     def __init__(self, channel_views, *args, **kwargs):
-        QWidget.__init__(self, *args, **kwargs)
+        OverView.__init__(self, *args, **kwargs)
         self.setContentsMargins(-10, -10, -10, -10)
         self.channel_views = channel_views
-        layout = QGridLayout()
-        self.setLayout(layout)
-        self.figure = PlotWidget()
-        self.figure.xlabels = False
-        self.figure.set_ylim(-1500., 1500)
-
-        layout.addWidget(self.figure)
-        self.right_click_menu = QMenu('Tick Settings', self)
-        self.right_click_menu.triggered.connect(
-            self.figure.on_tick_increment_select)
-        set_tick_choices(self.right_click_menu, default=100)
-        action = QAction('Minor ticks', self.right_click_menu)
-        action.setCheckable(True)
-        action.setChecked(True)
-        self.right_click_menu.addAction(action)
-        self.figure.set_grids(100)
         self.derivative_filter = 2000    # pitch/seconds
 
     @qc.pyqtSlot(int)
@@ -722,36 +773,17 @@ class DifferentialPitchWidget(QWidget):
 
         self.figure.set_xlim(xstart, xstart+tfollow)
 
+        for high_pitch in self.highlighted_pitches:
+            self.figure.axhline(high_pitch, line_width=2)
+
         # update needed on OSX
         self.figure.update()
 
         self.repaint()
 
-    @qc.pyqtSlot(qg.QMouseEvent)
-    def mousePressEvent(self, mouse_ev):
-        if mouse_ev.button() == qc.Qt.RightButton:
-            self.right_click_menu.exec_(qg.QCursor.pos())
-        else:
-            try:
-                QWidget.mousePressEvent(mouse_ev)
-            except TypeError as e:
-                logger.warn(e)
-
     @qc.pyqtSlot()
     def on_clear(self):
         self.figure.clear()
-
-
-def set_tick_choices(menu, default=20):
-    group = QActionGroup(menu)
-    group.setExclusive(True)
-    for tick_increment in [10, 20, 50, 100]:
-        action = QAction(str(tick_increment), menu)
-        action.setCheckable(True)
-        if tick_increment == default:
-            action.setChecked(True)
-        group.addAction(action)
-        menu.addAction(action)
 
 
 class PitchLevelDifferenceViews(QWidget):
@@ -762,16 +794,15 @@ class PitchLevelDifferenceViews(QWidget):
         layout = QGridLayout()
         self.setLayout(layout)
         self.widgets = []
-        ylim = (-1500, 1500.)
+        self.right_click_menu = QMenu('Tick Settings', self)
+        self.right_click_menu.triggered.connect(
+                self.on_tick_increment_select)
+        set_tick_choices(self.right_click_menu)
 
         # TODO add slider
         self.naverage = 7
 
-        self.right_click_menu = QMenu('Tick Settings', self)
-        self.right_click_menu.triggered.connect(
-            self.on_tick_increment_select)
-        set_tick_choices(self.right_click_menu)
-
+        ylim = (-1500, 1500.)
         for i1, cv1 in enumerate(self.channel_views):
             for i2, cv2 in enumerate(self.channel_views):
                 if i1>=i2:
@@ -781,16 +812,6 @@ class PitchLevelDifferenceViews(QWidget):
                 w.set_title('Channels: %s | %s' % (i1+1, i2+1))
                 self.widgets.append((cv1, cv2, w))
                 layout.addWidget(w, i1, i2)
-
-    @qc.pyqtSlot(qg.QMouseEvent)
-    def mousePressEvent(self, mouse_ev):
-        if mouse_ev.button() == qc.Qt.RightButton:
-            self.right_click_menu.exec_(qg.QCursor.pos())
-        else:
-            try:
-                QWidget.mousePressEvent(mouse_ev)
-            except TypeError as e:
-                logger.warn(e)
 
     @qc.pyqtSlot(QAction)
     def on_tick_increment_select(self, action):
@@ -810,6 +831,13 @@ class PitchLevelDifferenceViews(QWidget):
             else:
                 w.set_data(None)
             w.repaint()
+
+    @qc.pyqtSlot(qg.QMouseEvent)
+    def mousePressEvent(self, mouse_ev):
+        if mouse_ev.button() == qc.Qt.RightButton:
+            self.right_click_menu.exec_(qg.QCursor.pos())
+        else:
+            QWidget.mousePressEvent(self, mouse_ev)
 
 
 class PitchLevelMikadoViews(QWidget):
@@ -962,6 +990,10 @@ class MainWidget(QWidget):
         self.signal_widgets_draw.connect(self.pitch_view_all_diff.on_draw)
         self.signal_widgets_draw.connect(self.pitch_diff_view.on_draw)
         #self.signal_widgets_draw.connect(self.pitch_diff_view_colorized.on_draw)
+
+        self.views = [
+            self.pitch_view, self.pitch_view_all_diff, self.pitch_diff_view
+        ]
 
         t_wait_buffer = max(dinput.fftsizes)/dinput.sampling_rate*1500.
         qc.QTimer().singleShot(t_wait_buffer, self.start_refresh_timer)

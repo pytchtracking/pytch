@@ -8,7 +8,7 @@ from pytch.gui_util import make_QPolygonF, _color_names, _colors, _pen_styles   
 
 from PyQt5 import QtCore as qc
 from PyQt5 import QtGui as qg
-from PyQt5.QtWidgets import QWidget, QSizePolicy, QApplication, QAction
+from PyQt5.QtWidgets import QWidget, QSizePolicy, QApplication, QAction, QWidgetAction
 
 
 d2r = num.pi/180.
@@ -466,6 +466,12 @@ class FixGrid(AutoGrid):
         return self.lines_v
 
 
+class DefinedGrid(AutoGrid):
+    def __init__(self):
+        AutoGrid.__init__(self, *args, **kwargs)
+        # TODO make special user definable grid. Should be the base class
+
+
 class SceneItem():
     def __init__(self, pen):
         self.pen = pen
@@ -849,6 +855,10 @@ class PlotWidget(PlotBase):
     @qc.pyqtSlot(QAction)
     def on_tick_increment_select(self, action):
         action_text = action.text()
+
+        if isinstance(action, QWidgetAction):
+            return
+
         if action_text == 'Minor ticks':
             self.want_minor_grid = action.isChecked()
         else:

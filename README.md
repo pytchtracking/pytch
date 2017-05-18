@@ -42,8 +42,7 @@ pytch
 hit return and sing!
 
 ## Todo
-- fix reference frequency
-- Gauge: keep last value (at least some seconds)
+- drag drop spektra um der hoehe nach zu sortieren .
 - cross spectrum
 - add interaction to spectra (zoom)
 - add midi channels (as guide)
