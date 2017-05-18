@@ -569,7 +569,7 @@ class CheckBoxSelect(QWidget):
         self.action.setDefaultWidget(self.check_box)
         self.check_box.clicked.connect(self.on_state_changed)
 
-    @qc.pyqtSlot(int)
+    @qc.pyqtSlot()
     def on_state_changed(self):
         self.check_box_toggled.emit(self.value)
 
