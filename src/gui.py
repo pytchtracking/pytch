@@ -467,7 +467,7 @@ class ChannelView(QWidget):
             self.spectrogram_widget.update_spectrogram)
         self.spectrogram_refresh_timer.start(200)
 
-    @qc.pyqtSlot(int)
+    @qc.pyqtSlot(float)
     def on_keyboard_key_pressed(self, f):
         self.freq_keyboard = f
 

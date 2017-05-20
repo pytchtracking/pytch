@@ -35,7 +35,7 @@ class Synthy(qc.QObject):
 
     def sine(self, frequency, length, rate):
         length = int(length * rate)
-        factor = float(frequency) * (math.pi * 2) / rate
+        factor = frequency * math.pi * 2. / rate
         return num.sin(num.arange(length) * factor)
 
     def play_tone(self, frequency=440, length=1., rate=44100):
@@ -43,6 +43,7 @@ class Synthy(qc.QObject):
         y = num.zeros(int(length*rate))
         for i in range(3):
             y += (self.sine(frequency*(i+1), length, rate) / (i+1))
+
         chunks.append(y)
         chunk = num.concatenate(chunks) * 0.25
         self.stream.write(chunk.astype(num.float32).tostring())
@@ -51,7 +52,7 @@ class Synthy(qc.QObject):
     def stop(self):
         self.stop_playing = True
 
-    @qc.pyqtSlot(int)
+    @qc.pyqtSlot(float)
     def play(self, frequency):
         self.stop_playing = False
         while not self.stop_playing:
@@ -64,7 +65,7 @@ class Synthy(qc.QObject):
 
 class Key(qw.QWidget):
 
-    playKeyBoard = qc.pyqtSignal(int)
+    playKeyBoard = qc.pyqtSignal(float)
     stopKeyBoard = qc.pyqtSignal()
 
     def __init__(self, octave, semitone, *args, **kwargs):
@@ -78,7 +79,7 @@ class Key(qw.QWidget):
 
     def setup(self):
         self.is_semitone = self.semitone in _semitones
-        self.f = 2**((self.semitone + self.octave*12)/12) * 220
+        self.f = 2.**((self.semitone + self.octave*12.)/12.) * 130.81
         self.name = keys[self.semitone]
         # self.static_label = qc.QStaticText(self.name)
         self.brush_pressed = qg.QBrush(qg.QColor(*_colors['aluminium4']))
@@ -134,7 +135,7 @@ class Key(qw.QWidget):
 class KeyBoard(qw.QWidget):
 
     keyBoardKeyReleased = qc.pyqtSignal()
-    keyBoardKeyPressed = qc.pyqtSignal(int)
+    keyBoardKeyPressed = qc.pyqtSignal(float)
     toggle_tabels = qc.pyqtSignal()
 
     def __init__(self, *args, **kwargs):
@@ -174,9 +175,6 @@ class KeyBoard(qw.QWidget):
     def stop_synthy(self):
         self.synthy.stop()
         self.keyBoardKeyPressed.emit(0)
-
-    def start_synthy(self, f):
-        self.synthy.play(f)
 
     def get_key_rects(self):
         ''' Get rectangles for tone keys'''
