@@ -308,7 +308,6 @@ class ChannelViews(QWidget):
         self.channel_views = channel_views
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
-        #self.standard_frequency = _standard_frequency
 
         for c_view in self.channel_views:
             self.layout.addWidget(c_view)
@@ -353,16 +352,36 @@ class SpectrogramWidget(PlotWidget):
         PlotWidget.__init__(self, *args, **kwargs)
         self.channel = channel
         self.ny, self.nx = 300, 680
-        self.img = qg.QImage(self.ny, self.nx, qg.QImage.Format_RGB32)
+        self.img = qg.QImage(self.ny, self.nx, qg.QImage.Format_Indexed8)
+        self.img.setColorTable(self.get_colortable())
         buff = self.img.bits()
-        buff.setsize(self.ny*self.nx*2**32)
+        #buff.setsize(self.ny*self.nx*2**32)
+        buff.setsize(self.ny*self.nx*2**8)
         self.imgarray = num.ndarray(shape=(self.nx, self.ny),
-                                    dtype=num.uint32, buffer=buff)
+                                    #dtype=num.uint32, buffer=buff)
+                                    dtype=num.uint8, buffer=buff)
         x = num.arange(self.nx)
         y = num.arange(self.ny)
+        self.vmax = 14000
+        self.vmin = 0
         self.spectrogram = PColormesh(img=self.img, x=x, y=y)
         self.scene_items.append(self.spectrogram)
         self.update_datalims(y, x)
+
+    def get_colortable(self, log=False):
+        ctable = []
+        if log:
+            a = num.linspace(0., 1., 256, dtype=num.float)
+            a = num.exp(a)/num.exp(1.) * 256.
+            for i in a:
+                ctable.append(qg.qRgb(i/4, i*2,i/2))
+        else:
+            for i in range(256): ctable.append(qg.qRgb(i/4,i*2,i/2))
+
+        return ctable
+
+    def prescale(self, d):
+        return num.clip(num.divide(d, self.vmax), 0, 255)
 
     @qc.pyqtSlot()
     def update_spectrogram(self):
@@ -370,7 +389,7 @@ class SpectrogramWidget(PlotWidget):
         y = c.freqs[: self.ny]
         x = c.xdata[-self.nx:]
         d = c.fft.latest_frame_data(self.nx)
-        self.imgarray[:, :] = memoryview(d[:, :self.ny])
+        self.imgarray[:, :] = memoryview(self.prescale(d[:, :self.ny]))
         self.update()
 
 
@@ -419,7 +438,6 @@ class ChannelView(QWidget):
         self.plot_spectrum = self.spectrum.plotlog
 
         self.fft_smooth_factor = 4
-        #self.standard_frequency = _standard_frequency
 
         layout.addWidget(self.trace_widget)
         layout.addWidget(self.spectrum)
@@ -465,7 +483,7 @@ class ChannelView(QWidget):
         self.spectrogram_refresh_timer = qc.QTimer()
         self.spectrogram_refresh_timer.timeout.connect(
             self.spectrogram_widget.update_spectrogram)
-        self.spectrogram_refresh_timer.start(200)
+        self.spectrogram_refresh_timer.start(100)
 
     @qc.pyqtSlot(float)
     def on_keyboard_key_pressed(self, f):

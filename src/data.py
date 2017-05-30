@@ -215,7 +215,7 @@ class RingBuffer2D(RingBuffer):
         RingBuffer.__init__(self, *args, **kwargs)
 
     def empty(self):
-        self.data = num.empty((int(self.data_len), int(self.ndimension2)),
+        self.data = num.ones((int(self.data_len), int(self.ndimension2)),
                           dtype=self.dtype)
 
     def append(self, d):
