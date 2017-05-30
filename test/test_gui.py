@@ -131,15 +131,20 @@ class GUITestCase():
         print(a)
         x = num.arange(n)
         y = num.arange(n)
-        a = num.asarray(a, dtype=num.uint32)
+        #a = num.asarray(a, dtype=num.uint32)
         #a = num.zeros((n, n, 3))
         #for i in range(n):
         #    for j in range(n):
         #        a[j, i] = i*4+j*2
         print(a)
         print('start')
+        a -= num.min(a)
+        a /= num.max(a)
+        a *= 255.
+        print(num.min(a), num.max(a))
+        #a = num.asarray(a, dtype=num.uint32)
         a = num.ascontiguousarray(a)
-        #a = num.require(a, num.uint8, 'C')
+        a = num.require(a, num.uint8, 'C')
         plot_widget = gui.PlotWidget()
         plot_widget.setup_annotation_boxes()
         plot_widget.colormesh(x, y, a)
@@ -168,8 +173,8 @@ class GUITestCase():
         n = 100
         a = num.random.randint(0,256,size=(100,100,3)).astype(num.uint32)
         b = (255 << 24 | a[:,:,0] << 16 | a[:,:,1] << 8 | a[:,:,2]).flatten() # pack RGB values
-        im = qg.QImage(b, 100, 100, qg.QImage.Format_RGB32)        
-        
+        im = qg.QImage(b, 100, 100, qg.QImage.Format_ARGB32)
+  
         spec = plot.Spectrogram.from_numpy_array(a)
         print('stop')
         main_window.setCentralWidget(spec)
@@ -222,8 +227,8 @@ if __name__=='__main__':
     #t.test_scaling()
     #t.test_PitchWidget()
     #t.test_ColormapWidget()
-    #t.test_spectrogram()
-    t.test_gauge()
+    t.test_spectrogram()
+    #t.test_gauge()
     #t.test_graphicsview()
     #t.test_keyboard()
 
