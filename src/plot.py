@@ -13,6 +13,7 @@ from PyQt5.QtWidgets import QWidget, QSizePolicy, QApplication, QAction, QWidget
 
 d2r = num.pi/180.
 logger = logging.getLogger(__name__)
+_grey_scale = list([qg.qRgb(i, i, i) for i in range(256)])
 
 try:
     from pytch.gui_util_opengl import GLWidget
@@ -553,20 +554,57 @@ class PColormesh(PlotWidgetBase):
         super().__init__(*args, **kwargs)
         self.x = x
         self.y = y
+        self.vmax = 13000
+        self.vmin = None
         self.rect = None
         self.img = img
+        buff = self.img.bits()
+        nx = len(x)
+        ny = len(y)
+        buff.setsize(nx*ny*2**8)
+        self.img_data = num.ndarray(shape=(nx, ny),
+                                    dtype=num.uint8,
+                                    buffer=buff)
 
     def draw(self, painter, xproj, yproj, rect=None):
         painter.drawImage(rect, self.img)
 
     @classmethod
-    def from_numpy_array(cls, x, y, z):
+    def from_numpy_array(cls, x=None, y=None, z=None):
         '''
         :param a: RGB array
         '''
+        if not z.dtype == num.uint8:
+            z = num.asarray(z, dtype=num.uint8)
+            z = num.ascontiguousarray(z)
+
         img = qg.QImage(
-            z.ctypes.data, z.shape[1], z.shape[0], qg.QImage.Format_RGB32)
-        return cls(img, x, y)
+            z.data, z.shape[1], z.shape[0], qg.QImage.Format_Indexed8)
+
+        img.setColorTable(_grey_scale)
+        o = cls(img, x, y)
+        o.set_data(z)
+        return o
+
+    def prescale(self, d):
+        return num.clip(num.divide(d, self.vmax), 0, 255)
+
+    def set_data(self, d):
+
+        self.img_data[:, :] = memoryview(self.prescale(d))
+
+    def get_colortable(self, log=False):
+        ctable = []
+        if log:
+            a = num.linspace(0., 1., 256, dtype=num.float)
+            a = num.exp(a)/num.exp(1.) * 256.
+            for i in a:
+                ctable.append(qg.qRgb(i/4, i*2,i/2))
+        else:
+            for i in range(256): ctable.append(qg.qRgb(i/4,i*2,i/2))
+
+        return ctable
+
 
 
 class PlotWidget(PlotBase):
@@ -711,10 +749,20 @@ class PlotWidget(PlotBase):
         pen = self.get_pen(**pen_args)
         self.scene_items.append(AxHLine(y=y, pen=pen))
 
-    def colormesh(self, x, y, z, **pen_args):
+    def colormesh(self, x=None, y=None, z=None, **pen_args):
+
+        nx, ny = z.shape
+        if y is None:
+            y = num.arange(ny)
+
+        if x is None:
+            x = num.arange(nx)
+
         spec = PColormesh.from_numpy_array(x=x, y=y, z=z)
         self.scene_items.append(spec)
         self.update_datalims(x, y)
+
+        return spec
 
     def fill_between(self, xdata, ydata1, ydata2, *args, **kwargs):
         x = num.hstack((xdata, xdata[::-1]))
@@ -728,8 +776,6 @@ class PlotWidget(PlotBase):
             logger.info(e)
 
     def update_datalims(self, xvisible, yvisible):
-
-        xvisible_max = num.max(xvisible)
 
         if self.ymin is None:
             self._ymin = num.min(yvisible)
@@ -748,7 +794,7 @@ class PlotWidget(PlotBase):
             self._xmin = self.xmin
 
         if not self.xmax:
-            self._xmax = xvisible_max
+            self._xmax = num.max(xvisible)
         else:
             self._xmax = self.xmax
 
