@@ -69,7 +69,7 @@ class PlotBase(__PlotSuperClass):
         else:
             self.set_ylim(self._ymin-self.scroll_increment*n,
                           self._ymax-self.scroll_increment*n)
-        self.repaint()
+        self.update()
 
     @qc.pyqtSlot(qg.QPaintEvent)
     def paintEvent(self, e):

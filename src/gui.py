@@ -665,7 +665,6 @@ class PitchWidget(OverView):
         for high_pitch in self.highlighted_pitches:
             self.figure.axhline(high_pitch, line_width=2)
         self.figure.update()
-        self.repaint()
 
     @qc.pyqtSlot()
     def on_clear(self):
@@ -771,8 +770,6 @@ class DifferentialPitchWidget(OverView):
         # update needed on OSX
         self.figure.update()
 
-        self.repaint()
-
     @qc.pyqtSlot()
     def on_clear(self):
         self.figure.clear()
@@ -821,7 +818,7 @@ class PitchLevelDifferenceViews(QWidget):
                 w.set_data(num.median(d1-d2))
             else:
                 w.set_data(None)
-            w.repaint()
+            w.update()
 
     @qc.pyqtSlot(qg.QMouseEvent)
     def mousePressEvent(self, mouse_ev):
@@ -856,7 +853,7 @@ class PitchLevelMikadoViews(QWidget):
             x1, y1 = cv1.channel.pitch.latest_frame(w.tfollow)
             x2, y2 = cv2.channel.pitch.latest_frame(w.tfollow)
             w.fill_between(x1, y1, x2, y2)
-            w.repaint()
+            w.update()
 
 
 class MainWidget(QWidget):

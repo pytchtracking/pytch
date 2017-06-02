@@ -117,13 +117,13 @@ class Key(qw.QWidget):
             self.playKeyBoard.emit(self.f)
         else:
             super(Key, self).mousePressEvent(mouse_ev)
-        self.repaint()
+        self.update()
 
     @qc.pyqtSlot(qg.QMouseEvent)
     def mouseReleaseEvent(self, mouse_ev):
         self.stopKeyBoard.emit()
         self.pressed = False
-        self.repaint()
+        self.update()
 
     @qc.pyqtSlot()
     def on_toggle_labels(self):
