@@ -118,70 +118,50 @@ class GUITestCase():
     #    sys.exit(app.exec_())
 
     def test_spectrogram(self):
+
+
         app = QApplication(sys.argv)
         main_window = MainWindowQClose()
-        n = 3000
-        #a = num.zeros((n, n, 3), dtype=num.ubyte)
-        #a = num.zeros((n, n, 3), dtype=num.uint32)
-        #a = num.zeros((n, n), dtype=num.uint32)
         a = num.loadtxt('spectrogram_data.txt', dtype=num.float)
-        #a = num.exp(a)
-        #a += num.abs(num.min(a))
-        #a = a/num.max(a)
-        print(a)
-        x = num.arange(n)
-        y = num.arange(n)
-        #a = num.asarray(a, dtype=num.uint32)
-        #a = num.zeros((n, n, 3))
-        #for i in range(n):
-        #    for j in range(n):
-        #        a[j, i] = i*4+j*2
-        print(a)
-        print('start')
+        nx, ny = a.shape
+        x = num.arange(nx)
+        y = num.arange(ny)
         a -= num.min(a)
         a /= num.max(a)
         a *= 255.
         print(num.min(a), num.max(a))
-        #a = num.asarray(a, dtype=num.uint32)
         a = num.ascontiguousarray(a)
         a = num.require(a, num.uint8, 'C')
         plot_widget = gui.PlotWidget()
         plot_widget.setup_annotation_boxes()
-        plot_widget.colormesh(x, y, a)
-        #spec = plot.Spectrogram.from_numpy_array(a)
-        #img = qg.QImage(n, n, qg.QImage.Format_RGB32)
-        #vptr = img.bits()
-        #vptr.setsize(int(n*n*3*8))
-        #imgarr = num.ndarray(shape=(n, n, 3), dtype=num.uint32, buffer=memoryview(vptr))
-        ##imgarr = num.ndarray(shape=(30, 30, 3), dtype=num.uint32, buffer=memoryview(vptr))
-        #imgarr.setflags(write=True)
-        ##imgarr[:, :, :] = a
-        #imgarr = num.copy(a)
-        #print(imgarr)
-        #spec = plot.Spectrogram(img.copy())
+        cmesh = plot_widget.colormesh(x, y, a, parent=plot_widget)
         print('stop')
         main_window.setCentralWidget(plot_widget)
         main_window.show()
         main_window.repaint()
         img = None
         imgarr = None
-        sys.exit(app.exec_())
-
-    def test_asdfspectrogram(self):
-        app = QApplication(sys.argv)
-        main_window = MainWindowQClose()
-        n = 100
-        a = num.random.randint(0,256,size=(100,100,3)).astype(num.uint32)
-        b = (255 << 24 | a[:,:,0] << 16 | a[:,:,1] << 8 | a[:,:,2]).flatten() # pack RGB values
-        im = qg.QImage(b, 100, 100, qg.QImage.Format_ARGB32)
-  
-        spec = plot.Spectrogram.from_numpy_array(a)
-        print('stop')
-        main_window.setCentralWidget(spec)
-        main_window.show()
-        main_window.repaint()
-        img = None
-        imgarr = None
+        def update_image():
+            a = num.loadtxt('spectrogram_data.txt', dtype=num.float)
+            nx, ny = a.shape
+            x = num.arange(nx)
+            y = num.arange(ny)
+            a = num.random.random(a.shape)
+            a -= num.min(a)
+            a /= num.max(a)
+            a *= 255.
+            print('rrrrr', a)
+            print(num.min(a), num.max(a))
+            a = num.ascontiguousarray(a)
+            a = num.require(a, num.uint8, 'C')
+            cmesh.set_data(a)
+            cmesh.update()
+            main_window.update()
+            cmesh.repaint()
+        spectrogram_refresh_timer = qc.QTimer()
+        spectrogram_refresh_timer.timeout.connect(
+            update_image)
+        spectrogram_refresh_timer.start(100)
         sys.exit(app.exec_())
 
     def test_gauge(self):
