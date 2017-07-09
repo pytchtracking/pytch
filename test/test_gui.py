@@ -2,6 +2,7 @@ import unittest
 import sys
 import time
 import numpy as num
+import copy
 
 from PyQt5.QtWidgets import QApplication, QMainWindow, QHBoxLayout
 from PyQt5 import QtGui as qg
@@ -141,23 +142,24 @@ class GUITestCase():
         main_window.repaint()
         img = None
         imgarr = None
+        self._a = num.loadtxt('spectrogram_data.txt', dtype=num.float)
+        self._i = 0
         def update_image():
-            a = num.loadtxt('spectrogram_data.txt', dtype=num.float)
-            nx, ny = a.shape
-            x = num.arange(nx)
-            y = num.arange(ny)
-            a = num.random.random(a.shape)
+            self._i += 1
+            a = copy.deepcopy(self._a)
             a -= num.min(a)
             a /= num.max(a)
-            a *= 255.
-            print('rrrrr', a)
-            print(num.min(a), num.max(a))
-            a = num.ascontiguousarray(a)
-            a = num.require(a, num.uint8, 'C')
+            a *= 1000000.
+            if self._i%2:
+                a *= -1.
+
+            a = num.asarray(a, dtype=num.uint32)
             cmesh.set_data(a)
             cmesh.update()
             main_window.update()
+            plot_widget.update()
             cmesh.repaint()
+
         spectrogram_refresh_timer = qc.QTimer()
         spectrogram_refresh_timer.timeout.connect(
             update_image)
