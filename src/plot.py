@@ -25,11 +25,43 @@ except ImportError:
 
 class PlotBase(__PlotSuperClass):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super(PlotBase, self).__init__(*args, **kwargs)
         self.wheel_pos = 0
         self.scroll_increment = 100
         self.setFocusPolicy(qc.Qt.StrongFocus)
         self.set_background_color('white')
+        self.setContentsMargins(0, 0, 0, 0)
+    
+    def canvas_rect(self):
+        ''' Rectangular containing the data visualization. '''
+        w, h = self.wh
+        tl = qc.QPoint(self.left*w, (1.-self.top)*h)
+        size = qc.QSize(w* (self.right-self.left), h* self.top-self.bottom)
+        rect = self.rect()
+        rect.setTopLeft(tl)
+        rect.setSize(size)
+        return rect
+
+
+    @property
+    def wh(self):
+        return self.width(), self.height()
+
+    def set_brush(self, color='black'):
+        self.brush = qg.QBrush(qg.QColor(*_colors[color]))
+
+    def set_pen_color(self, color='black'):
+        self.pen.setColor(qg.QColor(*_colors[color]))
+
+    def get_pen(self, color='black', line_width=1, style='solid'):
+        '''
+        :param color: color name as string
+        '''
+        if style == 'o':
+            self.draw_points = True
+
+        return qg.QPen(qg.QColor(*_colors[color]),
+                      line_width, _pen_styles[style])
 
     def set_ylim(self, ymin, ymax):
         ''' Set range of Gauge.'''
@@ -551,7 +583,7 @@ class PColormesh(PlotWidgetBase):
     '''
     2D array. Currently, opengl is not supported.'''
     def __init__(self, img, x, y, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super(PlotWidgetBase, self).__init__(*args, **kwargs)
         self.x = x
         self.y = y
         self.vmax = 13000
@@ -606,374 +638,355 @@ class PColormesh(PlotWidgetBase):
         return ctable
 
 
+def MakeAxis(gl=False):
+    #if gl:
+    #    #base = GLWidget
+    #else:
+    #    #base = PlotWidgetBase
+    base = PlotBase
+    class Axis(base):
+        ''' a plotwidget displays data (x, y coordinates). '''
 
-class PlotWidget(PlotBase):
-    ''' a plotwidget displays data (x, y coordinates). '''
+        def __init__(self, *args, **kwargs):
+            super(Axis, self).__init__(*args, **kwargs)
 
+            self.scroll_increment = 0
+            self.track_start = None
+
+            self.ymin = None
+            self.ymax = None
+            self.xmin = None
+            self.xmax = None
+
+            self._ymin = 0.
+            self._ymax = 1.
+            self._yinc = None
+            self._xmin = 0.
+            self._xmax = 1.
+            self._xinc = None
+
+            self.left = 0.15
+            self.right = 1.
+            self.bottom = 0.1
+            self.top = 0.9
+
+            self.xlabels = True
+            self.ylabels = True
+            self.yticks = True
+            self.xticks = True
+            self.xzoom = 0.
+
+            self.clear()
+            self.grids = [AutoGrid()]
+            self.__want_minor_grid = True
+
+            self.yscaler = AutoScaler(
+                no_exp_interval=(-3, 2), approx_ticks=5,
+                snap=True
+            )
+
+            self.xscaler = AutoScaler(
+                no_exp_interval=(-3, 2), approx_ticks=5,
+                snap=True
+            )
+            self.draw_points = False
+            self.set_brush()
+            self._xvisible = num.empty(0)
+            self._yvisible = num.empty(0)
+            self.yproj = Projection()
+            self.xproj = Projection()
+            self.colormap = Colormap()
+            self.setAutoFillBackground(True)
+
+        def clear(self):
+            self.scene_items = []
+
+        def setup_annotation_boxes(self):
+            ''' left and top boxes containing labels, dashes, marks, etc.'''
+            w, h = self.wh
+            l = self.left
+            r = self.right
+            b = self.bottom
+            t = self.top
+
+            tl = qc.QPoint((1.-b) * h, l * w)
+            size = qc.QSize(w * (1. - (l + (1.-r))),
+                            h * (1. - ((1.-t)+b)))
+            self.x_annotation_rect = qc.QRect(tl, size)
+
+        def set_title(self, title):
+            self.title = title
+
+        def plot(self, xdata=None, ydata=None, ndecimate=0,
+                 style='solid', color='black', line_width=1, ignore_nan=False,
+                 antialiasing=True):
+            ''' plot data
+
+            :param *args:  ydata | xdata, ydata
+            :param ignore_nan: skip values which are nan
+            '''
+            if ydata is None:
+                return
+            if len(ydata) == 0:
+                self.update_datalims([0], [0])
+                return
+
+            if xdata is None:
+                xdata = num.arange(len(ydata))
+
+            if ignore_nan:
+                ydata = num.ma.masked_invalid(ydata)
+                xdata = xdata[~ydata.mask]
+                ydata = ydata[~ydata.mask]
+
+            if ndecimate != 0:
+                #self._xvisible = minmax_decimation(xdata, ndecimate)
+                xvisible = xdata[::ndecimate]
+                yvisible = minmax_decimation(ydata, ndecimate)
+                #self._yvisible = smooth(ydata, window_len=ndecimate*2)[::ndecimate]
+                #index = num.arange(0, len(self._xvisible), ndecimate)
+            else:
+                xvisible = xdata
+                yvisible = ydata
+
+            pen = self.get_pen(color, line_width, style)
+            if style == 'o':
+                self.scene_items.append(
+                    Points(
+                        x=xvisible, y=yvisible, pen=pen, antialiasing=antialiasing))
+            else:
+                self.scene_items.append(
+                    Polyline(
+                        x=xvisible, y=yvisible, pen=pen, antialiasing=antialiasing))
+
+            self.update_datalims(xvisible, yvisible)
+
+        def axvline(self, x, **pen_args):
+            pen = self.get_pen(**pen_args)
+            self.scene_items.append(AxVLine(x=x, pen=pen))
+
+        def axhline(self, y, **pen_args):
+            pen = self.get_pen(**pen_args)
+            self.scene_items.append(AxHLine(y=y, pen=pen))
+
+        def colormesh(self, x=None, y=None, z=None, **pen_args):
+
+            nx, ny = z.shape
+            if y is None:
+                y = num.arange(ny)
+
+            if x is None:
+                x = num.arange(nx)
+
+            spec = PColormesh.from_numpy_array(x=x, y=y, z=z)
+            self.scene_items.append(spec)
+            self.update_datalims(x, y)
+
+            return spec
+
+        def fill_between(self, xdata, ydata1, ydata2, *args, **kwargs):
+            x = num.hstack((xdata, xdata[::-1]))
+            y = num.hstack((ydata1, ydata2[::-1]))
+            self.update_datalims(x, y)
+
+        def plotlog(self, xdata=None, ydata=None, ndecimate=0, **style_kwargs):
+            try:
+                self.plot(xdata, num.log(ydata), ndecimate=ndecimate, **style_kwargs)
+            except ValueError as e:
+                logger.info(e)
+
+        def update_datalims(self, xvisible, yvisible):
+
+            if self.ymin is None:
+                self._ymin = num.min(yvisible)
+            else:
+                self._ymin = self.ymin
+            if not self.ymax:
+                self._ymax = num.max(yvisible)
+            else:
+                self._ymax = self.ymax
+
+            self.colormap.set_vlim(self._ymin, self._ymax)
+
+            if not self.xmin:
+                self._xmin = num.min(xvisible)
+            else:
+                self._xmin = self.xmin
+
+            if not self.xmax:
+                self._xmax = num.max(xvisible)
+            else:
+                self._xmax = self.xmax
+
+            self.update_projections()
+
+        @property
+        def xlim(self):
+            return (self._xmin, self._xmax)
+
+        def set_xlim(self, xmin, xmax):
+            ''' Set x data range. If unset scale to min|max of ydata range '''
+            self.xmin = xmin
+            self.xmax = xmax
+            self.xproj.set_in_range(self.xmin, self.xmax)
+
+        @property
+        def xrange_visible(self):
+            return self.xproj.in_range
+
+        def do_draw(self, painter):
+            ''' this is executed e.g. when self.repaint() is called. Draws the
+            underlying data and scales the content to fit into the widget.'''
+            self.draw_deco(painter)
+            rect = self.canvas_rect()
+            for item in self.scene_items:
+                item.draw(painter, self.xproj, self.yproj, rect=rect)
+
+        def draw_deco(self, painter):
+            painter.save()
+            painter.setRenderHint(qg.QPainter.Antialiasing)
+            self.draw_axes(painter)
+
+            if self.yticks:
+                self.draw_y_ticks(painter)
+            if self.xticks:
+                self.draw_x_ticks(painter)
+
+            for grid in self.grids:
+                grid.draw_grid(self, painter)
+
+            painter.restore()
+
+        def draw_axes(self, painter):
+            ''' draw x and y axis'''
+            w, h = self.wh
+            points = [qc.QPoint(w*self.left, h*(self.bottom)),
+                      qc.QPoint(w*self.left, h*(1.-self.top)),
+                      qc.QPoint(w*self.right, h*(1.-self.top))]
+            painter.drawPoints(qg.QPolygon(points))
+
+        def set_xtick_increment(self, increment):
+            self._xinc = increment
+
+        def set_ytick_increment(self, increment):
+            self._yinc = increment
+
+        def draw_x_ticks(self, painter):
+            w, h = self.wh
+            xmin, xmax, xinc = self.xscaler.make_scale((self._xmin, self._xmax))
+            _xinc = self._xinc or xinc
+            ticks = num.arange(xmin, xmax, _xinc)
+            ticks_proj = self.xproj(ticks)
+            tick_anchor = (1.-self.top)*h
+            lines = [qc.QLineF(xval, tick_anchor * 0.8, xval, tick_anchor)
+                     for xval in ticks_proj]
+
+            painter.drawLines(lines)
+            if self.xlabels:
+                for i, xval in enumerate(ticks):
+                    painter.drawText(qc.QPointF(ticks_proj[i], tick_anchor), str(xval))
+
+        def draw_y_ticks(self, painter):
+            w, h = self.wh
+            ymin, ymax, yinc = self.yscaler.make_scale(
+                (self._ymin, self._ymax)
+            )
+            if self.scroll_increment == 0:
+                self.scroll_increment = yinc/4
+
+            _yinc = self._yinc or yinc
+            ticks = num.arange(ymin, ymax, _yinc)
+            ticks_proj = self.yproj(ticks)
+            lines = [qc.QLineF(w * self.left * 0.8, yval, w*self.left, yval)
+                     for yval in ticks_proj]
+            painter.drawLines(lines)
+            if self.ylabels:
+                for i, yval in enumerate(ticks):
+                    painter.drawText(qc.QPointF(0, ticks_proj[i]), str(yval))
+
+        def draw_labels(self, painter):
+            self.setup_annotation_boxes()
+            painter.drawText(self.x_annotation_rect, qc.Qt.AlignCenter, 'Time')
+
+        @qc.pyqtSlot(QAction)
+        def on_tick_increment_select(self, action):
+            action_text = action.text()
+
+            if isinstance(action, QWidgetAction):
+                return
+
+            if action_text == 'Minor ticks':
+                self.want_minor_grid = action.isChecked()
+            else:
+                val = int(action.text())
+                self.set_grids(val)
+
+        @property
+        def want_minor_grid(self):
+            return self.__want_minor_grid
+
+        @want_minor_grid.setter
+        def want_minor_grid(self, _bool):
+            self.__want_minor_grid = _bool
+            if _bool:
+                self.grids = [self.grid_major, self.grid_minor]
+            else:
+                self.grids = [self.grid_major]
+
+        def set_grids(self, minor_value):
+            self.grid_major = FixGrid(
+                minor_value*5, pen_color='aluminium2', style='solid')
+            self.grid_minor = FixGrid(minor_value)
+            self.set_ytick_increment(minor_value*5)
+
+            if self.want_minor_grid:
+                self.grids = [self.grid_major, self.grid_minor]
+            else:
+                self.grids = [self.grid_major]
+
+
+        #def mousePressEvent(self, mouse_ev):
+        #    point = self.mapFromGlobal(mouse_ev.globalPos())
+        #    if mouse_ev.button() == qc.Qt.LeftButton:
+        #        self.track_start = (point.x(), point.y())
+        #        self.last_y = point.y()
+        #    else:
+        #        super(Axis, self).mousePressEvent(mouse_ev)
+
+        #def mouseReleaseEvent(self, mouse_event):
+        #    self.track_start = None
+
+        #def mouseMoveEvent(self, mouse_ev):
+        #    ''' from pyrocko's pile viewer'''
+        #    point = self.mapFromGlobal(mouse_ev.globalPos())
+
+        #    if self.track_start is not None:
+        #        x0, y0 = self.track_start
+        #        dx = (point.x()- x0)/float(self.width())
+        #        dy = (point.y() - y0)/float(self.height())
+        #        #if self.ypart(y0) == 1:
+        #        #dy = 0
+
+        #        tmin0, tmax0 = self.xlim
+
+        #        scale = math.exp(-dy*5.)
+        #        dtr = scale*(tmax0-tmin0) - (tmax0-tmin0)
+        #        frac = x0/ float(self.width())
+        #        dt = dx*(tmax0-tmin0)*scale
+
+        #        #self.interrupt_following()
+        #        self.set_xlim(
+        #            tmin0 - dt - dtr*frac,
+        #            tmax0 - dt + dtr*(1.-frac))
+        #        self.update()
+
+    return Axis
+
+Axis = MakeAxis()
+print(Axis)
+class MikadoWidget(Axis):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        self.setContentsMargins(0, 0, 0, 0)
-        self.scroll_increment = 0
-        self.track_start = None
-
-        self.ymin = None
-        self.ymax = None
-        self.xmin = None
-        self.xmax = None
-
-        self._ymin = 0.
-        self._ymax = 1.
-        self._yinc = None
-        self._xmin = 0.
-        self._xmax = 1.
-        self._xinc = None
-
-        self.left = 0.15
-        self.right = 1.
-        self.bottom = 0.1
-        self.top = 0.9
-
-        self.xlabels = True
-        self.ylabels = True
-        self.yticks = True
-        self.xticks = True
-        self.xzoom = 0.
-
-        self.clear()
-        self.grids = [AutoGrid()]
-        self.__want_minor_grid = True
-
-        self.yscaler = AutoScaler(
-            no_exp_interval=(-3, 2), approx_ticks=5,
-            snap=True
-        )
-
-        self.xscaler = AutoScaler(
-            no_exp_interval=(-3, 2), approx_ticks=5,
-            snap=True
-        )
-        self.draw_points = False
-        self.set_brush()
-        self._xvisible = num.empty(0)
-        self._yvisible = num.empty(0)
-        self.yproj = Projection()
-        self.xproj = Projection()
-        self.colormap = Colormap()
-        self.setAutoFillBackground(True)
-
-    def clear(self):
-        self.scene_items = []
-
-    def setup_annotation_boxes(self):
-        ''' left and top boxes containing labels, dashes, marks, etc.'''
-        w, h = self.wh
-        l = self.left
-        r = self.right
-        b = self.bottom
-        t = self.top
-
-        tl = qc.QPoint((1.-b) * h, l * w)
-        size = qc.QSize(w * (1. - (l + (1.-r))),
-                        h * (1. - ((1.-t)+b)))
-        self.x_annotation_rect = qc.QRect(tl, size)
-
-    @property
-    def wh(self):
-        return self.width(), self.height()
-
-    def set_brush(self, color='black'):
-        self.brush = qg.QBrush(qg.QColor(*_colors[color]))
-
-    def set_pen_color(self, color='black'):
-        self.pen.setColor(qg.QColor(*_colors[color]))
-
-    def get_pen(self, color='black', line_width=1, style='solid'):
-        '''
-        :param color: color name as string
-        '''
-        if style == 'o':
-            self.draw_points = True
-
-        return qg.QPen(qg.QColor(*_colors[color]),
-                      line_width, _pen_styles[style])
-
-    def set_title(self, title):
-        self.title = title
-
-    def plot(self, xdata=None, ydata=None, ndecimate=0,
-             style='solid', color='black', line_width=1, ignore_nan=False,
-             antialiasing=True):
-        ''' plot data
-
-        :param *args:  ydata | xdata, ydata
-        :param ignore_nan: skip values which are nan
-        '''
-        if ydata is None:
-            return
-        if len(ydata) == 0:
-            self.update_datalims([0], [0])
-            return
-
-        if xdata is None:
-            xdata = num.arange(len(ydata))
-
-        if ignore_nan:
-            ydata = num.ma.masked_invalid(ydata)
-            xdata = xdata[~ydata.mask]
-            ydata = ydata[~ydata.mask]
-
-        if ndecimate != 0:
-            #self._xvisible = minmax_decimation(xdata, ndecimate)
-            xvisible = xdata[::ndecimate]
-            yvisible = minmax_decimation(ydata, ndecimate)
-            #self._yvisible = smooth(ydata, window_len=ndecimate*2)[::ndecimate]
-            #index = num.arange(0, len(self._xvisible), ndecimate)
-        else:
-            xvisible = xdata
-            yvisible = ydata
-
-        pen = self.get_pen(color, line_width, style)
-        if style == 'o':
-            self.scene_items.append(Points(x=xvisible, y=yvisible, pen=pen, antialiasing=antialiasing))
-        else:
-            self.scene_items.append(Polyline(x=xvisible, y=yvisible, pen=pen, antialiasing=antialiasing))
-
-        self.update_datalims(xvisible, yvisible)
-
-    def axvline(self, x, **pen_args):
-        pen = self.get_pen(**pen_args)
-        self.scene_items.append(AxVLine(x=x, pen=pen))
-
-    def axhline(self, y, **pen_args):
-        pen = self.get_pen(**pen_args)
-        self.scene_items.append(AxHLine(y=y, pen=pen))
-
-    def colormesh(self, x=None, y=None, z=None, **pen_args):
-
-        nx, ny = z.shape
-        if y is None:
-            y = num.arange(ny)
-
-        if x is None:
-            x = num.arange(nx)
-
-        spec = PColormesh.from_numpy_array(x=x, y=y, z=z)
-        self.scene_items.append(spec)
-        self.update_datalims(x, y)
-
-        return spec
-
-    def fill_between(self, xdata, ydata1, ydata2, *args, **kwargs):
-        x = num.hstack((xdata, xdata[::-1]))
-        y = num.hstack((ydata1, ydata2[::-1]))
-        self.update_datalims(x, y)
-
-    def plotlog(self, xdata=None, ydata=None, ndecimate=0, **style_kwargs):
-        try:
-            self.plot(xdata, num.log(ydata), ndecimate=ndecimate, **style_kwargs)
-        except ValueError as e:
-            logger.info(e)
-
-    def update_datalims(self, xvisible, yvisible):
-
-        if self.ymin is None:
-            self._ymin = num.min(yvisible)
-        else:
-            self._ymin = self.ymin
-        if not self.ymax:
-            self._ymax = num.max(yvisible)
-        else:
-            self._ymax = self.ymax
-
-        self.colormap.set_vlim(self._ymin, self._ymax)
-
-        if not self.xmin:
-            self._xmin = num.min(xvisible)
-        else:
-            self._xmin = self.xmin
-
-        if not self.xmax:
-            self._xmax = num.max(xvisible)
-        else:
-            self._xmax = self.xmax
-
-        self.update_projections()
-
-    @property
-    def xlim(self):
-        return (self._xmin, self._xmax)
-
-    def canvas_rect(self):
-        ''' Rectangular containing the data visualization. '''
-        w, h = self.wh
-        tl = qc.QPoint(self.left*w, (1.-self.top)*h)
-        size = qc.QSize(w* (self.right-self.left), h* self.top-self.bottom)
-        rect = self.rect()
-        rect.setTopLeft(tl)
-        rect.setSize(size)
-        return rect
-
-    def set_xlim(self, xmin, xmax):
-        ''' Set x data range. If unset scale to min|max of ydata range '''
-        self.xmin = xmin
-        self.xmax = xmax
-        self.xproj.set_in_range(self.xmin, self.xmax)
-
-    @property
-    def xrange_visible(self):
-        return self.xproj.in_range
-
-    def do_draw(self, painter):
-        ''' this is executed e.g. when self.repaint() is called. Draws the
-        underlying data and scales the content to fit into the widget.'''
-        self.draw_deco(painter)
-        rect = self.canvas_rect()
-        for item in self.scene_items:
-            item.draw(painter, self.xproj, self.yproj, rect=rect)
-
-    def draw_deco(self, painter):
-        painter.save()
-        painter.setRenderHint(qg.QPainter.Antialiasing)
-        self.draw_axes(painter)
-
-        if self.yticks:
-            self.draw_y_ticks(painter)
-        if self.xticks:
-            self.draw_x_ticks(painter)
-
-        for grid in self.grids:
-            grid.draw_grid(self, painter)
-
-        painter.restore()
-
-    def draw_axes(self, painter):
-        ''' draw x and y axis'''
-        w, h = self.wh
-        points = [qc.QPoint(w*self.left, h*(self.bottom)),
-                  qc.QPoint(w*self.left, h*(1.-self.top)),
-                  qc.QPoint(w*self.right, h*(1.-self.top))]
-        painter.drawPoints(qg.QPolygon(points))
-
-    def set_xtick_increment(self, increment):
-        self._xinc = increment
-
-    def set_ytick_increment(self, increment):
-        self._yinc = increment
-
-    def draw_x_ticks(self, painter):
-        w, h = self.wh
-        xmin, xmax, xinc = self.xscaler.make_scale((self._xmin, self._xmax))
-        _xinc = self._xinc or xinc
-        ticks = num.arange(xmin, xmax, _xinc)
-        ticks_proj = self.xproj(ticks)
-        tick_anchor = (1.-self.top)*h
-        lines = [qc.QLineF(xval, tick_anchor * 0.8, xval, tick_anchor)
-                 for xval in ticks_proj]
-
-        painter.drawLines(lines)
-        if self.xlabels:
-            for i, xval in enumerate(ticks):
-                painter.drawText(qc.QPointF(ticks_proj[i], tick_anchor), str(xval))
-
-    def draw_y_ticks(self, painter):
-        w, h = self.wh
-        ymin, ymax, yinc = self.yscaler.make_scale(
-            (self._ymin, self._ymax)
-        )
-        if self.scroll_increment == 0:
-            self.scroll_increment = yinc/4
-
-        _yinc = self._yinc or yinc
-        ticks = num.arange(ymin, ymax, _yinc)
-        ticks_proj = self.yproj(ticks)
-        lines = [qc.QLineF(w * self.left * 0.8, yval, w*self.left, yval)
-                 for yval in ticks_proj]
-        painter.drawLines(lines)
-        if self.ylabels:
-            for i, yval in enumerate(ticks):
-                painter.drawText(qc.QPointF(0, ticks_proj[i]), str(yval))
-
-    def draw_labels(self, painter):
-        self.setup_annotation_boxes()
-        painter.drawText(self.x_annotation_rect, qc.Qt.AlignCenter, 'Time')
-
-    @qc.pyqtSlot(QAction)
-    def on_tick_increment_select(self, action):
-        action_text = action.text()
-
-        if isinstance(action, QWidgetAction):
-            return
-
-        if action_text == 'Minor ticks':
-            self.want_minor_grid = action.isChecked()
-        else:
-            val = int(action.text())
-            self.set_grids(val)
-
-    @property
-    def want_minor_grid(self):
-        return self.__want_minor_grid
-
-    @want_minor_grid.setter
-    def want_minor_grid(self, _bool):
-        self.__want_minor_grid = _bool
-        if _bool:
-            self.grids = [self.grid_major, self.grid_minor]
-        else:
-            self.grids = [self.grid_major]
-
-    def set_grids(self, minor_value):
-        self.grid_major = FixGrid(
-            minor_value*5, pen_color='aluminium2', style='solid')
-        self.grid_minor = FixGrid(minor_value)
-        self.set_ytick_increment(minor_value*5)
-
-        if self.want_minor_grid:
-            self.grids = [self.grid_major, self.grid_minor]
-        else:
-            self.grids = [self.grid_major]
-
-
-    #def mousePressEvent(self, mouse_ev):
-    #    point = self.mapFromGlobal(mouse_ev.globalPos())
-    #    if mouse_ev.button() == qc.Qt.LeftButton:
-    #        self.track_start = (point.x(), point.y())
-    #        self.last_y = point.y()
-    #    else:
-    #        super(PlotWidget, self).mousePressEvent(mouse_ev)
-
-    #def mouseReleaseEvent(self, mouse_event):
-    #    self.track_start = None
-
-    #def mouseMoveEvent(self, mouse_ev):
-    #    ''' from pyrocko's pile viewer'''
-    #    point = self.mapFromGlobal(mouse_ev.globalPos())
-
-    #    if self.track_start is not None:
-    #        x0, y0 = self.track_start
-    #        dx = (point.x()- x0)/float(self.width())
-    #        dy = (point.y() - y0)/float(self.height())
-    #        #if self.ypart(y0) == 1:
-    #        #dy = 0
-
-    #        tmin0, tmax0 = self.xlim
-
-    #        scale = math.exp(-dy*5.)
-    #        dtr = scale*(tmax0-tmin0) - (tmax0-tmin0)
-    #        frac = x0/ float(self.width())
-    #        dt = dx*(tmax0-tmin0)*scale
-
-    #        #self.interrupt_following()
-    #        self.set_xlim(
-    #            tmin0 - dt - dtr*frac,
-    #            tmax0 - dt + dtr*(1.-frac))
-    #        self.update()
-
-
-class MikadoWidget(PlotWidget):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super(MikadoWidget, self).__init__(*args, **kwargs)
 
     def fill_between(self, xdata1, ydata1, xdata2, ydata2, *args, **kwargs):
         '''

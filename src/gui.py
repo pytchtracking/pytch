@@ -9,7 +9,7 @@ from pytch.data import MicrophoneRecorder, getaudiodevices, pitch_algorithms
 from pytch.gui_util import FloatQLineEdit
 from pytch.gui_util import make_QPolygonF, _color_names, _colors # noqa
 from pytch.util import consecutive, f2cent, cent2f, index_gradient_filter
-from pytch.plot import PlotWidget, GaugeWidget, MikadoWidget, FixGrid, PColormesh
+from pytch.plot import Axis, GaugeWidget, MikadoWidget, FixGrid
 from pytch.keyboard import KeyBoard
 
 from PyQt5 import QtCore as qc
@@ -347,9 +347,9 @@ class ChannelViews(QWidget):
             cv.on_pitch_shift_changed(f)
 
 
-class SpectrogramWidget(PlotWidget):
+class SpectrogramWidget(Axis):
     def __init__(self, channel, *args, **kwargs):
-        PlotWidget.__init__(self, *args, **kwargs)
+        Axis.__init__(self, *args, **kwargs)
         self.ny, self.nx = 300, 680
         self.channel = channel
         fake = num.ones((self.nx, self.ny))
@@ -368,9 +368,9 @@ class SpectrogramWidget(PlotWidget):
         self.update()
 
 
-class SpectrumWidget(PlotWidget):
+class SpectrumWidget(Axis):
     def __init__(self, *args, **kwargs):
-        PlotWidget.__init__(self, *args, **kwargs)
+        Axis.__init__(self, *args, **kwargs)
         self.set_xlim(0, 2000)
         self.set_ylim(0, 20)
         self.left = 0.
@@ -399,7 +399,7 @@ class ChannelView(QWidget):
         self.confidence_threshold = 0.9
         self.freq_keyboard = 0
 
-        self.trace_widget = PlotWidget()
+        self.trace_widget = Axis()
         self.trace_widget.grids = []
         self.trace_widget.yticks = False
         self.trace_widget.set_ylim(-1000., 1000.)
@@ -585,7 +585,7 @@ class OverView(QWidget):
 
         layout = QGridLayout()
         self.setLayout(layout)
-        self.figure = PlotWidget()
+        self.figure = Axis()
         self.figure.xlabels = False
         self.figure.set_ylim(-1500., 1500)
         self.figure.set_grids(100.)
