@@ -243,20 +243,6 @@ class AutoScaler():
         return a
 
 
-class PlotWidgetBase(qw.QWidget):
-    '''
-    Alternative for :py:class:`pytch.gui_util_opengl.GLWidget` without
-    OpenGL support
-    '''
-
-    def paintEvent(self, e):
-        painter = qg.QPainter(self)
-
-        self.do_draw(painter)
-
-    def do_draw(self, painter):
-        raise Exception('to be implemented in subclass')
-
 
 
 class Projection(object):
@@ -362,3 +348,115 @@ class FloatQLineEdit(qw.QLineEdit):
 
     def check(self):
         self.accepted_value.emit(float(self.text()))
+
+
+
+class PlotBase(object):
+    def __init__(self, *args, **kwargs):
+        self.wheel_pos = 0
+        self.scroll_increment = 100
+        self.setFocusPolicy(qc.Qt.StrongFocus)
+        self.set_background_color('white')
+        self.setContentsMargins(0, 0, 0, 0)
+
+    def canvas_rect(self):
+        ''' Rectangular containing the data visualization. '''
+        w, h = self.wh
+        tl = qc.QPoint(self.left*w, (1.-self.top)*h)
+        size = qc.QSize(w* (self.right-self.left), h* self.top-self.bottom)
+        rect = self.rect()
+        rect.setTopLeft(tl)
+        rect.setSize(size)
+        return rect
+
+    @property
+    def wh(self):
+        return self.width(), self.height()
+
+    def set_brush(self, color='black'):
+        self.brush = qg.QBrush(qg.QColor(*_colors[color]))
+
+    def set_pen_color(self, color='black'):
+        self.pen.setColor(qg.QColor(*_colors[color]))
+
+    def get_pen(self, color='black', line_width=1, style='solid'):
+        '''
+        :param color: color name as string
+        '''
+        if style == 'o':
+            self.draw_points = True
+
+        return qg.QPen(qg.QColor(*_colors[color]),
+                      line_width, _pen_styles[style])
+    def set_ylim(self, ymin, ymax):
+        ''' Set range of Gauge.'''
+        self.ymin = ymin
+        self.ymax = ymax
+        self._ymin = ymin
+        self._ymax = ymax
+        self.update_projections()
+
+    def update_projections(self):
+        w, h = self.width(), self.height()
+
+        mi, ma = self.xproj.get_out_range()
+        xzoom = self.xzoom * (ma-mi)
+        self.xproj.set_in_range(self._xmin - xzoom, self._xmax)
+        self.xproj.set_out_range(w * self.left, w * self.right)
+
+        self.yproj.set_in_range(self._ymin, self._ymax)
+        self.yproj.set_out_range(
+            h*(1.-self.top),
+            h*(1.-self.bottom),
+            flip=True
+        )
+
+    @qc.pyqtSlot(qg.QMouseEvent)
+    def wheelEvent(self, wheel_event):
+        self.wheel_pos += wheel_event.angleDelta().y()
+        n = self.wheel_pos / 120
+        self.wheel_pos = self.wheel_pos % 120
+        if n == 0:
+            return
+
+        modifier = qw.QApplication.keyboardModifiers()
+        if modifier & qc.Qt.ControlModifier:
+            self.set_ylim(self._ymin-self.scroll_increment*n,
+                          self._ymax+self.scroll_increment*n)
+        else:
+            self.set_ylim(self._ymin-self.scroll_increment*n,
+                          self._ymax-self.scroll_increment*n)
+
+
+        self.update()
+
+    #@qc.pyqtSlot(qg.QPaintEvent)
+    #def paintEvent(self, e):
+    #    painter = qg.QPainter(self)
+
+    #    #self.do_draw(painter)
+    #    painter.end()
+
+    @qc.pyqtSlot(qg.QKeyEvent)
+    def keyPressEvent(self, key_event):
+        ''' react on keyboard keys when they are pressed.'''
+        key_text = key_event.text()
+        if key_text == '+':
+            self.set_ylim(self._ymin-self.scroll_increment,
+                          self._ymax+self.scroll_increment)
+        elif key_text == '-':
+            self.set_ylim(self._ymin+self.scroll_increment,
+                          self._ymax-self.scroll_increment)
+        super(self).keyPressEvent(key_event)
+
+    def set_background_color(self, color):
+        '''
+        :param color: color as string
+        '''
+        background_color = qg.QColor(*_colors[color])
+        self.background_brush = qg.QBrush(background_color)
+        pal = self.palette()
+        pal.setBrush(qg.QPalette.Background, self.background_brush)
+        self.setPalette(pal)
+
+

@@ -3,137 +3,21 @@ import math
 import scipy.interpolate as interpolate
 import logging
 
-from pytch.gui_util import AutoScaler, Projection, minmax_decimation, PlotWidgetBase
-from pytch.gui_util import make_QPolygonF, _color_names, _colors, _pen_styles    # noqa
+from pytch.gui_util import PlotBase
+from pytch.gui_util import AutoScaler, Projection, minmax_decimation
+from pytch.gui_util import make_QPolygonF, _colors, _pen_styles    # noqa
 
 from PyQt5 import QtCore as qc
 from PyQt5 import QtGui as qg
-from PyQt5.QtWidgets import QWidget, QSizePolicy, QApplication, QAction, QWidgetAction
+from PyQt5 import QtWidgets  as qw
 
 
 d2r = num.pi/180.
 logger = logging.getLogger(__name__)
 _grey_scale = list([qg.qRgb(i, i, i) for i in range(256)])
+PlotWidgetBase = qw.QWidget
 
-try:
-    from pytch.gui_util_opengl import GLWidget
-    __PlotSuperClass = GLWidget
-except ImportError:
-    logger.warn('no opengl support')
-    __PlotSuperClass = PlotWidgetBase
-
-
-class PlotBase(__PlotSuperClass):
-    def __init__(self, *args, **kwargs):
-        super(PlotBase, self).__init__(*args, **kwargs)
-        self.wheel_pos = 0
-        self.scroll_increment = 100
-        self.setFocusPolicy(qc.Qt.StrongFocus)
-        self.set_background_color('white')
-        self.setContentsMargins(0, 0, 0, 0)
-    
-    def canvas_rect(self):
-        ''' Rectangular containing the data visualization. '''
-        w, h = self.wh
-        tl = qc.QPoint(self.left*w, (1.-self.top)*h)
-        size = qc.QSize(w* (self.right-self.left), h* self.top-self.bottom)
-        rect = self.rect()
-        rect.setTopLeft(tl)
-        rect.setSize(size)
-        return rect
-
-
-    @property
-    def wh(self):
-        return self.width(), self.height()
-
-    def set_brush(self, color='black'):
-        self.brush = qg.QBrush(qg.QColor(*_colors[color]))
-
-    def set_pen_color(self, color='black'):
-        self.pen.setColor(qg.QColor(*_colors[color]))
-
-    def get_pen(self, color='black', line_width=1, style='solid'):
-        '''
-        :param color: color name as string
-        '''
-        if style == 'o':
-            self.draw_points = True
-
-        return qg.QPen(qg.QColor(*_colors[color]),
-                      line_width, _pen_styles[style])
-
-    def set_ylim(self, ymin, ymax):
-        ''' Set range of Gauge.'''
-        self.ymin = ymin
-        self.ymax = ymax
-        self._ymin = ymin
-        self._ymax = ymax
-        self.update_projections()
-
-    def update_projections(self):
-        w, h = self.width(), self.height()
-
-        mi, ma = self.xproj.get_out_range()
-        xzoom = self.xzoom * (ma-mi)
-        self.xproj.set_in_range(self._xmin - xzoom, self._xmax)
-        self.xproj.set_out_range(w * self.left, w * self.right)
-
-        self.yproj.set_in_range(self._ymin, self._ymax)
-        self.yproj.set_out_range(
-            h*(1.-self.top),
-            h*(1.-self.bottom),
-            flip=True
-        )
-
-    @qc.pyqtSlot(qg.QMouseEvent)
-    def wheelEvent(self, wheel_event):
-        self.wheel_pos += wheel_event.angleDelta().y()
-        n = self.wheel_pos / 120
-        self.wheel_pos = self.wheel_pos % 120
-        if n == 0:
-            return
-
-        modifier = QApplication.keyboardModifiers()
-        if modifier & qc.Qt.ControlModifier:
-            self.set_ylim(self._ymin-self.scroll_increment*n,
-                          self._ymax+self.scroll_increment*n)
-        else:
-            self.set_ylim(self._ymin-self.scroll_increment*n,
-                          self._ymax-self.scroll_increment*n)
-        self.update()
-
-    @qc.pyqtSlot(qg.QPaintEvent)
-    def paintEvent(self, e):
-        painter = qg.QPainter(self)
-
-        self.do_draw(painter)
-        painter.end()
-
-    @qc.pyqtSlot(qg.QKeyEvent)
-    def keyPressEvent(self, key_event):
-        ''' react on keyboard keys when they are pressed.'''
-        key_text = key_event.text()
-        if key_text == '+':
-            self.set_ylim(self._ymin-self.scroll_increment,
-                          self._ymax+self.scroll_increment)
-        elif key_text == '-':
-            self.set_ylim(self._ymin+self.scroll_increment,
-                          self._ymax-self.scroll_increment)
-        super().keyPressEvent(key_event)
-
-    def set_background_color(self, color):
-        '''
-        :param color: color as string
-        '''
-        background_color = qg.QColor(*_colors[color])
-        self.background_brush = qg.QBrush(background_color)
-        pal = self.palette()
-        pal.setBrush(qg.QPalette.Background, self.background_brush)
-        self.setPalette(pal)
-
-
-class InterpolatedColormap:
+class InterpolatedColormap(object):
     ''' Continuously interpolating colormap '''
     def __init__(self, name=''):
         self.name = name
@@ -242,13 +126,13 @@ class Colormap(InterpolatedColormap):
         return self.colors_QPen[i]
 
 
-class ColormapWidget(QWidget):
+class ColormapWidget(qw.QWidget):
     def __init__(self, colormap, *args, **kwargs):
-        QWidget.__init__(self, *args, **kwargs)
+        qw.QWidget.__init__(self, *args, **kwargs)
         self.colormap = colormap
         self.yproj = Projection()
-        size_policy = QSizePolicy()
-        size_policy.setHorizontalPolicy(QSizePolicy.Maximum)
+        size_policy = qw.QSizePolicy()
+        size_policy.setHorizontalPolicy(qw.QSizePolicy.Maximum)
         self.setSizePolicy(size_policy)
         self.set_background_color('white')
         self.update()
@@ -259,6 +143,7 @@ class ColormapWidget(QWidget):
             callback=self.colormap.map_to_QColor)
         self.yproj.set_in_range(num.min(self.vals), num.max(self.vals))
 
+    @qc.pyqtSlot(qg.QPaintEvent)
     def paintEvent(self, e):
         rect = self.rect()
         self.yproj.set_out_range((1.-rect.top()), rect.bottom(), flip=True)
@@ -283,113 +168,123 @@ class ColormapWidget(QWidget):
         pal.setBrush(qg.QPalette.Background, self.background_brush)
         self.setPalette(pal)
 
+def MakeGaugeWidget(gl=False):
+    if gl:
+        from pytch.gui_util_opengl import GLWidget
+        base = GLWidget
+    else:
+        base = qw.QWidget
+    class _GaugeWidget(base, PlotBase):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
 
-class GaugeWidget(PlotBase):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+            self.color = qg.QColor(0, 100, 100)
+            self._val = 0
+            self.set_title('')
+            self.proj = Projection()
+            out_min = -130.
+            out_max = 130.
+            self.proj.set_out_range(out_min, out_max)
+            self.set_ylim(0., 1500.)
 
-        self.color = qg.QColor(0, 100, 100)
-        self._val = 0
-        self.set_title('')
-        self.proj = Projection()
-        out_min = -130.
-        out_max = 130.
-        self.proj.set_out_range(out_min, out_max)
-        self.set_ylim(0., 1500.)
+            self.scaler = AutoScaler(
+                no_exp_interval=(-3, 2), approx_ticks=7,
+                snap=True
+            )
 
-        self.scaler = AutoScaler(
-            no_exp_interval=(-3, 2), approx_ticks=7,
-            snap=True
-        )
+            size_policy = qw.QSizePolicy()
+            size_policy.setHorizontalPolicy(qw.QSizePolicy.Minimum)
+            self.setSizePolicy(size_policy)
+            self.xtick_increment = 20
+            self.pen = qg.QPen(self.color, 20, qc.Qt.SolidLine)
+            self.pen.setCapStyle(qc.Qt.FlatCap)
+            self.wheel_pos = 0
 
-        size_policy = QSizePolicy()
-        size_policy.setHorizontalPolicy(QSizePolicy.Minimum)
-        self.setSizePolicy(size_policy)
-        self.xtick_increment = 20
-        self.pen = qg.QPen(self.color, 20, qc.Qt.SolidLine)
-        self.pen.setCapStyle(qc.Qt.FlatCap)
-        self.wheel_pos = 0
+        def set_ylim(self, ymin, ymax):
+            ''' Set range of Gauge.'''
+            self.ymin = ymin
+            self.ymax = ymax
+            self._ymin = ymin
+            self._ymax = ymax
+            self.proj.set_in_range(self.ymin, self.ymax)
 
-    def set_ylim(self, ymin, ymax):
-        ''' Set range of Gauge.'''
-        self.ymin = ymin
-        self.ymax = ymax
-        self._ymin = ymin
-        self._ymax = ymax
-        self.proj.set_in_range(self.ymin, self.ymax)
+        def get_ylim(self):
+            return self.ymin, self.ymax
 
-    def get_ylim(self):
-        return self.ymin, self.ymax
-
-    def do_draw(self, painter):
-        ''' This is executed when self.repaint() is called'''
-        painter.save()
-        self.side = min(self.width(), self.height())/1.05
-        self.halfside = self.side/2.
-        rect = qc.QRectF(-self.halfside, -self.halfside, self.side, self.side)
-        painter.translate(self.width()/2., self.height()/2.)
-        painter.save()
-        painter.setPen(self.pen)
-        self.arc_start = -(self.proj(0)+180) * 16
-        pmin, pmax = self.proj.get_in_range()
-        if self._val:
-            span_angle = self.proj(self._val)*16 + self.arc_start+180*16.
-            painter.drawArc(rect, self.arc_start, -span_angle)
-        painter.restore()
-
-        self.draw_deco(painter)
-        painter.restore()
-
-    def draw_deco(self, painter):
-        self.draw_ticks(painter)
-        self.draw_title(painter)
-
-    def draw_title(self, painter):
-        painter.drawText(-40., 2., self.title)
-
-    def draw_ticks(self, painter):
-        # needs some performance polishing !!!
-        xmin, xmax = self.proj.get_in_range()
-
-        ticks = num.arange(xmin, xmax+self.xtick_increment,
-                           self.xtick_increment, dtype=num.int)
-        ticks_proj = self.proj(ticks) + 180
-
-        line = qc.QLine(self.halfside * 0.9, 0, self.halfside, 0)
-        subline = qc.QLine(self.halfside * 0.95, 0, self.halfside, 0)
-        painter.save()
-        font = painter.font()
-        font.setPointSize(8)
-        painter.setFont(font)
-        text_box_with = 100
-        for i, degree in enumerate(ticks_proj):
+        @qc.pyqtSlot(qg.QPaintEvent)
+        def paintEvent(self, e):
+        #def do_draw(self, painter):
+            ''' This is executed when self.repaint() is called'''
+            #painter.save()
+            #painter = self.getPain
+            painter = qg.QPainter(self)
+            self.side = min(self.width(), self.height())/1.05
+            self.halfside = self.side/2.
+            rect = qc.QRectF(-self.halfside, -self.halfside, self.side, self.side)
+            painter.translate(self.width()/2., self.height()/2.)
             painter.save()
-            if i % 5 == 0:
-                rotate_rad = degree*d2r
-                x = self.halfside*0.8*num.cos(rotate_rad) - text_box_with/2
-                y = self.halfside*0.8*num.sin(rotate_rad)
-                rect = qc.QRectF(x, y, text_box_with, text_box_with/5)
-                painter.drawText(rect, qc.Qt.AlignCenter, str(ticks[i]))
-                painter.rotate(degree)
-                painter.drawLine(line)
-            else:
-                painter.rotate(degree)
-                painter.drawLine(subline)
+            painter.setPen(self.pen)
+            self.arc_start = -(self.proj(0)+180) * 16
+            pmin, pmax = self.proj.get_in_range()
+            if self._val:
+                span_angle = self.proj(self._val)*16 + self.arc_start+180*16.
+                painter.drawArc(rect, self.arc_start, -span_angle)
             painter.restore()
-        painter.restore()
 
-    def set_title(self, title):
-        self.title = title
+            self.draw_deco(painter)
+            painter.restore()
 
-    def set_data(self, val):
-        '''
-        Call this method to update the arc
-        '''
-        self._val = val
+        def draw_deco(self, painter):
+            self.draw_ticks(painter)
+            self.draw_title(painter)
 
-    def sizeHint(self):
-        return qc.QSize(400, 400)
+        def draw_title(self, painter):
+            painter.drawText(-40., 2., self.title)
 
+        def draw_ticks(self, painter):
+            # needs some performance polishing !!!
+            xmin, xmax = self.proj.get_in_range()
+
+            ticks = num.arange(xmin, xmax+self.xtick_increment,
+                               self.xtick_increment, dtype=num.int)
+            ticks_proj = self.proj(ticks) + 180
+
+            line = qc.QLine(self.halfside * 0.9, 0, self.halfside, 0)
+            subline = qc.QLine(self.halfside * 0.95, 0, self.halfside, 0)
+            painter.save()
+            font = painter.font()
+            font.setPointSize(8)
+            painter.setFont(font)
+            text_box_with = 100
+            for i, degree in enumerate(ticks_proj):
+                painter.save()
+                if i % 5 == 0:
+                    rotate_rad = degree*d2r
+                    x = self.halfside*0.8*num.cos(rotate_rad) - text_box_with/2
+                    y = self.halfside*0.8*num.sin(rotate_rad)
+                    rect = qc.QRectF(x, y, text_box_with, text_box_with/5)
+                    painter.drawText(rect, qc.Qt.AlignCenter, str(ticks[i]))
+                    painter.rotate(degree)
+                    painter.drawLine(line)
+                else:
+                    painter.rotate(degree)
+                    painter.drawLine(subline)
+                painter.restore()
+            painter.restore()
+
+        def set_title(self, title):
+            self.title = title
+
+        def set_data(self, val):
+            '''
+            Call this method to update the arc
+            '''
+            self._val = val
+
+        def sizeHint(self):
+            return qc.QSize(400, 400)
+
+    return _GaugeWidget
 
 class Grid():
     def __init__(self, horizontal=True, vertical=True, *args, **kwargs):
@@ -638,17 +533,18 @@ class PColormesh(PlotWidgetBase):
         return ctable
 
 
-def MakeAxis(gl=False):
-    #if gl:
-    #    #base = GLWidget
-    #else:
-    #    #base = PlotWidgetBase
-    base = PlotBase
-    class Axis(base):
+def MakeAxis(gl=True):
+    if gl:
+        from pytch.gui_util_opengl import GLWidget
+        base = GLWidget
+    else:
+        base = qw.QWidget
+    class _Axis(base, PlotBase):
         ''' a plotwidget displays data (x, y coordinates). '''
 
         def __init__(self, *args, **kwargs):
-            super(Axis, self).__init__(*args, **kwargs)
+            base.__init__(self, *args, **kwargs)
+            PlotBase.__init__(self, *args, **kwargs)
 
             self.scroll_increment = 0
             self.track_start = None
@@ -834,9 +730,12 @@ def MakeAxis(gl=False):
         def xrange_visible(self):
             return self.xproj.in_range
 
-        def do_draw(self, painter):
+        #def do_draw(self, painter):
+        @qc.pyqtSlot(qg.QPaintEvent)
+        def paintEvent(self, e):
             ''' this is executed e.g. when self.repaint() is called. Draws the
             underlying data and scales the content to fit into the widget.'''
+            painter = qg.QPainter(self)
             self.draw_deco(painter)
             rect = self.canvas_rect()
             for item in self.scene_items:
@@ -908,11 +807,11 @@ def MakeAxis(gl=False):
             self.setup_annotation_boxes()
             painter.drawText(self.x_annotation_rect, qc.Qt.AlignCenter, 'Time')
 
-        @qc.pyqtSlot(QAction)
+        @qc.pyqtSlot(qw.QAction)
         def on_tick_increment_select(self, action):
             action_text = action.text()
 
-            if isinstance(action, QWidgetAction):
+            if isinstance(action, qw.QWidgetAction):
                 return
 
             if action_text == 'Minor ticks':
@@ -944,46 +843,12 @@ def MakeAxis(gl=False):
             else:
                 self.grids = [self.grid_major]
 
+    return _Axis
 
-        #def mousePressEvent(self, mouse_ev):
-        #    point = self.mapFromGlobal(mouse_ev.globalPos())
-        #    if mouse_ev.button() == qc.Qt.LeftButton:
-        #        self.track_start = (point.x(), point.y())
-        #        self.last_y = point.y()
-        #    else:
-        #        super(Axis, self).mousePressEvent(mouse_ev)
+Axis = MakeAxis(gl=False)
+GLAxis = MakeAxis(gl=True)
+GaugeWidget = MakeGaugeWidget(gl=True)
 
-        #def mouseReleaseEvent(self, mouse_event):
-        #    self.track_start = None
-
-        #def mouseMoveEvent(self, mouse_ev):
-        #    ''' from pyrocko's pile viewer'''
-        #    point = self.mapFromGlobal(mouse_ev.globalPos())
-
-        #    if self.track_start is not None:
-        #        x0, y0 = self.track_start
-        #        dx = (point.x()- x0)/float(self.width())
-        #        dy = (point.y() - y0)/float(self.height())
-        #        #if self.ypart(y0) == 1:
-        #        #dy = 0
-
-        #        tmin0, tmax0 = self.xlim
-
-        #        scale = math.exp(-dy*5.)
-        #        dtr = scale*(tmax0-tmin0) - (tmax0-tmin0)
-        #        frac = x0/ float(self.width())
-        #        dt = dx*(tmax0-tmin0)*scale
-
-        #        #self.interrupt_following()
-        #        self.set_xlim(
-        #            tmin0 - dt - dtr*frac,
-        #            tmax0 - dt + dtr*(1.-frac))
-        #        self.update()
-
-    return Axis
-
-Axis = MakeAxis()
-print(Axis)
 class MikadoWidget(Axis):
     def __init__(self, *args, **kwargs):
         super(MikadoWidget, self).__init__(*args, **kwargs)
@@ -1006,13 +871,14 @@ class MikadoWidget(Axis):
 
         self.update_datalims(self._xvisible, self._yvisible)
 
-    def do_draw(self, painter):
+    @qc.pyqtSlot(qg.QPaintEvent)
+    def paintEvent(self, e):
         ''' this is executed e.g. when self.repaint() is called. Draws the
         underlying data and scales the content to fit into the widget.'''
 
         if len(self._xvisible) == 0:
             return
-
+        painter = qg.QPainter(self)
         lines = []
         pens = []
         dy = num.abs(self._yvisible[0] - self._yvisible[1])

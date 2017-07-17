@@ -9,7 +9,7 @@ from pytch.data import MicrophoneRecorder, getaudiodevices, pitch_algorithms
 from pytch.gui_util import FloatQLineEdit
 from pytch.gui_util import make_QPolygonF, _color_names, _colors # noqa
 from pytch.util import consecutive, f2cent, cent2f, index_gradient_filter
-from pytch.plot import Axis, GaugeWidget, MikadoWidget, FixGrid
+from pytch.plot import GLAxis, Axis, GaugeWidget, MikadoWidget, FixGrid
 from pytch.keyboard import KeyBoard
 
 from PyQt5 import QtCore as qc
@@ -299,12 +299,14 @@ class MenuWidget(QFrame):
         return qc.QSize(200, 200)
 
 
-class ChannelViews(QWidget):
+class ChannelViews(GLAxis):
+#class ChannelViews(QWidget):
     '''
     Display all ChannelView objects in a QVBoxLayout
     '''
     def __init__(self, channel_views):
-        QWidget.__init__(self)
+        #QWidget.__init__(self)
+        GLAxis.__init__(self)
         self.channel_views = channel_views
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
@@ -368,7 +370,7 @@ class SpectrogramWidget(Axis):
         self.update()
 
 
-class SpectrumWidget(Axis):
+class SpectrumWidget(GLAxis):
     def __init__(self, *args, **kwargs):
         Axis.__init__(self, *args, **kwargs)
         self.set_xlim(0, 2000)
@@ -399,7 +401,7 @@ class ChannelView(QWidget):
         self.confidence_threshold = 0.9
         self.freq_keyboard = 0
 
-        self.trace_widget = Axis()
+        self.trace_widget = GLAxis()
         self.trace_widget.grids = []
         self.trace_widget.yticks = False
         self.trace_widget.set_ylim(-1000., 1000.)
@@ -795,7 +797,7 @@ class PitchLevelDifferenceViews(QWidget):
             for i2, cv2 in enumerate(self.channel_views):
                 if i1>=i2:
                     continue
-                w = GaugeWidget()
+                w = GaugeWidget(gl=True)
                 w.set_ylim(*ylim)
                 w.set_title('Channels: %s | %s' % (i1+1, i2+1))
                 self.widgets.append((cv1, cv2, w))

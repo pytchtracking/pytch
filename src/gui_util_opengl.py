@@ -41,18 +41,15 @@
 ##
 #############################################################################
 
-
 import sys
-import numpy as num
 
-from PyQt5.QtCore import (QSize, QTimer)
-from PyQt5.QtGui import (QBrush, QPainter, QSurfaceFormat)
-from PyQt5 import QtGui as qg
-from PyQt5.QtWidgets import QApplication, QOpenGLWidget, QMainWindow, QHBoxLayout, QWidget
+import PyQt5.QtCore as qc
+import PyQt5.QtGui as qg
+import PyQt5.QtWidgets as qw
 from pytch.gui_util import make_QPolygonF
 
 
-class GLWidget(QOpenGLWidget):
+class GLWidget(qw.QOpenGLWidget):
     def __init__(self, *args, **kwargs):
         super(GLWidget, self).__init__(*args, **kwargs)
 
@@ -66,30 +63,28 @@ class GLWidget(QOpenGLWidget):
         self.gl = self.context().versionFunctions()
         self.gl.initializeOpenGLFunctions()
 
+    @qc.pyqtSlot(qg.QPaintEvent)
     def paintEvent(self, event):
         self.makeCurrent()
 
         self.setupViewport(self.width(), self.height())
 
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
+        painter = qg.QPainter(self)
+        painter.setRenderHint(qg.QPainter.Antialiasing)
 
         #if self.canvas:
-        self.do_draw(painter)
+        #self.do_draw(painter)
 
         painter.end()
 
     def resizeGL(self, width, height):
         self.setupViewport(width, height)
 
-    def do_draw(self, painter):
-        raise Exception('to be implemented in subclass')
-
-    #def showEvent(self, event):
-    #    self.canvas = True
+    def showEvent(self, event):
+        self.canvas = True
 
     def sizeHint(self):
-        return QSize(400, 400)
+        return qc.QSize(400, 400)
 
     def setupViewport(self, width, height):
         side = min(width, height)
@@ -104,22 +99,22 @@ class GLWidget(QOpenGLWidget):
 
 if __name__ == '__main__':
 
-    app = QApplication(sys.argv)
+    app = qw.QApplication(sys.argv)
 
-    fmt = QSurfaceFormat()
+    fmt = qg.QSurfaceFormat()
     fmt.setSamples(4)
-    QSurfaceFormat.setDefaultFormat(fmt)
+    qg.QSurfaceFormat.setDefaultFormat(fmt)
 
     glwindow = GLWidget()
-    animationTimer = QTimer()
+    animationTimer = qc.QTimer()
     animationTimer.setSingleShot(False)
     animationTimer.timeout.connect(glwindow.repaint)
     animationTimer.start(25)
 
     #window.show()
     #window = QMainWindow()
-    window = QWidget()
-    layout = QHBoxLayout()
+    window = qw.QWidget()
+    layout = qw.QHBoxLayout()
     layout.addWidget(glwindow)
     window.setLayout(layout)
     #window.setCentralWidget(glwindow)
