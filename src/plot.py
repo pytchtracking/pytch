@@ -10,10 +10,16 @@ from pytch.gui_util import make_QPolygonF, _colors, _pen_styles    # noqa
 from PyQt5 import QtCore as qc
 from PyQt5 import QtGui as qg
 from PyQt5 import QtWidgets  as qw
+logger = logging.getLogger(__name__)
+
+try:
+    from pytch.gui_util_opengl import GLWidget
+except AttributeError as e:
+    logger.debug(e)
+    GLWidget = qw.QWidget
 
 
 d2r = num.pi/180.
-logger = logging.getLogger(__name__)
 _grey_scale = list([qg.qRgb(i, i, i) for i in range(256)])
 PlotWidgetBase = qw.QWidget
 
@@ -170,7 +176,6 @@ class ColormapWidget(qw.QWidget):
 
 def MakeGaugeWidget(gl=False):
     if gl:
-        from pytch.gui_util_opengl import GLWidget
         base = GLWidget
     else:
         base = qw.QWidget
@@ -535,7 +540,6 @@ class PColormesh(PlotWidgetBase):
 
 def MakeAxis(gl=True):
     if gl:
-        from pytch.gui_util_opengl import GLWidget
         base = GLWidget
     else:
         base = qw.QWidget
