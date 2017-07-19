@@ -243,8 +243,6 @@ class AutoScaler():
         return a
 
 
-
-
 class Projection(object):
     def __init__(self):
         self.xr = 0., 1.
@@ -427,15 +425,7 @@ class PlotBase(object):
             self.set_ylim(self._ymin-self.scroll_increment*n,
                           self._ymax-self.scroll_increment*n)
 
-
         self.update()
-
-    #@qc.pyqtSlot(qg.QPaintEvent)
-    #def paintEvent(self, e):
-    #    painter = qg.QPainter(self)
-
-    #    #self.do_draw(painter)
-    #    painter.end()
 
     @qc.pyqtSlot(qg.QKeyEvent)
     def keyPressEvent(self, key_event):
@@ -447,7 +437,7 @@ class PlotBase(object):
         elif key_text == '-':
             self.set_ylim(self._ymin+self.scroll_increment,
                           self._ymax-self.scroll_increment)
-        super(self).keyPressEvent(key_event)
+        super(PlotBase, self).keyPressEvent(key_event)
 
     def set_background_color(self, color):
         '''

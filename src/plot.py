@@ -11,10 +11,31 @@ from PyQt5 import QtCore as qc
 from PyQt5 import QtGui as qg
 from PyQt5 import QtWidgets  as qw
 
+rgbarray = num.ones((256, 3))
+
+a = num.arange(1, 256, dtype=num.float)
+a /= a.max()
+a *= 255
+def get_colortable(log=False):
+    ctable = []
+    if log:
+        a = num.linspace(0., 1., 256, dtype=num.float)
+        a = num.exp(a)/num.exp(1.) * 256.
+        for i in a:
+            ctable.append(qg.qRgb(i/4, i*2,i/2))
+    else:
+        for i in range(256): ctable.append(qg.qRgb(i/4,i*2,i/2))
+
+    return ctable
+
+
+_grey_scale = [qg.qRgb(val, val, val) for val in a[::-1]]
+#_grey_scale = get_colortable(log=True)
+
 
 d2r = num.pi/180.
 logger = logging.getLogger(__name__)
-_grey_scale = list([qg.qRgb(i, i, i) for i in range(256)])
+#_grey_scale = list([qg.qRgb(i, i, i) for i in range(256)])
 PlotWidgetBase = qw.QWidget
 
 class InterpolatedColormap(object):
@@ -213,10 +234,7 @@ def MakeGaugeWidget(gl=False):
 
         @qc.pyqtSlot(qg.QPaintEvent)
         def paintEvent(self, e):
-        #def do_draw(self, painter):
             ''' This is executed when self.repaint() is called'''
-            #painter.save()
-            #painter = self.getPain
             painter = qg.QPainter(self)
             self.side = min(self.width(), self.height())/1.05
             self.halfside = self.side/2.
@@ -516,9 +534,19 @@ class PColormesh(PlotWidgetBase):
     def prescale(self, d):
         return num.clip(num.divide(d, self.vmax), 0, 255)
 
-    def set_data(self, d):
 
-        self.img_data[:, :] = memoryview(self.prescale(d))
+    def set_data(self, *args):
+        '''
+        :param args: z(2d) or x, y, z(2d) as arrays
+        '''
+        if len(args) == 3:
+            x, y, z = args
+            # self.update_datalims(x, y)
+        elif len(args) == 1:
+            z = args
+        else:
+            raise Exception("Invalid number of arguments to *set_data*")
+        self.img_data[:, :] = memoryview(self.prescale(z))
 
     def get_colortable(self, log=False):
         ctable = []
@@ -730,7 +758,6 @@ def MakeAxis(gl=True):
         def xrange_visible(self):
             return self.xproj.in_range
 
-        #def do_draw(self, painter):
         @qc.pyqtSlot(qg.QPaintEvent)
         def paintEvent(self, e):
             ''' this is executed e.g. when self.repaint() is called. Draws the

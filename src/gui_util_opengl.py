@@ -72,9 +72,6 @@ class GLWidget(qw.QOpenGLWidget):
         painter = qg.QPainter(self)
         painter.setRenderHint(qg.QPainter.Antialiasing)
 
-        #if self.canvas:
-        #self.do_draw(painter)
-
         painter.end()
 
     def resizeGL(self, width, height):

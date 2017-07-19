@@ -360,19 +360,23 @@ class SpectrogramWidget(Axis):
     @qc.pyqtSlot()
     def update_spectrogram(self):
         c = self.channel
-        x = c.freqs[: self.ny]
-        y = c.xdata[-self.nx:]
-        d = c.fft.latest_frame_data(self.nx)
-        self.image.set_data(d[:, :self.ny])
 
-        # TODO: fix data limits
-        #self.update_datalims(x, y)
+        try:
+            x = c.freqs[: self.ny]
+            y = c.xdata[-self.nx:]
+            d = c.fft.latest_frame_data(self.nx)
+            self.image.set_data(x, y, d[:, :self.ny])
+            # self.image.set_xlim(min(x), max(x))
+            # self.image.set_ylim(min(y), max(y))
+        except ValueError as e:
+            logger.debug(e)
+            return
         self.update()
 
 
 class SpectrumWidget(GLAxis):
     def __init__(self, *args, **kwargs):
-        Axis.__init__(self, *args, **kwargs)
+        GLAxis.__init__(self, *args, **kwargs)
         self.set_xlim(0, 2000)
         self.set_ylim(0, 20)
         self.left = 0.
