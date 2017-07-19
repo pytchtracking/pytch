@@ -10,6 +10,13 @@ from pytch.gui_util import make_QPolygonF, _colors, _pen_styles    # noqa
 from PyQt5 import QtCore as qc
 from PyQt5 import QtGui as qg
 from PyQt5 import QtWidgets  as qw
+logger = logging.getLogger(__name__)
+
+try:
+    from pytch.gui_util_opengl import GLWidget
+except AttributeError as e:
+    logger.debug(e)
+    GLWidget = qw.QWidget
 
 rgbarray = num.ones((256, 3))
 
@@ -36,6 +43,26 @@ _grey_scale = [qg.qRgb(val, val, val) for val in a[::-1]]
 d2r = num.pi/180.
 logger = logging.getLogger(__name__)
 #_grey_scale = list([qg.qRgb(i, i, i) for i in range(256)])
+rgbarray = num.ones((256, 3))
+
+a = num.arange(1, 256, dtype=num.float)
+a /= a.max()
+a *= 255
+def get_colortable(log=False):
+    ctable = []
+    if log:
+        a = num.linspace(0., 1., 256, dtype=num.float)
+        a = num.exp(a)/num.exp(1.) * 256.
+        for i in a:
+            ctable.append(qg.qRgb(i/4, i*2,i/2))
+    else:
+        for i in range(256): ctable.append(qg.qRgb(i/4,i*2,i/2))
+
+    return ctable
+
+
+_grey_scale = [qg.qRgb(val, val, val) for val in a[::-1]]
+#_grey_scale = get_colortable(log=True)
 PlotWidgetBase = qw.QWidget
 
 class InterpolatedColormap(object):
@@ -191,7 +218,6 @@ class ColormapWidget(qw.QWidget):
 
 def MakeGaugeWidget(gl=False):
     if gl:
-        from pytch.gui_util_opengl import GLWidget
         base = GLWidget
     else:
         base = qw.QWidget
@@ -548,22 +574,9 @@ class PColormesh(PlotWidgetBase):
             raise Exception("Invalid number of arguments to *set_data*")
         self.img_data[:, :] = memoryview(self.prescale(z))
 
-    def get_colortable(self, log=False):
-        ctable = []
-        if log:
-            a = num.linspace(0., 1., 256, dtype=num.float)
-            a = num.exp(a)/num.exp(1.) * 256.
-            for i in a:
-                ctable.append(qg.qRgb(i/4, i*2,i/2))
-        else:
-            for i in range(256): ctable.append(qg.qRgb(i/4,i*2,i/2))
-
-        return ctable
-
 
 def MakeAxis(gl=True):
     if gl:
-        from pytch.gui_util_opengl import GLWidget
         base = GLWidget
     else:
         base = qw.QWidget
