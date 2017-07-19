@@ -967,8 +967,7 @@ class MainWidget(QWidget):
         self.keyboard.connect_channel_views(self.channel_views_widget)
         self.top_layout.addWidget(self.keyboard, 0, 0, 1, -1)
 
-        #self.top_layout.addWidget(self.tabbed_pitch_widget, 1, 1)
-
+        self.top_layout.addWidget(self.tabbed_pitch_widget, 1, 1)
         self.pitch_view = PitchWidget(channel_views)
 
         self.pitch_view_all_diff = DifferentialPitchWidget(channel_views)

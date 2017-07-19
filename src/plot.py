@@ -20,7 +20,26 @@ except AttributeError as e:
 
 
 d2r = num.pi/180.
-_grey_scale = list([qg.qRgb(i, i, i) for i in range(256)])
+rgbarray = num.ones((256, 3))
+
+a = num.arange(1, 256, dtype=num.float)
+a /= a.max()
+a *= 255
+def get_colortable(log=False):
+    ctable = []
+    if log:
+        a = num.linspace(0., 1., 256, dtype=num.float)
+        a = num.exp(a)/num.exp(1.) * 256.
+        for i in a:
+            ctable.append(qg.qRgb(i/4, i*2,i/2))
+    else:
+        for i in range(256): ctable.append(qg.qRgb(i/4,i*2,i/2))
+
+    return ctable
+
+
+_grey_scale = [qg.qRgb(val, val, val) for val in a[::-1]]
+#_grey_scale = get_colortable(log=True)
 PlotWidgetBase = qw.QWidget
 
 class InterpolatedColormap(object):
@@ -524,18 +543,6 @@ class PColormesh(PlotWidgetBase):
     def set_data(self, d):
 
         self.img_data[:, :] = memoryview(self.prescale(d))
-
-    def get_colortable(self, log=False):
-        ctable = []
-        if log:
-            a = num.linspace(0., 1., 256, dtype=num.float)
-            a = num.exp(a)/num.exp(1.) * 256.
-            for i in a:
-                ctable.append(qg.qRgb(i/4, i*2,i/2))
-        else:
-            for i in range(256): ctable.append(qg.qRgb(i/4,i*2,i/2))
-
-        return ctable
 
 
 def MakeAxis(gl=True):

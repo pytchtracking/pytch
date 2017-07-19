@@ -447,7 +447,7 @@ class PlotBase(object):
         elif key_text == '-':
             self.set_ylim(self._ymin+self.scroll_increment,
                           self._ymax-self.scroll_increment)
-        super(self).keyPressEvent(key_event)
+        super(PlotBase, self).keyPressEvent(key_event)
 
     def set_background_color(self, color):
         '''
