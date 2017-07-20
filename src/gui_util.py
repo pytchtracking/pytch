@@ -89,7 +89,7 @@ def normalized_to01(d):
     return (d-dmin)/(num.max(d)-dmin)
 
 
-class AutoScaler():
+class AutoScaler(object):
     ''' taken from pyrocko.org'''
     def __init__(
             self,
@@ -163,6 +163,14 @@ class AutoScaler():
             mi = -m
             ma = m
 
+        elif a == 'int':
+            #m = num.array(data_range, dtype=num.int)
+            #mi = min(m)
+            mi = num.int(num.min(data_range))
+            ma = num.int(num.max(data_range))
+            self.inc = 1.
+            #ma = max(m)
+
         nmi = mi
         if (mi != 0. or a == 'min-max') and a != 'off':
             nmi = mi - self.space*(ma-mi)
@@ -198,7 +206,6 @@ class AutoScaler():
             return ma, mi, -inc
         else:
             return mi, ma, inc
-
 
     def make_exp(self, x):
         '''Get nice exponent for notation of `x`.
@@ -386,14 +393,7 @@ class PlotBase(object):
 
         return qg.QPen(qg.QColor(*_colors[color]),
                       line_width, _pen_styles[style])
-    def set_ylim(self, ymin, ymax):
-        ''' Set range of Gauge.'''
-        self.ymin = ymin
-        self.ymax = ymax
-        self._ymin = ymin
-        self._ymax = ymax
-        self.update_projections()
-
+    
     def update_projections(self):
         w, h = self.width(), self.height()
 
@@ -426,6 +426,14 @@ class PlotBase(object):
                           self._ymax-self.scroll_increment*n)
 
         self.update()
+
+    def set_ylim(self, ymin, ymax):
+        ''' Set range of Gauge.'''
+        self.ymin = ymin
+        self.ymax = ymax
+        self._ymin = ymin
+        self._ymax = ymax
+        self.update_projections()
 
     @qc.pyqtSlot(qg.QKeyEvent)
     def keyPressEvent(self, key_event):

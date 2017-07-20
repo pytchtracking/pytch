@@ -63,7 +63,6 @@ def get_colortable(log=False):
 
 _grey_scale = [qg.qRgb(val, val, val) for val in a[::-1]]
 #_grey_scale = get_colortable(log=True)
-PlotWidgetBase = qw.QWidget
 
 class InterpolatedColormap(object):
     ''' Continuously interpolating colormap '''
@@ -218,10 +217,10 @@ class ColormapWidget(qw.QWidget):
 
 def MakeGaugeWidget(gl=False):
     if gl:
-        base = GLWidget
+        WidgetBase = GLWidget
     else:
-        base = qw.QWidget
-    class _GaugeWidget(base, PlotBase):
+        WidgetBase = qw.QWidget
+    class _GaugeWidget(WidgetBase, PlotBase):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
 
@@ -441,7 +440,7 @@ class FixGrid(AutoGrid):
 class DefinedGrid(AutoGrid):
     def __init__(self):
         AutoGrid.__init__(self, *args, **kwargs)
-        # TODO make special user definable grid. Should be the base class
+        # TODO make special user definable grid. Should be the WidgetBase class
 
 
 class SceneItem():
@@ -518,11 +517,11 @@ class Polyline():
         painter.restore()
 
 
-class PColormesh(PlotWidgetBase):
+class PColormesh(qw.QWidget):
     '''
     2D array. Currently, opengl is not supported.'''
     def __init__(self, img, x, y, *args, **kwargs):
-        super(PlotWidgetBase, self).__init__(*args, **kwargs)
+        super(qw.QWidget, self).__init__(*args, **kwargs)
         self.x = x
         self.y = y
         self.vmax = 13000
@@ -560,7 +559,6 @@ class PColormesh(PlotWidgetBase):
     def prescale(self, d):
         return num.clip(num.divide(d, self.vmax), 0, 255)
 
-
     def set_data(self, *args):
         '''
         :param args: z(2d) or x, y, z(2d) as arrays
@@ -577,14 +575,14 @@ class PColormesh(PlotWidgetBase):
 
 def MakeAxis(gl=True):
     if gl:
-        base = GLWidget
+        WidgetBase = GLWidget
     else:
-        base = qw.QWidget
-    class _Axis(base, PlotBase):
+        WidgetBase = qw.QWidget
+    class _Axis(WidgetBase, PlotBase):
         ''' a plotwidget displays data (x, y coordinates). '''
 
         def __init__(self, *args, **kwargs):
-            base.__init__(self, *args, **kwargs)
+            WidgetBase.__init__(self, *args, **kwargs)
             PlotBase.__init__(self, *args, **kwargs)
 
             self.scroll_increment = 0

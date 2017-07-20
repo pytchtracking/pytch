@@ -6,7 +6,7 @@ import os
 from pytch.two_channel_tuner import Worker
 
 from pytch.data import MicrophoneRecorder, getaudiodevices, pitch_algorithms
-from pytch.gui_util import FloatQLineEdit
+from pytch.gui_util import FloatQLineEdit, AutoScaler
 from pytch.gui_util import make_QPolygonF, _color_names, _colors # noqa
 from pytch.util import consecutive, f2cent, cent2f, index_gradient_filter
 from pytch.plot import GLAxis, Axis, GaugeWidget, MikadoWidget, FixGrid
@@ -356,6 +356,11 @@ class SpectrogramWidget(Axis):
         self.channel = channel
         fake = num.ones((self.nx, self.ny))
         self.image = self.colormesh(z=fake)
+        self.yscaler = AutoScaler(
+            no_exp_interval=(-3, 2), approx_ticks=5,
+            snap=False,
+            mode='int'
+        )
 
     @qc.pyqtSlot()
     def update_spectrogram(self):
@@ -365,7 +370,9 @@ class SpectrogramWidget(Axis):
             x = c.freqs[: self.ny]
             y = c.xdata[-self.nx:]
             d = c.fft.latest_frame_data(self.nx)
-            self.image.set_data(x, y, d[:, :self.ny])
+            self.image.set_data(d[:, :self.ny])
+            self.update_datalims(x, y)
+            #self.image.set_data(x, y, d[:, :self.ny])
             # self.image.set_xlim(min(x), max(x))
             # self.image.set_ylim(min(y), max(y))
         except ValueError as e:
