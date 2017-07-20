@@ -557,7 +557,7 @@ class PColormesh(qw.QWidget):
         return o
 
     def prescale(self, d):
-        return num.clip(num.divide(d, self.vmax), 0, 255)
+        return num.clip(num.divide(d, self.vmax), 0, 254)
 
     def set_data(self, *args):
         '''
