@@ -609,6 +609,9 @@ def MakeAxis(gl=True):
             self.ylabels = True
             self.yticks = True
             self.xticks = True
+
+            self.ytick_formatter = '%s'
+            self.xtick_formatter = '%s'
             self.xzoom = 0.
 
             self.clear()
@@ -820,8 +823,10 @@ def MakeAxis(gl=True):
 
             painter.drawLines(lines)
             if self.xlabels:
+                formatter = self.xtick_formatter or '%s'
                 for i, xval in enumerate(ticks):
-                    painter.drawText(qc.QPointF(ticks_proj[i], tick_anchor), str(xval))
+                    painter.drawText(qc.QPointF(ticks_proj[i], tick_anchor),
+                                     formatter%xval)
 
         def draw_y_ticks(self, painter):
             w, h = self.wh
@@ -839,7 +844,8 @@ def MakeAxis(gl=True):
             painter.drawLines(lines)
             if self.ylabels:
                 for i, yval in enumerate(ticks):
-                    painter.drawText(qc.QPointF(0, ticks_proj[i]), str(yval))
+                    formatter = self.ytick_formatter or '%s'
+                    painter.drawText(qc.QPointF(0, ticks_proj[i]), formatter % (yval))
 
         def draw_labels(self, painter):
             self.setup_annotation_boxes()

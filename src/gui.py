@@ -356,11 +356,8 @@ class SpectrogramWidget(Axis):
         self.channel = channel
         fake = num.ones((self.nx, self.ny))
         self.image = self.colormesh(z=fake)
-        self.yscaler = AutoScaler(
-            no_exp_interval=(-3, 2), approx_ticks=5,
-            snap=False,
-            mode='int'
-        )
+        self.xtick_formatter = '%i'
+        self.yticks = False
 
     @qc.pyqtSlot()
     def update_spectrogram(self):
