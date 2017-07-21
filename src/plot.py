@@ -491,7 +491,7 @@ class Points():
         qpoints = make_QPolygonF(xproj(self.x), yproj(self.y))
         painter.save()
         if self.antialiasing:
-            painter.setRenderHint(qg.QPainter.Antialiasing)
+            painter.setRenderHint(qg.QPainter.Antialiasing, True)
         painter.setPen(self.pen)
         painter.drawPoints(qpoints)
         painter.restore()
@@ -512,7 +512,7 @@ class Polyline():
         painter.save()
         painter.setPen(self.pen)
         if self.antialiasing:
-            painter.setRenderHint(qg.QPainter.Antialiasing)
+            painter.setRenderHint(qg.QPainter.Antialiasing, True)
         painter.drawPolyline(qpoints)
         painter.restore()
 
@@ -537,7 +537,10 @@ class PColormesh(qw.QWidget):
                                     buffer=buff)
 
     def draw(self, painter, xproj, yproj, rect=None):
+        painter.save()
+        painter.setRenderHint(qg.QPainter.SmoothPixmapTransform, True)
         painter.drawImage(rect, self.img)
+        painter.restore()
 
     @classmethod
     def from_numpy_array(cls, x=None, y=None, z=None):
