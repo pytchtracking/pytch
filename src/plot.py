@@ -732,7 +732,7 @@ def MakeAxis(gl=True):
 
         def plotlog(self, xdata=None, ydata=None, ndecimate=0, **style_kwargs):
             try:
-                self.plot(xdata, num.log(ydata), ndecimate=ndecimate, **style_kwargs)
+                self.plot(xdata, num.ma.log(ydata), ndecimate=ndecimate, **style_kwargs)
             except ValueError as e:
                 logger.info(e)
 
