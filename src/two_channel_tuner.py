@@ -43,7 +43,7 @@ def cross_spectrum(spec1, spec2):
     return num.abs(cross), num.unwrap(num.arctan2(cross.imag, cross.real))
 
 
-def i(pow_frames):
+def _i(pow_frames):
     ''' based on  http://haythamfayek.com/2016/04/21/speech-processing-for-machine-learning.html'''
     low_freq_mel = 0
     high_freq_mel = (2595 * numpy.log10(1 + (sample_rate / 2) / 700))  # Convert Hz to Mel

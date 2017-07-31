@@ -6,6 +6,7 @@ import logging
 from pytch.gui_util import PlotBase
 from pytch.gui_util import AutoScaler, Projection, minmax_decimation
 from pytch.gui_util import make_QPolygonF, _colors, _pen_styles    # noqa
+from . import viridis
 
 from PyQt5 import QtCore as qc
 from PyQt5 import QtGui as qg
@@ -18,51 +19,37 @@ except AttributeError as e:
     logger.debug(e)
     GLWidget = qw.QWidget
 
-rgbarray = num.ones((256, 3))
-
-a = num.arange(1, 256, dtype=num.float)
-a /= a.max()
-a *= 255
-def get_colortable(log=False):
-    ctable = []
-    if log:
-        a = num.linspace(0., 1., 256, dtype=num.float)
-        a = num.exp(a)/num.exp(1.) * 256.
-        for i in a:
-            ctable.append(qg.qRgb(i/4, i*2,i/2))
-    else:
-        for i in range(256): ctable.append(qg.qRgb(i/4,i*2,i/2))
-
-    return ctable
-
-
-_grey_scale = [qg.qRgb(val, val, val) for val in a[::-1]]
-#_grey_scale = get_colortable(log=True)
-
-
 d2r = num.pi/180.
 logger = logging.getLogger(__name__)
-#_grey_scale = list([qg.qRgb(i, i, i) for i in range(256)])
-rgbarray = num.ones((256, 3))
 
-a = num.arange(1, 256, dtype=num.float)
-a /= a.max()
-a *= 255
-def get_colortable(log=False):
-    ctable = []
-    if log:
-        a = num.linspace(0., 1., 256, dtype=num.float)
-        a = num.exp(a)/num.exp(1.) * 256.
-        for i in a:
-            ctable.append(qg.qRgb(i/4, i*2,i/2))
-    else:
+
+def get_colortable(name, log=False):
+    if name == 'viridis':
+        ctable = [qg.qRgb(*val) for val in viridis.get_rgb()]
+        if log: 
+            raise Exception('Not implemented')
+
+    elif name in ['bw', 'wb']:
+        ctable = []
+        if log:
+            a = num.exp(num.linspace(num.log(255.), 0., 256))
+        else:
+            a = num.linspace(0, 255, 256)
+
+        if name == 'bw':
+            a = a[::-1]
+        
+        for i in a.astype(num.int):
+            ctable.append(qg.qRgb(i, i, i))
+    
+    elif name == 'matrix':
         for i in range(256): ctable.append(qg.qRgb(i/4,i*2,i/2))
 
+    else:
+        raise Exception('No such colortable %s' % name)
+        
     return ctable
 
-
-_grey_scale = [qg.qRgb(val, val, val) for val in a[::-1]]
-#_grey_scale = get_colortable(log=True)
 
 class InterpolatedColormap(object):
     ''' Continuously interpolating colormap '''
@@ -182,9 +169,9 @@ class ColormapWidget(qw.QWidget):
         size_policy.setHorizontalPolicy(qw.QSizePolicy.Maximum)
         self.setSizePolicy(size_policy)
         self.set_background_color('white')
-        self.update()
+        self._update()
 
-    def update(self):
+    def _update(self):
         _, rgb = self.colormap.get_visualization()
         self.vals, self.colors = self.colormap.get_visualization(
             callback=self.colormap.map_to_QColor)
@@ -215,11 +202,13 @@ class ColormapWidget(qw.QWidget):
         pal.setBrush(qg.QPalette.Background, self.background_brush)
         self.setPalette(pal)
 
+
 def MakeGaugeWidget(gl=False):
     if gl:
         WidgetBase = GLWidget
     else:
         WidgetBase = qw.QWidget
+    
     class _GaugeWidget(WidgetBase, PlotBase):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
@@ -520,6 +509,9 @@ class Polyline():
 class PColormesh(qw.QWidget):
     '''
     2D array. Currently, opengl is not supported.'''
+
+    colortable = 'viridis'
+
     def __init__(self, img, x, y, *args, **kwargs):
         super(qw.QWidget, self).__init__(*args, **kwargs)
         self.x = x
@@ -535,6 +527,7 @@ class PColormesh(qw.QWidget):
         self.img_data = num.ndarray(shape=(nx, ny),
                                     dtype=num.uint8,
                                     buffer=buff)
+        self.color_table = 'viridis'
 
     def draw(self, painter, xproj, yproj, rect=None):
         painter.save()
@@ -553,8 +546,9 @@ class PColormesh(qw.QWidget):
 
         img = qg.QImage(
             z.data, z.shape[1], z.shape[0], qg.QImage.Format_Indexed8)
+        
+        img.setColorTable(get_colortable(cls.colortable))
 
-        img.setColorTable(_grey_scale)
         o = cls(img, x, y)
         o.set_data(z)
         return o
@@ -568,12 +562,14 @@ class PColormesh(qw.QWidget):
         '''
         if len(args) == 3:
             x, y, z = args
-            # self.update_datalims(x, y)
         elif len(args) == 1:
             z = args
         else:
             raise Exception("Invalid number of arguments to *set_data*")
         self.img_data[:, :] = memoryview(self.prescale(z))
+
+    def set_colortable(self, name):
+        self.img.setColorTable(get_colortable(name))
 
 
 def MakeAxis(gl=True):

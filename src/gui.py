@@ -358,6 +358,25 @@ class SpectrogramWidget(Axis):
         self.image = self.colormesh(z=fake)
         self.xtick_formatter = '%i'
         self.yticks = False
+        
+        self.right_click_menu = QMenu('RC', self)
+        self.color_choices = []
+        color_action_group = QActionGroup(self.right_click_menu)
+        color_action_group.setExclusive(True)
+        for color_name in ['viridis', 'wb', 'bw']:
+            color_action = QAction(color_name, self.right_click_menu)
+            color_action.triggered.connect(self.on_color_select)
+            color_action.setCheckable(True)
+            self.color_choices.append(color_action)
+            color_action_group.addAction(color_action)
+            self.right_click_menu.addAction(color_action)
+
+    @qc.pyqtSlot()
+    def on_color_select(self):
+        for c in self.color_choices:
+            if c.isChecked():
+                self.image.set_colortable(c.text())
+                break
 
     @qc.pyqtSlot()
     def update_spectrogram(self):
@@ -369,13 +388,16 @@ class SpectrogramWidget(Axis):
             d = c.fft.latest_frame_data(self.nx)
             self.image.set_data(d[:, :self.ny])
             self.update_datalims(x, y)
-            #self.image.set_data(x, y, d[:, :self.ny])
-            # self.image.set_xlim(min(x), max(x))
-            # self.image.set_ylim(min(y), max(y))
         except ValueError as e:
             logger.debug(e)
             return
         self.update()
+
+    @qc.pyqtSlot(qg.QMouseEvent)
+    def mousePressEvent(self, mouse_ev):
+        if mouse_ev.button() == qc.Qt.RightButton:
+            self.right_click_menu.exec_(qg.QCursor.pos())
+
 
 
 class SpectrumWidget(GLAxis):
@@ -819,8 +841,10 @@ class PitchLevelDifferenceViews(QWidget):
     @qc.pyqtSlot()
     def on_draw(self):
         for cv1, cv2, w in self.widgets:
-            confidence1 = num.where(cv1.channel.pitch_confidence.latest_frame_data(self.naverage)>cv1.confidence_threshold)
-            confidence2 = num.where(cv2.channel.pitch_confidence.latest_frame_data(self.naverage)>cv2.confidence_threshold)
+            confidence1 = num.where(
+                cv1.channel.pitch_confidence.latest_frame_data(self.naverage)>cv1.confidence_threshold)
+            confidence2 = num.where(
+                cv2.channel.pitch_confidence.latest_frame_data(self.naverage)>cv2.confidence_threshold)
             confidence = num.intersect1d(confidence1, confidence2)
             if len(confidence)>1:
                 d1 = cv1.channel.pitch.latest_frame_data(self.naverage)[confidence]
@@ -872,7 +896,7 @@ class MainWidget(QWidget):
 
     def __init__(self, settings, *args, **kwargs):
         QWidget.__init__(self, *args, **kwargs)
-        self.tabbed_pitch_widget = QTabWidget()
+        self.tabbed_pitch_widget = QTabWidget(parent=self)
 
         pal = self.tabbed_pitch_widget.palette()
         self.tabbed_pitch_widget.setAutoFillBackground(True)
@@ -885,7 +909,7 @@ class MainWidget(QWidget):
         self.setPalette(pal)
 
         self.tabbed_pitch_widget.setSizePolicy(QSizePolicy.Minimum,
-                                          QSizePolicy.Minimum)
+                                               QSizePolicy.Minimum)
 
         self.setMouseTracking(True)
         self.top_layout = QGridLayout()

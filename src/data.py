@@ -203,7 +203,11 @@ class RingBuffer(Buffer):
         n = int(seconds*self.sampling_rate)+1
         x = self.i_filled/self.sampling_rate - self._x[:n][::-1]
         if clip_min:
-            istart = num.min(num.where(x>0))
+            istart = num.where(x>0)[0]
+            if not len(istart):
+                istart = 0
+            else:
+                istart = num.min(istart)
         else:
             istart = 0
         return (x[istart:], self.latest_frame_data(n-istart))
