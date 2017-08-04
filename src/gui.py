@@ -25,7 +25,6 @@ from PyQt5.QtWidgets import QDialogButtonBox, QTabWidget, QActionGroup, QFileDia
 logger = logging.getLogger(__name__)
 tfollow = 3.
 fmax = 2000.
-_standard_frequency = 220.
 
 
 def draw_label(painter, center, radius, text, color):
@@ -562,7 +561,7 @@ class ChannelView(QWidget):
             self.spectrum.set_xlim(0, 2000)
         elif arg == 'pitch':
             def plot_pitch(*args, **kwargs):
-                f = f2cent(args[0], _standard_frequency)
+                f = f2cent(args[0], self.channel.standard_frequency)
                 self.spectrum.plot(f, *args[1:], **kwargs)
 
             self.plot_spectrum = plot_pitch
@@ -989,6 +988,7 @@ class MainWidget(QWidget):
             self.signal_widgets_draw.connect(cv.on_draw)
             self.menu.connect_to_confidence_threshold(cv)
             channel_views.append(cv)
+            
 
         self.channel_views_widget = ChannelViews(channel_views)
         self.top_layout.addWidget(self.channel_views_widget, 1, 0)
