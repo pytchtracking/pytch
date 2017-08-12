@@ -262,13 +262,13 @@ def MakeGaugeWidget(gl=False):
                 span_angle = self.proj(self._val)*16 + self.arc_start+180*16.
                 painter.drawArc(rect, self.arc_start, -span_angle)
             painter.restore()
-
             self.draw_deco(painter)
-            painter.restore()
 
         def draw_deco(self, painter):
+            painter.save()
             self.draw_ticks(painter)
             self.draw_title(painter)
+            painter.restore()
 
         def draw_title(self, painter):
             painter.drawText(-40., 2., self.title)
