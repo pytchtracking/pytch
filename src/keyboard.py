@@ -29,7 +29,7 @@ class Synthy(qc.QObject):
 
         self.p = pyaudio.PyAudio()
         self.stream = self.p.open(format=pyaudio.paFloat32,
-                        channels=1, rate=44100, output=1)
+                                  channels=1, rate=44100, output=1)
         self.stream.start_stream()
         self.stop_playing = False
 
@@ -96,7 +96,7 @@ class Key(qw.QWidget):
         return (self.pen, self.brush)
 
     def paintEvent(self, event):
-        painter= qg.QPainter(self)
+        painter = qg.QPainter(self)
         pen, brush = self.get_pen_brush()
         rect = self.rect()
         painter.setPen(pen)
@@ -165,7 +165,7 @@ class KeyBoard(qw.QWidget):
         rects = self.get_key_rects()
         for ir, r in enumerate(rects):
             noctave = int(ir/12)
-            key = Key(octave=noctave, semitone=ir%12, parent=self)
+            key = Key(octave=noctave, semitone=ir % 12, parent=self)
             key.playKeyBoard.connect(self.keyBoardKeyPressed)
             key.playKeyBoard.connect(self.synthy.play)
             key.stopKeyBoard.connect(self.stop_synthy)
@@ -182,12 +182,10 @@ class KeyBoard(qw.QWidget):
         deltax = self.width()/n
         y = self.height()
         y_semi = self.height() * 0.6
-        top_lefts = []
         rects = []
-        x = 0
         semitone = 0
         for i in range(n):
-            if i%14 in [5, 13]:
+            if i % 14 in [5, 13]:
                 continue
             if semitone % 12 in _semitones:
                 rect = qc.QRect(
@@ -223,4 +221,4 @@ class KeyBoard(qw.QWidget):
         if mouse_ev.button() == qc.Qt.RightButton:
             self.right_click_menu.exec_(mouse_ev.pos())
         else:
-            super(Keyboard, self).mousePressEvent(mouse_ev)
+            super(KeyBoard, self).mousePressEvent(mouse_ev)
