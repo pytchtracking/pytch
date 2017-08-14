@@ -56,8 +56,6 @@ class GLWidget(qw.QOpenGLWidget):
         self.canvas = False
 
         self.setAutoFillBackground(True)
-        self.setMinimumSize(200, 200)
-        self.setWindowTitle("Overpainting a Scene")
 
     def initializeGL(self):
         self.gl = self.context().versionFunctions()
@@ -79,9 +77,6 @@ class GLWidget(qw.QOpenGLWidget):
 
     def showEvent(self, event):
         self.canvas = True
-
-    def sizeHint(self):
-        return qc.QSize(400, 400)
 
     def setupViewport(self, width, height):
         side = min(width, height)

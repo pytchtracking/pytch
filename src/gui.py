@@ -6,14 +6,15 @@ import os
 from pytch.two_channel_tuner import Worker
 
 from pytch.data import MicrophoneRecorder, getaudiodevices, pitch_algorithms
-from pytch.gui_util import FloatQLineEdit, AutoScaler
+from pytch.gui_util import FloatQLineEdit
 from pytch.gui_util import make_QPolygonF, _color_names, _colors # noqa
-from pytch.util import consecutive, f2cent, cent2f, index_gradient_filter
+from pytch.util import consecutive, f2cent, index_gradient_filter
 from pytch.plot import GLAxis, Axis, GaugeWidget, MikadoWidget, FixGrid
 from pytch.keyboard import KeyBoard
 
 from PyQt5 import QtCore as qc
 from PyQt5 import QtGui as qg
+from PyQt5 import QtWidgets as qw
 from PyQt5.QtWidgets import QApplication, QWidget, QHBoxLayout, QLabel
 from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QComboBox
 from PyQt5.QtWidgets import QAction, QSlider, QPushButton, QDockWidget
@@ -241,9 +242,8 @@ class MenuWidget(QFrame):
         self.setFrameStyle(QFrame.Sunken)
         self.setLineWidth(1)
         self.setFrameShape(QFrame.Box)
-        self.setMinimumWidth(300)
-        self.setSizePolicy(QSizePolicy.Maximum,
-                           QSizePolicy.Maximum)
+        self.setSizePolicy(QSizePolicy.Minimum,
+                           QSizePolicy.Minimum)
         self.setup_palette()
         settings.set_menu(self)
 
@@ -288,8 +288,6 @@ class MenuWidget(QFrame):
         self.pitch_shift_box.accepted_value.connect(
             channel_views.on_pitch_shift_changed)
 
-        #self.freq_box.setText(str(channel_views.standard_frequency))
-
         for cv in channel_views.channel_views:
             self.spectrum_type_selected.connect(cv.on_spectrum_type_select)
         channel_views.set_in_range(self.sensitivity_slider.value())
@@ -298,14 +296,12 @@ class MenuWidget(QFrame):
         return qc.QSize(200, 200)
 
 
-class ChannelViews(GLAxis):
-#class ChannelViews(QWidget):
+class ChannelViews(QWidget):
     '''
     Display all ChannelView objects in a QVBoxLayout
     '''
     def __init__(self, channel_views):
-        #QWidget.__init__(self)
-        GLAxis.__init__(self)
+        QWidget.__init__(self)
         self.channel_views = channel_views
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
@@ -315,6 +311,9 @@ class ChannelViews(GLAxis):
 
         self.show_trace_widgets(False)
         self.show_spectrogram_widgets(False)
+        self.setSizePolicy(
+            qw.QSizePolicy.Minimum,
+            qw.QSizePolicy.Minimum)
 
     def show_trace_widgets(self, show):
         for c_view in self.channel_views:
@@ -346,6 +345,9 @@ class ChannelViews(GLAxis):
     def on_pitch_shift_changed(self, f):
         for cv in self.channel_views:
             cv.on_pitch_shift_changed(f)
+
+    def sizeHint(self):
+        return qc.QSize(400, 200)
 
 
 class SpectrogramWidget(Axis):
@@ -508,6 +510,8 @@ class ChannelView(QWidget):
         self.plot_spectrum(
                 c.freqs, num.mean(d, axis=0), ndecimate=2,
                 color=self.color, ignore_nan=True)
+        self.spectrum.set_xlim(0, 2000)
+
         confidence = c.pitch_confidence.latest_frame_data(1)
         if confidence > self.confidence_threshold:
             x = c.undo_pitch_proxy(c.get_latest_pitch())
@@ -889,6 +893,23 @@ class PitchLevelMikadoViews(QWidget):
             w.update()
 
 
+class RightTabs(QTabWidget):
+    def __init__(self, *args, **kwargs):
+        QTabWidget.__init__(self, *args, **kwargs)
+        self.setSizePolicy(
+            qw.QSizePolicy.MinimumExpanding,
+            qw.QSizePolicy.MinimumExpanding)
+
+        self.setAutoFillBackground(True)
+
+        pal = self.palette()
+        pal.setColor(qg.QPalette.Background, qg.QColor(*_colors['white']))
+        self.setPalette(pal)
+
+    def sizeHint(self):
+        return qc.QSize(300, 200)
+        
+
 class MainWidget(QWidget):
     ''' top level widget covering the central widget in the MainWindow.'''
     signal_widgets_clear = qc.pyqtSignal()
@@ -896,20 +917,12 @@ class MainWidget(QWidget):
 
     def __init__(self, settings, *args, **kwargs):
         QWidget.__init__(self, *args, **kwargs)
-        self.tabbed_pitch_widget = QTabWidget(parent=self)
-
-        pal = self.tabbed_pitch_widget.palette()
-        self.tabbed_pitch_widget.setAutoFillBackground(True)
-        pal.setColor(qg.QPalette.Background, qg.QColor(*_colors['white']))
-        self.tabbed_pitch_widget.setPalette(pal)
+        self.tabbed_pitch_widget = RightTabs(parent=self)
 
         pal = self.palette()
         self.setAutoFillBackground(True)
         pal.setColor(qg.QPalette.Background, qg.QColor(*_colors['white']))
         self.setPalette(pal)
-
-        self.tabbed_pitch_widget.setSizePolicy(QSizePolicy.Minimum,
-                                               QSizePolicy.Minimum)
 
         self.setMouseTracking(True)
         self.top_layout = QGridLayout()
@@ -922,7 +935,6 @@ class MainWidget(QWidget):
             settings, accept=settings.accept, parent=self)
 
         self.input_dialog.set_input_callback = self.set_input
-
         self.data_input = None
 
         qc.QTimer().singleShot(0, self.set_input_dialog)
@@ -989,7 +1001,6 @@ class MainWidget(QWidget):
             self.signal_widgets_draw.connect(cv.on_draw)
             self.menu.connect_to_confidence_threshold(cv)
             channel_views.append(cv)
-            
 
         self.channel_views_widget = ChannelViews(channel_views)
         self.top_layout.addWidget(self.channel_views_widget, 1, 0)
@@ -1080,7 +1091,7 @@ class MainWindow(QMainWindow):
         self.show()
 
     def sizeHint(self):
-        return qc.QSize(700, 600)
+        return qc.QSize(1400, 600)
 
     @qc.pyqtSlot(qg.QKeyEvent)
     def keyPressEvent(self, key_event):

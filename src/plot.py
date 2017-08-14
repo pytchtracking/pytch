@@ -165,9 +165,9 @@ class ColormapWidget(qw.QWidget):
         qw.QWidget.__init__(self, *args, **kwargs)
         self.colormap = colormap
         self.yproj = Projection()
-        size_policy = qw.QSizePolicy()
-        size_policy.setHorizontalPolicy(qw.QSizePolicy.Maximum)
-        self.setSizePolicy(size_policy)
+        # size_policy = qw.QSizePolicy()
+        # size_policy.setHorizontalPolicy(qw.QSizePolicy.Maximum)
+        # self.setSizePolicy(size_policy)
         self.set_background_color('white')
         self._update()
 
@@ -189,8 +189,8 @@ class ColormapWidget(qw.QWidget):
                              qc.QPoint(rect.right(), yvals[i+1]))
         painter.end()
 
-    def sizeHint(self):
-        return qc.QSize(100, 400)
+    #def sizeHint(self):
+    #    return qc.QSize(100, 400)
 
     def set_background_color(self, color):
         '''
@@ -227,9 +227,6 @@ def MakeGaugeWidget(gl=False):
                 snap=True
             )
 
-            size_policy = qw.QSizePolicy()
-            size_policy.setHorizontalPolicy(qw.QSizePolicy.Minimum)
-            self.setSizePolicy(size_policy)
             self.xtick_increment = 20
             self.pen = qg.QPen(self.color, 20, qc.Qt.SolidLine)
             self.pen.setCapStyle(qc.Qt.FlatCap)
@@ -313,8 +310,8 @@ def MakeGaugeWidget(gl=False):
             '''
             self._val = val
 
-        def sizeHint(self):
-            return qc.QSize(400, 400)
+        # def sizeHint(self):
+        #     return qc.QSize(400, 400)
 
     return _GaugeWidget
 

@@ -363,6 +363,13 @@ class PlotBase(object):
         self.setFocusPolicy(qc.Qt.StrongFocus)
         self.set_background_color('white')
         self.setContentsMargins(0, 0, 0, 0)
+        #self.setSizePolicy(
+        ##    #qw.QSizePolicy.Maximum, qw.QSizePolicy.Maximum)
+        #    qw.QSizePolicy.Minimum,
+        #    qw.QSizePolicy.Minimum)
+
+    def sizeHint(self):
+        return qc.QSize(200, 200)
 
     def canvas_rect(self):
         ''' Rectangular containing the data visualization. '''
@@ -455,5 +462,3 @@ class PlotBase(object):
         pal = self.palette()
         pal.setBrush(qg.QPalette.Background, self.background_brush)
         self.setPalette(pal)
-
-
