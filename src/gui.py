@@ -851,6 +851,7 @@ class PitchLevelDifferenceViews(QWidget):
                 w.set_data(num.median(d1-d2))
             else:
                 w.set_data(None)
+            w.update()
 
     @qc.pyqtSlot(qg.QMouseEvent)
     def mousePressEvent(self, mouse_ev):
