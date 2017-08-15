@@ -21,8 +21,15 @@ download pyqt5 src, python configure.py, make, make install
 
 
 ```
-pip3 install pyqt5, pyaudio, git+git://git.aubio.org/git/aubio
+sudo apt-get install portaudio19-dev
 ```
+Install python bindings
+```
+pip install numpy pyqt5 pyaudio git+https://git.aubio.org/aubio/aubio
+```
+
+Note: if your sysmte's default python version is not 2, replace `pip` with
+`pip3`.
 
 # Download and Installation
 Go to a directory where you keep your source codes and clone the project:
