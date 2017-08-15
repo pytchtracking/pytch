@@ -819,7 +819,7 @@ def MakeAxis(gl=True):
 
             painter.drawLines(lines)
             if self.xlabels:
-                formatter = self.xtick_formatter or '%s'
+                formatter = self.xtick_formatter
                 for i, xval in enumerate(ticks):
                     painter.drawText(qc.QPointF(ticks_proj[i], tick_anchor),
                                      formatter%xval)

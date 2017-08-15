@@ -357,7 +357,6 @@ class SpectrogramWidget(Axis):
         self.channel = channel
         fake = num.ones((self.nx, self.ny))
         self.image = self.colormesh(z=fake)
-        self.xtick_formatter = '%i'
         self.yticks = False
         
         self.right_click_menu = QMenu('RC', self)
@@ -409,7 +408,7 @@ class SpectrumWidget(GLAxis):
         self.left = 0.
         self.yticks = False
         self.grids = [FixGrid(delta=100., horizontal=False)]
-
+        self.xtick_formatter = '%i'
         # TODO: migrate functionanlity from ChannelView
 
 
@@ -441,7 +440,6 @@ class ChannelView(QWidget):
         self.spectrogram_widget = SpectrogramWidget(channel=channel)
 
         self.spectrum = SpectrumWidget(parent=self)
-
         self.plot_spectrum = self.spectrum.plotlog
 
         self.fft_smooth_factor = 4
@@ -620,15 +618,16 @@ class OverView(QWidget):
 
         layout = QGridLayout()
         self.setLayout(layout)
-        self.figure = Axis()
-        self.figure.xlabels = False
-        self.figure.set_ylim(-1500., 1500)
-        self.figure.set_grids(100.)
-        layout.addWidget(self.figure)
+        self.ax = Axis()
+        self.ax.ytick_formatter = '%i'
+        self.ax.xlabels = False
+        self.ax.set_ylim(-1500., 1500)
+        self.ax.set_grids(100.)
+        layout.addWidget(self.ax)
 
         self.right_click_menu = QMenu('Tick Settings', self)
         self.right_click_menu.triggered.connect(
-            self.figure.on_tick_increment_select)
+            self.ax.on_tick_increment_select)
         set_tick_choices(self.right_click_menu, default=100)
         action = QAction('Minor ticks', self.right_click_menu)
         action.setCheckable(True)
@@ -691,19 +690,19 @@ class PitchWidget(OverView):
             index = num.intersect1d(index, index_grad)
             indices_grouped = consecutive(index)
             for group in indices_grouped:
-                self.figure.plot(
+                self.ax.plot(
                     x[group], y[group], color=cv.color, line_width=4)
 
             xstart = num.min(x)
-            self.figure.set_xlim(xstart, xstart+self.tfollow)
+            self.ax.set_xlim(xstart, xstart+self.tfollow)
 
         for high_pitch in self.highlighted_pitches:
-            self.figure.axhline(high_pitch, line_width=2)
-        self.figure.update()
+            self.ax.axhline(high_pitch, line_width=2)
+        self.ax.update()
 
     @qc.pyqtSlot()
     def on_clear(self):
-        self.figure.clear()
+        self.ax.clear()
 
     @qc.pyqtSlot()
     def on_save_as(self):
@@ -742,8 +741,8 @@ class PitchWidget(OverView):
     #        #self.interrupt_following()
     #        #self.tfollow += min(max(2., 2 + self.tfollow * scale), 30)
     #        self.tfollow = min(max(2., 2 + self.tfollow * scale), 30)
-    #        ymin, ymax = self.figure.get_ylim()
-    #        #self.figure.set_ylim(ymin+dy*10, ymax+dy*10)
+    #        ymin, ymax = self.ax.get_ylim()
+    #        #self.ax.set_ylim(ymin+dy*10, ymax+dy*10)
     #        self.update()
 
     #@qc.pyqtSlot(qg.QMouseEvent)
@@ -792,22 +791,24 @@ class DifferentialPitchWidget(OverView):
                 for group in indices_grouped:
                     y = y1[group] - y2[group]
                     x = x1[group]
-                    self.figure.plot(
-                        x, y, style='solid', line_width=4, color=cv1.color, antialiasing=False)
-                    self.figure.plot(
-                        x, y, style=':', line_width=4, color=cv2.color, antialiasing=False)
+                    self.ax.plot(
+                        x, y, style='solid', line_width=4, color=cv1.color,
+                        antialiasing=False)
+                    self.ax.plot(
+                        x, y, style=':', line_width=4, color=cv2.color,
+                        antialiasing=False)
 
-        self.figure.set_xlim(xstart, xstart+tfollow)
+        self.ax.set_xlim(xstart, xstart+tfollow)
 
         for high_pitch in self.highlighted_pitches:
-            self.figure.axhline(high_pitch, line_width=2)
+            self.ax.axhline(high_pitch, line_width=2)
 
         # update needed on OSX
-        self.figure.update()
+        self.ax.update()
 
     @qc.pyqtSlot()
     def on_clear(self):
-        self.figure.clear()
+        self.ax.clear()
 
 
 class PitchLevelDifferenceViews(QWidget):
