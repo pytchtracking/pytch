@@ -735,6 +735,7 @@ class ProductSpectrum(QWidget):
         self.ax = GLAxis()
         self.ax.xtick_formatter = '%i'
         self.ax.set_ylim(-1., 20.)
+        self.ax.set_xlim(0, 2000.)
         self.ax.yticks = False
         self.ax.ylabels = False
         self.setVisible(False)
