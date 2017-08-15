@@ -449,7 +449,6 @@ class AxHLine(SceneItem):
         painter.restore()
 
 
-
 class AxVLine():
     def __init__(self, x, pen):
         SceneItem.__init__(self, pen=pen)
@@ -694,6 +693,7 @@ def MakeAxis(gl=True):
                         x=xvisible, y=yvisible, pen=pen, antialiasing=antialiasing))
 
             self.update_datalims(xvisible, yvisible)
+            self.update()
 
         def axvline(self, x, **pen_args):
             pen = self.get_pen(**pen_args)
@@ -783,10 +783,8 @@ def MakeAxis(gl=True):
             painter.setRenderHint(qg.QPainter.Antialiasing)
             self.draw_axes(painter)
 
-            if self.yticks:
-                self.draw_y_ticks(painter)
-            if self.xticks:
-                self.draw_x_ticks(painter)
+            self.draw_y_ticks(painter)
+            self.draw_x_ticks(painter)
 
             for grid in self.grids:
                 grid.draw_grid(self, painter)
@@ -811,18 +809,19 @@ def MakeAxis(gl=True):
             w, h = self.wh
             xmin, xmax, xinc = self.xscaler.make_scale((self._xmin, self._xmax))
             _xinc = self._xinc or xinc
-            ticks = num.arange(xmin, xmax, _xinc)
-            ticks_proj = self.xproj(ticks)
-            tick_anchor = (1.-self.top)*h
-            lines = [qc.QLineF(xval, tick_anchor * 0.8, xval, tick_anchor)
-                     for xval in ticks_proj]
+            if self.xticks:
+                ticks = num.arange(xmin, xmax, _xinc)
+                ticks_proj = self.xproj(ticks)
+                tick_anchor = (1.-self.top)*h
+                lines = [qc.QLineF(xval, tick_anchor * 0.8, xval, tick_anchor)
+                         for xval in ticks_proj]
 
-            painter.drawLines(lines)
-            if self.xlabels:
-                formatter = self.xtick_formatter
-                for i, xval in enumerate(ticks):
-                    painter.drawText(qc.QPointF(ticks_proj[i], tick_anchor),
-                                     formatter%xval)
+                painter.drawLines(lines)
+                if self.xlabels:
+                    formatter = self.xtick_formatter
+                    for i, xval in enumerate(ticks):
+                        painter.drawText(qc.QPointF(ticks_proj[i], tick_anchor),
+                                         formatter%xval)
 
         def draw_y_ticks(self, painter):
             w, h = self.wh
@@ -835,13 +834,14 @@ def MakeAxis(gl=True):
             _yinc = self._yinc or yinc
             ticks = num.arange(ymin, ymax, _yinc)
             ticks_proj = self.yproj(ticks)
-            lines = [qc.QLineF(w * self.left * 0.8, yval, w*self.left, yval)
+            if self.yticks:
+                lines = [qc.QLineF(w * self.left * 0.8, yval, w*self.left, yval)
                      for yval in ticks_proj]
-            painter.drawLines(lines)
-            if self.ylabels:
-                for i, yval in enumerate(ticks):
-                    formatter = self.ytick_formatter or '%s'
-                    painter.drawText(qc.QPointF(0, ticks_proj[i]), formatter % (yval))
+                painter.drawLines(lines)
+                if self.ylabels:
+                    for i, yval in enumerate(ticks):
+                        formatter = self.ytick_formatter or '%s'
+                        painter.drawText(qc.QPointF(0, ticks_proj[i]), formatter % (yval))
 
         def draw_labels(self, painter):
             self.setup_annotation_boxes()
@@ -885,9 +885,11 @@ def MakeAxis(gl=True):
 
     return _Axis
 
+
 Axis = MakeAxis(gl=False)
 GLAxis = MakeAxis(gl=True)
 GaugeWidget = MakeGaugeWidget(gl=True)
+
 
 class MikadoWidget(Axis):
     def __init__(self, *args, **kwargs):
