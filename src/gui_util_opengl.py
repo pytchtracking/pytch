@@ -56,6 +56,7 @@ class GLWidget(qw.QOpenGLWidget):
         self.canvas = False
 
         self.setAutoFillBackground(True)
+        self.gl = False
 
     def initializeGL(self):
         self.gl = self.context().versionFunctions()
@@ -80,13 +81,14 @@ class GLWidget(qw.QOpenGLWidget):
 
     def setupViewport(self, width, height):
         side = min(width, height)
-        self.gl.glViewport((width - side) // 2, (height - side) // 2, side,
+        if self.gl:
+            self.gl.glViewport((width - side) // 2, (height - side) // 2, side,
                 side)
 
-        self.gl.glMatrixMode(self.gl.GL_PROJECTION)
-        self.gl.glLoadIdentity()
-        self.gl.glOrtho(-0.5, +0.5, +0.5, -0.5, 4.0, 15.0)
-        self.gl.glMatrixMode(self.gl.GL_MODELVIEW)
+            self.gl.glMatrixMode(self.gl.GL_PROJECTION)
+            self.gl.glLoadIdentity()
+            self.gl.glOrtho(-0.5, +0.5, +0.5, -0.5, 4.0, 15.0)
+            self.gl.glMatrixMode(self.gl.GL_MODELVIEW)
 
 
 if __name__ == '__main__':
