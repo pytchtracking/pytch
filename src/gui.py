@@ -15,11 +15,11 @@ from pytch.keyboard import KeyBoard
 from PyQt5 import QtCore as qc
 from PyQt5 import QtGui as qg
 from PyQt5 import QtWidgets as qw
-from PyQt5.QtWidgets import QApplication, QWidget, QHBoxLayout, QLabel
+from PyQt5.QtWidgets import QWidget, QHBoxLayout, QLabel
 from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QComboBox
 from PyQt5.QtWidgets import QAction, QSlider, QPushButton, QDockWidget
 from PyQt5.QtWidgets import QCheckBox, QSizePolicy, QFrame, QMenu, QWidgetAction
-from PyQt5.QtWidgets import QGridLayout, QSpacerItem, QDialog, QLineEdit
+from PyQt5.QtWidgets import QSpacerItem, QDialog, QLineEdit
 from PyQt5.QtWidgets import QDialogButtonBox, QTabWidget, QActionGroup, QFileDialog
 
 
@@ -161,7 +161,7 @@ class MenuWidget(QFrame):
     ''' Contains all widget of left-side panel menu'''
     def __init__(self, settings=None, *args, **kwargs):
         QFrame.__init__(self, *args, **kwargs)
-        layout = QGridLayout()
+        layout = qw.QGridLayout()
         self.setLayout(layout)
 
         self.input_button = QPushButton('Set Input')
@@ -201,43 +201,46 @@ class MenuWidget(QFrame):
             lambda x: derivative_filter_label.setText(str(x))
         )
 
-        layout.addWidget(QLabel('Gain'), 6, 0)
-        self.sensitivity_slider = QSlider()
-        self.sensitivity_slider.setRange(1000., 500000.)
-        self.sensitivity_slider.setValue(100000.)
-        self.sensitivity_slider.setOrientation(qc.Qt.Horizontal)
-        layout.addWidget(self.sensitivity_slider, 6, 1)
-
         layout.addWidget(QLabel('Select Algorithm'), 7, 0)
         self.select_algorithm = QComboBox(self)
         layout.addWidget(self.select_algorithm, 7, 1)
 
         layout.addWidget(QLabel('Traces'), 8, 0)
         self.box_show_traces = QCheckBox()
+        self.box_show_traces.setChecked(True)
         layout.addWidget(self.box_show_traces, 8, 1)
 
-        layout.addWidget(QLabel('Spectrogram'), 9, 0)
+        layout.addWidget(QLabel('Spectra'), 9, 0)
+        self.box_show_spectra = QCheckBox()
+        self.box_show_spectra.setChecked(True)
+        layout.addWidget(self.box_show_spectra, 9, 1)
+
+        layout.addWidget(QLabel('Spectrogram'), 10, 0)
         self.box_show_spectrograms = QCheckBox()
-        layout.addWidget(self.box_show_spectrograms, 9, 1)
+        layout.addWidget(self.box_show_spectrograms, 10, 1)
+
+        layout.addWidget(QLabel('Product-Spectrum'), 11, 0)
+        self.box_show_product_spectrum = QCheckBox()
+        layout.addWidget(self.box_show_product_spectrum, 11, 1)
 
         self.freq_box = FloatQLineEdit(parent=self, default=220)
-        layout.addWidget(QLabel('Standard Frequency [Hz]'), 10, 0)
-        layout.addWidget(self.freq_box, 10, 1)
+        layout.addWidget(QLabel('Standard Frequency [Hz]'), 12, 0)
+        layout.addWidget(self.freq_box, 12, 1)
 
         self.pitch_shift_box = FloatQLineEdit(parent=self, default='0.')
-        layout.addWidget(QLabel('Pitch Shift [Cent]'), 11, 0)
-        layout.addWidget(self.pitch_shift_box, 11, 1)
+        layout.addWidget(QLabel('Pitch Shift [Cent]'), 13, 0)
+        layout.addWidget(self.pitch_shift_box, 13, 1)
 
-        layout.addWidget(QLabel('Spectral type'), 12, 0)
+        layout.addWidget(QLabel('Spectral type'), 14, 0)
         select_spectral_type = QComboBox(self)
-        layout.addWidget(select_spectral_type, 12, 1)
+        layout.addWidget(select_spectral_type, 14, 1)
 
         for stype in ['log', 'linear', 'pitch']:
             select_spectral_type.addItem(stype)
         select_spectral_type.currentTextChanged.connect(
             self.on_spectrum_type_select)
 
-        layout.addItem(QSpacerItem(40, 20), 12, 1, qc.Qt.AlignTop)
+        layout.addItem(QSpacerItem(40, 20), 15, 1, qc.Qt.AlignTop)
 
         self.setFrameStyle(QFrame.Sunken)
         self.setLineWidth(1)
@@ -274,23 +277,24 @@ class MenuWidget(QFrame):
     def connect_channel_views(self, channel_views):
         self.box_show_traces.stateChanged.connect(
             channel_views.show_trace_widgets)
+
         channel_views.show_trace_widgets(
             self.box_show_traces.isChecked())
 
         self.box_show_spectrograms.stateChanged.connect(
             channel_views.show_spectrogram_widgets)
-        self.sensitivity_slider.valueChanged.connect(
-            channel_views.set_in_range)
 
         self.freq_box.accepted_value.connect(
             channel_views.on_standard_frequency_changed)
 
+        self.box_show_spectra.stateChanged.connect(
+            channel_views.show_spectrum_widgets)
+ 
         self.pitch_shift_box.accepted_value.connect(
             channel_views.on_pitch_shift_changed)
 
         for cv in channel_views.channel_views:
             self.spectrum_type_selected.connect(cv.on_spectrum_type_select)
-        channel_views.set_in_range(self.sensitivity_slider.value())
 
     def sizeHint(self):
         return qc.QSize(200, 200)
@@ -309,7 +313,10 @@ class ChannelViews(QWidget):
         for c_view in self.channel_views:
             self.layout.addWidget(c_view)
 
-        self.show_trace_widgets(False)
+        channels = [cv.channel for cv in self.channel_views]
+
+        self.show_trace_widgets(True)
+        self.show_spectrum_widgets(True)
         self.show_spectrogram_widgets(False)
         self.setSizePolicy(
             qw.QSizePolicy.Minimum,
@@ -319,18 +326,13 @@ class ChannelViews(QWidget):
         for c_view in self.channel_views:
             c_view.show_trace_widget(show)
 
+    def show_spectrum_widgets(self, show):
+        for c_view in self.channel_views:
+            c_view.show_spectrum_widget(show)
+    
     def show_spectrogram_widgets(self, show):
-        '''
-        :param show: bool to show or hide widgets
-        '''
         for c_view in self.channel_views:
             c_view.show_spectrogram_widget(show)
-
-    def add_channel_view(self, channel_view):
-        '''
-        :param channel_view: ChannelView widget instance
-        '''
-        self.layout.addWidget(channel_view)
 
     def set_in_range(self, val_range):
         for c_view in self.channel_views:
@@ -391,6 +393,7 @@ class SpectrogramWidget(Axis):
         except ValueError as e:
             logger.debug(e)
             return
+
         self.update()
 
     @qc.pyqtSlot(qg.QMouseEvent)
@@ -502,12 +505,13 @@ class ChannelView(QWidget):
     @qc.pyqtSlot()
     def on_draw(self):
         c = self.channel
+        d = c.fft.latest_frame_data(self.fft_smooth_factor)
         self.trace_widget.plot(*c.latest_frame(
             tfollow), ndecimate=25, color=self.color, line_width=1)
-        d = c.fft.latest_frame_data(self.fft_smooth_factor)
         self.plot_spectrum(
-                c.freqs, num.mean(d, axis=0), ndecimate=2,
-                color=self.color, ignore_nan=True)
+            c.freqs, num.mean(d, axis=0), ndecimate=2,
+            color=self.color, ignore_nan=True)
+
         self.spectrum.set_xlim(0, 2000)
 
         confidence = c.pitch_confidence.latest_frame_data(1)
@@ -519,8 +523,6 @@ class ChannelView(QWidget):
             self.spectrum.axvline(
                 self.freq_keyboard, color='aluminium4', style='dashed',
                 line_width=4)
-        self.trace_widget.update()
-        self.spectrum.update()
 
     @qc.pyqtSlot(int)
     def on_confidence_threshold_changed(self, threshold):
@@ -539,6 +541,9 @@ class ChannelView(QWidget):
 
     def show_trace_widget(self, show=True):
         self.trace_widget.setVisible(show)
+
+    def show_spectrum_widget(self, show=True):
+        self.spectrum.setVisible(show)
 
     def show_spectrogram_widget(self, show=True):
         self.spectrogram_widget.setVisible(show)
@@ -616,7 +621,7 @@ class OverView(QWidget):
     def __init__(self, *args, **kwargs):
         QWidget.__init__(self, *args, **kwargs)
 
-        layout = QGridLayout()
+        layout = qw.QGridLayout()
         self.setLayout(layout)
         self.ax = Axis()
         self.ax.ytick_formatter = '%i'
@@ -698,6 +703,7 @@ class PitchWidget(OverView):
 
         for high_pitch in self.highlighted_pitches:
             self.ax.axhline(high_pitch, line_width=2)
+
         self.ax.update()
 
     @qc.pyqtSlot()
@@ -717,44 +723,30 @@ class PitchWidget(OverView):
                     len(x))>=cv.confidence_threshold)
                 num.savetxt(fn, num.vstack((x[index], y[index])).T)
 
-    #def mouseReleaseEvent(self, mouse_event):
-    #    self.track_start = None
 
-    #def mouseMoveEvent(self, mouse_ev):
-    #    ''' from pyrocko's pile viewer'''
-    #    point = self.mapFromGlobal(mouse_ev.globalPos())
+class ProductSpectrum(QWidget):
 
-    #    self.change = self.tfollow
-    #    if self.track_start is not None:
+    def __init__(self, channels, *args, **kwargs):
+        QWidget.__init__(self, *args, **kwargs)
+        self.channels = channels
 
-    #        x0, y0 = self.track_start
-    #        dx = (point.x()- x0)/float(self.width())
-    #        dy = (point.y() - y0)/float(self.height())
-    #        #if self.ypart(y0) == 1:
-    #        #dy = 0
+        layout = qw.QGridLayout()
+        self.setLayout(layout)
+        self.ax = GLAxis()
+        self.ax.xtick_formatter = '%i'
+        self.ax.set_ylim(-1., 20.)
+        self.ax.yticks = False
+        self.ax.ylabels = False
+        self.setVisible(False)
+        layout.addWidget(self.ax)
 
-    #        #tmin0, tmax0 = self.xlim
-
-    #        scale = -dy*4.
-    #        frac = x0/ float(self.width())
-
-    #        #self.interrupt_following()
-    #        #self.tfollow += min(max(2., 2 + self.tfollow * scale), 30)
-    #        self.tfollow = min(max(2., 2 + self.tfollow * scale), 30)
-    #        ymin, ymax = self.ax.get_ylim()
-    #        #self.ax.set_ylim(ymin+dy*10, ymax+dy*10)
-    #        self.update()
-
-    #@qc.pyqtSlot(qg.QMouseEvent)
-    #def mousePressEvent(self, mouse_ev):
-    #    if mouse_ev.button() == qc.Qt.RightButton:
-    #        self.right_click_menu.exec_(qg.QCursor.pos())
-    #    else:
-    #        try:
-    #            QWidget.mousePressEvent(mouse_ev)
-    #        except TypeError as e:
-    #            logger.warn(e)
-
+    @qc.pyqtSlot()
+    def on_draw(self):
+        self.ax.clear()
+        ydata = self.channels[0].fft.latest_frame_data(3)
+        for c in self.channels[1:]:
+            ydata *= c.fft.latest_frame_data(3)
+        self.ax.plotlog(c.freqs, num.mean(ydata, axis=0), ndecimate=2)
 
 
 class DifferentialPitchWidget(OverView):
@@ -802,8 +794,6 @@ class DifferentialPitchWidget(OverView):
 
         for high_pitch in self.highlighted_pitches:
             self.ax.axhline(high_pitch, line_width=2)
-
-        # update needed on OSX
         self.ax.update()
 
     @qc.pyqtSlot()
@@ -816,7 +806,7 @@ class PitchLevelDifferenceViews(QWidget):
     def __init__(self, channel_views, *args, **kwargs):
         QWidget.__init__(self, *args, **kwargs)
         self.channel_views = channel_views
-        layout = QGridLayout()
+        layout = qw.QGridLayout()
         self.setLayout(layout)
         self.widgets = []
         self.right_click_menu = QMenu('Tick Settings', self)
@@ -870,7 +860,7 @@ class PitchLevelMikadoViews(QWidget):
     def __init__(self, channel_views, *args, **kwargs):
         QWidget.__init__(self, *args, **kwargs)
         self.channel_views = channel_views
-        layout = QGridLayout()
+        layout = qw.QGridLayout()
         self.setLayout(layout)
         self.widgets = []
 
@@ -926,7 +916,7 @@ class MainWidget(QWidget):
         self.setPalette(pal)
 
         self.setMouseTracking(True)
-        self.top_layout = QGridLayout()
+        self.top_layout = qw.QGridLayout()
         self.setLayout(self.top_layout)
 
         self.refresh_timer = qc.QTimer()
@@ -1004,39 +994,49 @@ class MainWidget(QWidget):
             channel_views.append(cv)
 
         self.channel_views_widget = ChannelViews(channel_views)
+        product_spectrum_widget = ProductSpectrum(channels=dinput.channels)
+
         self.top_layout.addWidget(self.channel_views_widget, 1, 0)
+        self.top_layout.addWidget(product_spectrum_widget, 2, 0)
 
         self.keyboard = KeyBoard(self)
         self.keyboard.setVisible(False)
         self.keyboard.connect_channel_views(self.channel_views_widget)
         self.top_layout.addWidget(self.keyboard, 0, 0, 1, -1)
 
-        self.pitch_view = PitchWidget(channel_views)
+        pitch_view = PitchWidget(channel_views)
 
-        self.pitch_view_all_diff = DifferentialPitchWidget(channel_views)
-        self.pitch_diff_view = PitchLevelDifferenceViews(channel_views)
+        pitch_view_all_diff = DifferentialPitchWidget(channel_views)
+        pitch_diff_view = PitchLevelDifferenceViews(channel_views)
         #self.pitch_diff_view_colorized = PitchLevelMikadoViews(channel_views)
 
-        self.tabbed_pitch_widget.addTab(self.pitch_view, 'Pitches')
-        self.tabbed_pitch_widget.addTab(self.pitch_view_all_diff, 'Differential')
-        self.tabbed_pitch_widget.addTab(self.pitch_diff_view, 'Current')
+        self.tabbed_pitch_widget.addTab(pitch_view, 'Pitches')
+        self.tabbed_pitch_widget.addTab(pitch_view_all_diff, 'Differential')
+        self.tabbed_pitch_widget.addTab(pitch_diff_view, 'Current')
         #self.tabbed_pitch_widget.addTab(self.pitch_diff_view_colorized, 'Mikado')
 
         self.menu.derivative_filter_slider.valueChanged.connect(
-            self.pitch_view_all_diff.on_derivative_filter_changed)
+            pitch_view_all_diff.on_derivative_filter_changed)
         self.menu.connect_channel_views(self.channel_views_widget)
 
-        self.signal_widgets_clear.connect(self.pitch_view.on_clear)
-        self.signal_widgets_clear.connect(self.pitch_view_all_diff.on_clear)
+        self.menu.box_show_product_spectrum.stateChanged.connect(
+            lambda x: product_spectrum_widget.setVisible(x))
 
-        self.signal_widgets_draw.connect(self.pitch_view.on_draw)
-        self.signal_widgets_draw.connect(self.pitch_view_all_diff.on_draw)
-        self.signal_widgets_draw.connect(self.pitch_diff_view.on_draw)
+        self.signal_widgets_clear.connect(pitch_view.on_clear)
+        self.signal_widgets_clear.connect(pitch_view_all_diff.on_clear)
+
+        self.signal_widgets_draw.connect(pitch_view.on_draw)
+        self.signal_widgets_draw.connect(pitch_view_all_diff.on_draw)
+        self.signal_widgets_draw.connect(pitch_diff_view.on_draw)
+        self.signal_widgets_draw.connect(product_spectrum_widget.on_draw)
+        #self.signal_widgets_draw.connect(self.product_spectrum_widget.on_draw)
         #self.signal_widgets_draw.connect(self.pitch_diff_view_colorized.on_draw)
 
-        self.views = [
-            self.pitch_view, self.pitch_view_all_diff, self.pitch_diff_view
-        ]
+        #self.views = [
+        #    pitch_view,
+        #    pitch_view_all_diff,
+        #    pitch_diff_view
+        #]
 
         t_wait_buffer = max(dinput.fftsizes)/dinput.sampling_rate*1500.
         qc.QTimer().singleShot(t_wait_buffer, self.start_refresh_timer)
@@ -1117,7 +1117,7 @@ def from_command_line(close_after=None, settings=None, check_opengl=False,
     ''' Start the GUI from command line'''
     if check_opengl:
         try:
-            from PyQt5.QtWidgets import QOpenGLWidget
+            from PyQt5.QtWidgets import QOpenGLWidget  # noqa
         except ImportError as e:
             logger.warning(str(e) + ' - opengl not supported')
         else:
@@ -1125,7 +1125,7 @@ def from_command_line(close_after=None, settings=None, check_opengl=False,
         finally:
             sys.exit()
 
-    app = QApplication(sys.argv)
+    app = qw.QApplication(sys.argv)
 
     if settings is None:
         settings = DeviceMenuSetting()
@@ -1136,7 +1136,7 @@ def from_command_line(close_after=None, settings=None, check_opengl=False,
         settings = DeviceMenuSetting()
         settings.accept = True
 
-    window = MainWindow(settings=settings)
+    win = MainWindow(settings=settings)   # noqa
     if close_after:
         close_timer = qc.QTimer()
         close_timer.timeout.connect(app.quit)
