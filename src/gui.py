@@ -374,13 +374,6 @@ class SpectrogramWidget(Axis):
             self.right_click_menu.addAction(color_action)
 
     @qc.pyqtSlot()
-    def on_color_select(self):
-        for c in self.color_choices:
-            if c.isChecked():
-                self.image.set_colortable(c.text())
-                break
-
-    @qc.pyqtSlot()
     def update_spectrogram(self):
         c = self.channel
 
@@ -395,6 +388,13 @@ class SpectrogramWidget(Axis):
             return
 
         self.update()
+
+    @qc.pyqtSlot()
+    def on_color_select(self):
+        for c in self.color_choices:
+            if c.isChecked():
+                self.image.set_colortable(c.text())
+                break
 
     @qc.pyqtSlot(qg.QMouseEvent)
     def mousePressEvent(self, mouse_ev):
@@ -724,6 +724,50 @@ class PitchWidget(OverView):
                 num.savetxt(fn, num.vstack((x[index], y[index])).T)
 
 
+class ProductSpectrogram(Axis):
+    def __init__(self, channels, *args, **kwargs):
+        Axis.__init__(self, *args, **kwargs)
+        self.ny, self.nx = 300, 680
+        self.channels = channels
+        fake = num.ones((self.nx, self.ny))
+        self.image = self.colormesh(z=fake)
+        self.yticks = False
+        
+        self.right_click_menu = QMenu('RC', self)
+        self.color_choices = []
+        color_action_group = QActionGroup(self.right_click_menu)
+        color_action_group.setExclusive(True)
+        for color_name in ['viridis', 'wb', 'bw']:
+            color_action = QAction(color_name, self.right_click_menu)
+            color_action.triggered.connect(self.on_color_select)
+            color_action.setCheckable(True)
+            self.color_choices.append(color_action)
+            color_action_group.addAction(color_action)
+            self.right_click_menu.addAction(color_action)
+
+    @qc.pyqtSlot()
+    def update_spectrogram(self):
+        z = self.channels[0].fft.latest_frame_data(self.nx)
+        for c in self.channels:
+            try:
+                z *= c.fft.latest_frame_data(self.nx)
+            except ValueError as e:
+                logger.debug(e)
+                return
+
+        y = c.xdata[-self.nx:]
+        x = c.freqs[: self.ny]
+        self.image.set_data(z[:, :self.ny])
+        self.update_datalims(x, y)
+        self.update()
+
+    def on_color_select(self, d=None):
+        for c in self.color_choices:
+            if c.isChecked():
+                self.color = c.text()
+                break
+
+
 class ProductSpectrum(QWidget):
 
     def __init__(self, channels, *args, **kwargs):
@@ -996,9 +1040,11 @@ class MainWidget(QWidget):
 
         self.channel_views_widget = ChannelViews(channel_views)
         product_spectrum_widget = ProductSpectrum(channels=dinput.channels)
+        product_spectrogram_widget = ProductSpectrogram(channels=dinput.channels)
 
-        self.top_layout.addWidget(self.channel_views_widget, 1, 0)
+        self.top_layout.addWidget(self.channel_views_widget, 1, 0, 1, 2)
         self.top_layout.addWidget(product_spectrum_widget, 2, 0)
+        self.top_layout.addWidget(product_spectrogram_widget, 2, 1)
 
         self.keyboard = KeyBoard(self)
         self.keyboard.setVisible(False)
@@ -1009,12 +1055,12 @@ class MainWidget(QWidget):
 
         pitch_view_all_diff = DifferentialPitchWidget(channel_views)
         pitch_diff_view = PitchLevelDifferenceViews(channel_views)
-        #self.pitch_diff_view_colorized = PitchLevelMikadoViews(channel_views)
+        # self.pitch_diff_view_colorized = PitchLevelMikadoViews(channel_views)
 
         self.tabbed_pitch_widget.addTab(pitch_view, 'Pitches')
         self.tabbed_pitch_widget.addTab(pitch_view_all_diff, 'Differential')
         self.tabbed_pitch_widget.addTab(pitch_diff_view, 'Current')
-        #self.tabbed_pitch_widget.addTab(self.pitch_diff_view_colorized, 'Mikado')
+        # self.tabbed_pitch_widget.addTab(self.pitch_diff_view_colorized, 'Mikado')
 
         self.menu.derivative_filter_slider.valueChanged.connect(
             pitch_view_all_diff.on_derivative_filter_changed)
@@ -1030,14 +1076,14 @@ class MainWidget(QWidget):
         self.signal_widgets_draw.connect(pitch_view_all_diff.on_draw)
         self.signal_widgets_draw.connect(pitch_diff_view.on_draw)
         self.signal_widgets_draw.connect(product_spectrum_widget.on_draw)
-        #self.signal_widgets_draw.connect(self.product_spectrum_widget.on_draw)
-        #self.signal_widgets_draw.connect(self.pitch_diff_view_colorized.on_draw)
+        # self.signal_widgets_draw.connect(self.product_spectrum_widget.on_draw)
+        # self.signal_widgets_draw.connect(self.pitch_diff_view_colorized.on_draw)
 
-        #self.views = [
-        #    pitch_view,
-        #    pitch_view_all_diff,
-        #    pitch_diff_view
-        #]
+        # self.views = [
+        #     pitch_view,
+        #     pitch_view_all_diff,
+        #     pitch_diff_view
+        # ]
 
         t_wait_buffer = max(dinput.fftsizes)/dinput.sampling_rate*1500.
         qc.QTimer().singleShot(t_wait_buffer, self.start_refresh_timer)
