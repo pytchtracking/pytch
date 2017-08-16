@@ -26,6 +26,7 @@ from PyQt5.QtWidgets import QDialogButtonBox, QTabWidget, QActionGroup, QFileDia
 logger = logging.getLogger(__name__)
 tfollow = 3.
 fmax = 2000.
+colors = ['viridis', 'wb', 'bw']
 
 
 def draw_label(painter, center, radius, text, color):
@@ -351,6 +352,19 @@ class ChannelViews(QWidget):
     def sizeHint(self):
         return qc.QSize(400, 200)
 
+def add_action_group(colors, menu, slot, exclusive=True):
+        color_action_group = QActionGroup(menu)
+        color_action_group.setExclusive(exclusive)
+        choices = []
+        for color_name in colors:
+            color_action = QAction(color_name, menu)
+            color_action.triggered.connect(slot)
+            color_action.setCheckable(True)
+            choices.append(color_action)
+            color_action_group.addAction(color_action)
+            menu.addAction(color_action)
+        return choices
+
 
 class SpectrogramWidget(Axis):
     def __init__(self, channel, *args, **kwargs):
@@ -362,16 +376,8 @@ class SpectrogramWidget(Axis):
         self.yticks = False
 
         self.right_click_menu = QMenu('RC', self)
-        self.color_choices = []
-        color_action_group = QActionGroup(self.right_click_menu)
-        color_action_group.setExclusive(True)
-        for color_name in ['viridis', 'wb', 'bw']:
-            color_action = QAction(color_name, self.right_click_menu)
-            color_action.triggered.connect(self.on_color_select)
-            color_action.setCheckable(True)
-            self.color_choices.append(color_action)
-            color_action_group.addAction(color_action)
-            self.right_click_menu.addAction(color_action)
+        self.color_choices = add_action_group(
+            colors, self.right_click_menu, self.on_color_select)
 
     @qc.pyqtSlot()
     def update_spectrogram(self):
@@ -581,7 +587,8 @@ class ChannelView(QWidget):
                 self.fft_smooth_factor = int(c.text())
                 break
 
-    def on_color_select(self, d=None):
+    @qc.pyqtSlot(bool)
+    def on_color_select(self, triggered):
         for c in self.color_choices:
             if c.isChecked():
                 self.color = c.text()
@@ -769,16 +776,10 @@ class ProductSpectrogram(Axis):
         self.yticks = False
 
         self.right_click_menu = QMenu('RC', self)
-        self.color_choices = []
         color_action_group = QActionGroup(self.right_click_menu)
         color_action_group.setExclusive(True)
-        for color_name in ['viridis', 'wb', 'bw']:
-            color_action = QAction(color_name, self.right_click_menu)
-            color_action.triggered.connect(self.on_color_select)
-            color_action.setCheckable(True)
-            self.color_choices.append(color_action)
-            color_action_group.addAction(color_action)
-            self.right_click_menu.addAction(color_action)
+        self.color_choices = add_action_group(
+            colors, self.right_click_menu, self.on_color_select)
 
         self.thread = qc.QThread()
         self.image_worker = ImageWorker(channels, self.nx, self.ny)
@@ -798,11 +799,17 @@ class ProductSpectrogram(Axis):
         self.image.update()
         self.update()
 
-    def on_color_select(self, d=None):
+    @qc.pyqtSlot(bool)
+    def on_color_select(self, triggered):
         for c in self.color_choices:
             if c.isChecked():
                 self.color = c.text()
                 break
+
+    @qc.pyqtSlot(qg.QMouseEvent)
+    def mousePressEvent(self, mouse_ev):
+        if mouse_ev.button() == qc.Qt.RightButton:
+            self.right_click_menu.exec_(qg.QCursor.pos())
 
 
 class ProductSpectrum(QWidget):
