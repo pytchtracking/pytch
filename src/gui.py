@@ -360,7 +360,7 @@ class SpectrogramWidget(Axis):
         fake = num.ones((self.nx, self.ny))
         self.image = self.colormesh(z=fake)
         self.yticks = False
-        
+
         self.right_click_menu = QMenu('RC', self)
         self.color_choices = []
         color_action_group = QActionGroup(self.right_click_menu)
@@ -732,7 +732,7 @@ class ProductSpectrogram(Axis):
         fake = num.ones((self.nx, self.ny))
         self.image = self.colormesh(z=fake)
         self.yticks = False
-        
+
         self.right_click_menu = QMenu('RC', self)
         self.color_choices = []
         color_action_group = QActionGroup(self.right_click_menu)
@@ -748,9 +748,10 @@ class ProductSpectrogram(Axis):
     @qc.pyqtSlot()
     def update_spectrogram(self):
         z = self.channels[0].fft.latest_frame_data(self.nx)
+        nchannels = len(self.channels)
         for c in self.channels:
             try:
-                z *= c.fft.latest_frame_data(self.nx)
+                z *= c.fft.latest_frame_data(self.nx)/nchannels
             except ValueError as e:
                 logger.debug(e)
                 return
@@ -759,6 +760,7 @@ class ProductSpectrogram(Axis):
         x = c.freqs[: self.ny]
         self.image.set_data(z[:, :self.ny])
         self.update_datalims(x, y)
+        self.image.update()
         self.update()
 
     def on_color_select(self, d=None):
@@ -1076,6 +1078,7 @@ class MainWidget(QWidget):
         self.signal_widgets_draw.connect(pitch_view_all_diff.on_draw)
         self.signal_widgets_draw.connect(pitch_diff_view.on_draw)
         self.signal_widgets_draw.connect(product_spectrum_widget.on_draw)
+        self.signal_widgets_draw.connect(product_spectrogram_widget.update_spectrogram)
         # self.signal_widgets_draw.connect(self.product_spectrum_widget.on_draw)
         # self.signal_widgets_draw.connect(self.pitch_diff_view_colorized.on_draw)
 

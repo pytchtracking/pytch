@@ -38,16 +38,16 @@ def get_colortable(name, log=False):
 
         if name == 'bw':
             a = a[::-1]
-        
+
         for i in a.astype(num.int):
             ctable.append(qg.qRgb(i, i, i))
-    
+
     elif name == 'matrix':
         for i in range(256): ctable.append(qg.qRgb(i/4,i*2,i/2))
 
     else:
         raise Exception('No such colortable %s' % name)
-        
+
     return ctable
 
 
