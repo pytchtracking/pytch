@@ -369,7 +369,7 @@ def add_action_group(colors, menu, slot, exclusive=True):
 class SpectrogramWidget(Axis):
     def __init__(self, channel, *args, **kwargs):
         Axis.__init__(self, *args, **kwargs)
-        self.ny, self.nx = 300, 680
+        self.ny, self.nx = 300, 100
         self.channel = channel
         fake = num.ones((self.nx, self.ny))
         self.image = self.colormesh(z=fake)
@@ -769,7 +769,7 @@ class ImageWorker(qc.QObject):
 class ProductSpectrogram(Axis):
     def __init__(self, channels, *args, **kwargs):
         Axis.__init__(self, *args, **kwargs)
-        self.ny, self.nx = 300, 680
+        self.ny, self.nx = 300, 100
         self.channels = channels
         fake = num.ones((self.nx, self.ny))
         self.image = self.colormesh(z=fake)
