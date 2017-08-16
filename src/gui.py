@@ -491,7 +491,7 @@ class ChannelView(QWidget):
         self.spectrogram_refresh_timer = qc.QTimer()
         self.spectrogram_refresh_timer.timeout.connect(
             self.spectrogram_widget.update_spectrogram)
-        self.spectrogram_refresh_timer.start(100)
+        self.spectrogram_refresh_timer.start(120)
 
     @qc.pyqtSlot(float)
     def on_keyboard_key_pressed(self, f):
@@ -724,6 +724,41 @@ class PitchWidget(OverView):
                 num.savetxt(fn, num.vstack((x[index], y[index])).T)
 
 
+class ImageWorker(qc.QObject):
+
+    processingFinished = qc.pyqtSignal()
+    start = qc.pyqtSignal(str)
+
+    def __init__(self, channels, nx, ny):
+        super(ImageWorker, self).__init__()
+        self.channels = channels
+        self.data = None
+        self.x = None
+        self.y = None
+        self.nx = nx
+        self.ny = ny
+        self.start.connect(self.run)
+
+    @qc.pyqtSlot(str)
+    def run(self, message):
+        self.spectrogram_refresh_timer = qc.QTimer()
+        self.spectrogram_refresh_timer.timeout.connect(
+            self.process)
+        self.spectrogram_refresh_timer.start(200)
+
+    @qc.pyqtSlot()
+    def process(self):
+        z = num.asarray(self.channels[0].fft.latest_frame_data(self.nx), dtype=num.float)
+        nchannels = len(self.channels)
+        for c in self.channels:
+            z += num.asarray(c.fft.latest_frame_data(self.nx), dtype=num.float)/nchannels
+
+        self.y = c.xdata[-self.nx:]
+        self.x = c.freqs[: self.ny]
+        self.data = z[:, :self.ny]
+        self.processingFinished.emit()
+
+
 class ProductSpectrogram(Axis):
     def __init__(self, channels, *args, **kwargs):
         Axis.__init__(self, *args, **kwargs)
@@ -745,21 +780,21 @@ class ProductSpectrogram(Axis):
             color_action_group.addAction(color_action)
             self.right_click_menu.addAction(color_action)
 
+        self.thread = qc.QThread()
+        self.image_worker = ImageWorker(channels, self.nx, self.ny)
+        self.image_worker.moveToThread(self.thread)
+        self.image_worker.processingFinished.connect(self.update_spectrogram)
+        self.image_worker.start.emit('Start Thread')
+        self.thread.start()
+
     @qc.pyqtSlot()
     def update_spectrogram(self):
-        z = self.channels[0].fft.latest_frame_data(self.nx)
-        nchannels = len(self.channels)
-        for c in self.channels:
-            try:
-                z *= c.fft.latest_frame_data(self.nx)/nchannels
-            except ValueError as e:
-                logger.debug(e)
-                return
+        try:
+            self.update_datalims(self.image_worker.x, self.image_worker.y)
+            self.image.set_data(self.image_worker.data)
+        except ValueError as e:
+            pass
 
-        y = c.xdata[-self.nx:]
-        x = c.freqs[: self.ny]
-        self.image.set_data(z[:, :self.ny])
-        self.update_datalims(x, y)
         self.image.update()
         self.update()
 
@@ -1078,15 +1113,11 @@ class MainWidget(QWidget):
         self.signal_widgets_draw.connect(pitch_view_all_diff.on_draw)
         self.signal_widgets_draw.connect(pitch_diff_view.on_draw)
         self.signal_widgets_draw.connect(product_spectrum_widget.on_draw)
-        self.signal_widgets_draw.connect(product_spectrogram_widget.update_spectrogram)
-        # self.signal_widgets_draw.connect(self.product_spectrum_widget.on_draw)
-        # self.signal_widgets_draw.connect(self.pitch_diff_view_colorized.on_draw)
 
-        # self.views = [
-        #     pitch_view,
-        #     pitch_view_all_diff,
-        #     pitch_diff_view
-        # ]
+        self.spectrogram_refresh_timer = qc.QTimer()
+        self.spectrogram_refresh_timer.timeout.connect(
+            product_spectrogram_widget.update_spectrogram)
+        self.spectrogram_refresh_timer.start(200)
 
         t_wait_buffer = max(dinput.fftsizes)/dinput.sampling_rate*1500.
         qc.QTimer().singleShot(t_wait_buffer, self.start_refresh_timer)
