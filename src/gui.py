@@ -29,6 +29,20 @@ fmax = 2000.
 colors = ['viridis', 'wb', 'bw']
 
 
+def add_action_group(options, menu, slot, exclusive=True):
+        action_group = QActionGroup(menu)
+        action_group.setExclusive(exclusive)
+        choices = []
+        for option in options:
+            action = QAction(option, menu)
+            action.triggered.connect(slot)
+            action.setCheckable(True)
+            choices.append(action)
+            action_group.addAction(action)
+            menu.addAction(action)
+        return choices
+
+
 def draw_label(painter, center, radius, text, color):
     ''' draw white circle with colored frame and colored label'''
     painter.save()
@@ -352,19 +366,6 @@ class ChannelViews(QWidget):
     def sizeHint(self):
         return qc.QSize(400, 200)
 
-def add_action_group(colors, menu, slot, exclusive=True):
-        color_action_group = QActionGroup(menu)
-        color_action_group.setExclusive(exclusive)
-        choices = []
-        for color_name in colors:
-            color_action = QAction(color_name, menu)
-            color_action.triggered.connect(slot)
-            color_action.setCheckable(True)
-            choices.append(color_action)
-            color_action_group.addAction(color_action)
-            menu.addAction(color_action)
-        return choices
-
 
 class SpectrogramWidget(Axis):
     def __init__(self, channel, *args, **kwargs):
@@ -460,17 +461,8 @@ class ChannelView(QWidget):
         self.right_click_menu = QMenu('RC', self)
         self.channel_color_menu = QMenu('Channel Color', self.right_click_menu)
 
-        self.color_choices = []
-        color_action_group = QActionGroup(self.channel_color_menu)
-        color_action_group.setExclusive(True)
-        for color_name in _color_names:
-            color_action = QAction(color_name, self.channel_color_menu)
-            color_action.triggered.connect(self.on_color_select)
-            color_action.setCheckable(True)
-            self.color_choices.append(color_action)
-            color_action_group.addAction(color_action)
-            self.channel_color_menu.addAction(color_action)
-        self.right_click_menu.addMenu(self.channel_color_menu)
+        self.color_choices = add_action_group(
+            colors, self.right_click_menu, self.on_color_select)
 
         self.fft_smooth_factor_menu = QMenu(
             'FFT smooth factor', self.right_click_menu)
@@ -734,17 +726,23 @@ class PitchWidget(OverView):
 class ImageWorker(qc.QObject):
 
     processingFinished = qc.pyqtSignal()
+    on_scaling_changed = qc.pyqtSignal(float)
     start = qc.pyqtSignal(str)
 
     def __init__(self, channels, nx, ny):
         super(ImageWorker, self).__init__()
         self.channels = channels
+        self.scaling = 4.
         self.data = None
         self.x = None
         self.y = None
         self.nx = nx
         self.ny = ny
         self.start.connect(self.run)
+
+    @qc.pyqtSlot(float)
+    def on_scaling_changed(self, newscale):
+        self.scaling = newscale
 
     @qc.pyqtSlot(str)
     def run(self, message):
@@ -758,15 +756,18 @@ class ImageWorker(qc.QObject):
         z = num.asarray(self.channels[0].fft.latest_frame_data(self.nx), dtype=num.float)
         nchannels = len(self.channels)
         for c in self.channels:
-            z += num.asarray(c.fft.latest_frame_data(self.nx), dtype=num.float)/nchannels
+            z *= num.asarray(c.fft.latest_frame_data(self.nx), dtype=num.float)
 
         self.y = c.xdata[-self.nx:]
         self.x = c.freqs[: self.ny]
-        self.data = z[:, :self.ny]
+        self.data = num.ma.log(z[:, :self.ny])**self.scaling
         self.processingFinished.emit()
 
 
 class ProductSpectrogram(Axis):
+
+    scalingChanged = qc.pyqtSignal(float)
+
     def __init__(self, channels, *args, **kwargs):
         Axis.__init__(self, *args, **kwargs)
         self.ny, self.nx = 300, 100
@@ -780,12 +781,16 @@ class ProductSpectrogram(Axis):
         color_action_group.setExclusive(True)
         self.color_choices = add_action_group(
             colors, self.right_click_menu, self.on_color_select)
+        scalings = map(str,  [1., 2., 3., 4., 5.])
+        self.scaling_choices = add_action_group(
+           scalings, self.right_click_menu, self.on_scaling_select)
 
         self.thread = qc.QThread()
         self.image_worker = ImageWorker(channels, self.nx, self.ny)
         self.image_worker.moveToThread(self.thread)
         self.image_worker.processingFinished.connect(self.update_spectrogram)
         self.image_worker.start.emit('Start Thread')
+        self.scalingChanged.connect(self.image_worker.on_scaling_changed)
         self.thread.start()
 
     @qc.pyqtSlot()
@@ -800,10 +805,17 @@ class ProductSpectrogram(Axis):
         self.update()
 
     @qc.pyqtSlot(bool)
+    def on_scaling_select(self, triggered):
+        for c in self.scaling_choices:
+            if c.isChecked():
+                self.scalingChanged.emit(float(c.text()))
+                break
+
+    @qc.pyqtSlot(bool)
     def on_color_select(self, triggered):
         for c in self.color_choices:
             if c.isChecked():
-                self.color = c.text()
+                self.image.set_colortable(c.text())
                 break
 
     @qc.pyqtSlot(qg.QMouseEvent)
