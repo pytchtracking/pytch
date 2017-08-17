@@ -17,8 +17,8 @@ from PyQt5 import QtGui as qg
 from PyQt5 import QtWidgets as qw
 from PyQt5.QtWidgets import QWidget, QHBoxLayout, QLabel
 from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QComboBox
-from PyQt5.QtWidgets import QAction, QSlider, QPushButton, QDockWidget
-from PyQt5.QtWidgets import QCheckBox, QSizePolicy, QFrame, QMenu, QWidgetAction
+from PyQt5.QtWidgets import QAction, QPushButton, QDockWidget
+from PyQt5.QtWidgets import QCheckBox, QSizePolicy, QFrame, QMenu
 from PyQt5.QtWidgets import QSpacerItem, QDialog, QLineEdit
 from PyQt5.QtWidgets import QDialogButtonBox, QTabWidget, QActionGroup, QFileDialog
 
@@ -130,7 +130,7 @@ class DeviceMenu(QDialog):
         layout.addWidget(buttons)
 
     def get_nfft_box(self):
-        ''' Return a QSlider for modifying FFT width'''
+        ''' Return a qw.QSlider for modifying FFT width'''
         b = QComboBox()
         self.nfft_options = [f*1024 for f in [1, 2, 4, 8, 16]]
 
@@ -192,9 +192,9 @@ class MenuWidget(QFrame):
         layout.addWidget(self.save_as_button, 1, 1)
 
         layout.addWidget(QLabel('Confidence Threshold'), 4, 0)
-        self.noise_thresh_slider = QSlider()
+        self.noise_thresh_slider = qw.QSlider()
         self.noise_thresh_slider.setRange(0, 15)
-        self.noise_thresh_slider.setTickPosition(QSlider.TicksBelow)
+        self.noise_thresh_slider.setTickPosition(qw.QSlider.TicksBelow)
         self.noise_thresh_slider.setOrientation(qc.Qt.Horizontal)
         self.noise_thresh_slider.valueChanged.connect(
             lambda x: self.noise_thresh_label.setText(str(x/10.))
@@ -205,7 +205,7 @@ class MenuWidget(QFrame):
         layout.addWidget(self.noise_thresh_label, 4, 2)
 
         layout.addWidget(QLabel('Derivative Filter'), 5, 0)
-        self.derivative_filter_slider = QSlider()
+        self.derivative_filter_slider = qw.QSlider()
         self.derivative_filter_slider.setRange(0., 10000.)
         self.derivative_filter_slider.setValue(1000.)
         self.derivative_filter_slider.setOrientation(qc.Qt.Horizontal)
@@ -594,7 +594,7 @@ class CheckBoxSelect(QWidget):
         QWidget.__init__(self, parent=parent)
         self.value = value
         self.check_box = QPushButton(str(self.value), parent=self)
-        self.action = QWidgetAction(self)
+        self.action = qw.QWidgetAction(self)
         self.action.setDefaultWidget(self.check_box)
         self.check_box.clicked.connect(self.on_state_changed)
 
@@ -643,7 +643,7 @@ class OverView(QWidget):
         pmenu = QMenu('Highlight pitches', self)
         pmenu.addSeparator()
         for v in ['', 1200, 700, 500]:
-            action = QWidgetAction(pmenu)
+            action = qw.QWidgetAction(pmenu)
             check_box_widget = CheckBoxSelect(v, pmenu)
             check_box_widget.check_box_toggled.connect(
                 self.on_check_box_widget_toggled)
@@ -774,16 +774,28 @@ class ProductSpectrogram(Axis):
         self.channels = channels
         fake = num.ones((self.nx, self.ny))
         self.image = self.colormesh(z=fake)
+        self.xtick_formatter = '%i'
         self.yticks = False
 
-        self.right_click_menu = QMenu('RC', self)
-        color_action_group = QActionGroup(self.right_click_menu)
+        menu = QMenu('RC', self)
+        color_action_group = QActionGroup(menu)
         color_action_group.setExclusive(True)
         self.color_choices = add_action_group(
-            colors, self.right_click_menu, self.on_color_select)
-        scalings = map(str,  [1., 2., 3., 4., 5.])
-        self.scaling_choices = add_action_group(
-           scalings, self.right_click_menu, self.on_scaling_select)
+            colors, menu, self.on_color_select)
+        
+        slider = qw.QSlider()
+        slider.valueChanged.connect(self.on_scaling_changed)
+        slider.setOrientation(qc.Qt.Horizontal)
+        slider.setMinimum(25)
+        slider.setMaximum(55)
+        slider.setPageStep(1)
+        slider.setSliderPosition(40)
+        widget_slider = qw.QWidgetAction(menu)
+        widget_slider.setDefaultWidget(slider)
+        menu.addSeparator()
+        menu.addAction('gain:')
+        menu.addAction(widget_slider)
+        menu.addSeparator()
 
         self.thread = qc.QThread()
         self.image_worker = ImageWorker(channels, self.nx, self.ny)
@@ -791,6 +803,7 @@ class ProductSpectrogram(Axis):
         self.image_worker.processingFinished.connect(self.update_spectrogram)
         self.image_worker.start.emit('Start Thread')
         self.scalingChanged.connect(self.image_worker.on_scaling_changed)
+        self.menu = menu
         self.thread.start()
 
     @qc.pyqtSlot()
@@ -804,12 +817,9 @@ class ProductSpectrogram(Axis):
         self.image.update()
         self.update()
 
-    @qc.pyqtSlot(bool)
-    def on_scaling_select(self, triggered):
-        for c in self.scaling_choices:
-            if c.isChecked():
-                self.scalingChanged.emit(float(c.text()))
-                break
+    @qc.pyqtSlot(int)
+    def on_scaling_changed(self, value):
+        self.scalingChanged.emit(value/10.)
 
     @qc.pyqtSlot(bool)
     def on_color_select(self, triggered):
@@ -821,7 +831,7 @@ class ProductSpectrogram(Axis):
     @qc.pyqtSlot(qg.QMouseEvent)
     def mousePressEvent(self, mouse_ev):
         if mouse_ev.button() == qc.Qt.RightButton:
-            self.right_click_menu.exec_(qg.QCursor.pos())
+            self.menu.exec_(qg.QCursor.pos())
 
 
 class ProductSpectrum(QWidget):
