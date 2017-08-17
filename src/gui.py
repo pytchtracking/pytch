@@ -104,12 +104,9 @@ class ChannelView(qw.QWidget):
         self.freq_keyboard = f
 
     @qc.pyqtSlot()
-    def on_clear(self):
+    def on_draw(self):
         self.trace_widget.clear()
         self.spectrum.clear()
-
-    @qc.pyqtSlot()
-    def on_draw(self):
         c = self.channel
         d = c.fft.latest_frame_data(self.fft_smooth_factor)
         self.trace_widget.plot(*c.latest_frame(
@@ -206,18 +203,24 @@ class ProductView(qw.QWidget):
         self.setLayout(layout)
         self.setContentsMargins(-10, -10, -10, -10)
 
-        dummy = Axis()
-        dummy.setContentsMargins(-10, -10, -10, -10)
-        dummy.left = 0.
-        dummy.plot([0., 1.], [0., 2])
-        dummy.grids = []
-        dummy.xticks = False
-        dummy.yticks = False
-        dummy.set_ylim(-1000., 1000.)
-        layout.addWidget(dummy)
+        self.dummy = GLAxis()
+        self.dummy.setContentsMargins(-10, -10, -10, -10)
+        self.dummy.grids = []
+        self.dummy.xticks = False
+        self.dummy.yticks = False
+        layout.addWidget(self.dummy)
         layout.addWidget(self.product_spectrum_widget)
         layout.addWidget(self.product_spectrogram_widget)
         self.confidence_threshold = 1
+
+    def show_spectrum_widget(self, show):
+        self.product_spectrum_widget.setVisible(show)
+
+    def show_spectrogram_widget(self, show):
+        self.product_spectrogram_widget.setVisible(show)
+
+    def show_trace_widget(self, show):
+        self.dummy.setVisible(show)
 
     def on_confidence_threshold_changed(self, *args):
         pass
@@ -231,10 +234,6 @@ class ProductView(qw.QWidget):
     @qc.pyqtSlot()
     def on_draw(self):
         self.product_spectrum_widget.on_draw()
-
-    qc.pyqtSlot()
-    def on_clear(self):
-        self.product_spectrum_widget.on_clear()
 
 
 class ChannelViews(qw.QWidget):
@@ -254,6 +253,7 @@ class ChannelViews(qw.QWidget):
 
         channels = [cv.channel for cv in self.views]
         self.views.append(ProductView(channels=channels))
+
         for c_view in self.views:
             self.layout.addWidget(c_view)
 
@@ -263,13 +263,19 @@ class ChannelViews(qw.QWidget):
         self.setSizePolicy(qw.QSizePolicy.Minimum, qw.QSizePolicy.Minimum)
 
     def show_trace_widgets(self, show):
-        map(lambda x: x.show_traces(show), self.views)
+        for view in self.views:
+            view.show_trace_widget(show)
 
     def show_spectrum_widgets(self, show):
-        map(lambda x: x.show_spectrum_widgets(show), self.views)
+        for view in self.views:
+            view.show_spectrum_widget(show)
 
     def show_spectrogram_widgets(self, show):
-        map(lambda x: x.show_spectrogram_widget(show), self.views)
+        for view in self.views:
+            view.show_spectrogram_widget(show)
+
+    def show_product_widgets(self, show):
+        self.views[-1].setVisible(show)
 
     def set_in_range(self, val_range):
         for c_view in self.views:
@@ -282,13 +288,8 @@ class ChannelViews(qw.QWidget):
 
     @qc.pyqtSlot(float)
     def on_pitch_shift_changed(self, f):
-        for cv in self.views:
-            cv.on_pitch_shift_changed(f)
-
-    @qc.pyqtSlot()
-    def on_clear(self):
         for view in self.views:
-            view.on_clear()
+            view.on_pitch_shift_changed(f)
 
     @qc.pyqtSlot()
     def on_draw(self):
@@ -455,11 +456,13 @@ class PitchWidget(OverView):
 
     @qc.pyqtSlot()
     def on_draw(self):
+        self.ax.clear()
         for cv in self.channel_views:
             x, y = cv.channel.pitch.latest_frame(
                 self.tfollow, clip_min=True)
             index = num.where(cv.channel.pitch_confidence.latest_frame_data(
                 len(x))>=cv.confidence_threshold)[0]
+
             # TODO: attach filter 2000 to slider
             index_grad = index_gradient_filter(x, y, 2000)
             index = num.intersect1d(index, index_grad)
@@ -475,10 +478,6 @@ class PitchWidget(OverView):
             self.ax.axhline(high_pitch, line_width=2)
 
         self.ax.update()
-
-    @qc.pyqtSlot()
-    def on_clear(self):
-        self.ax.clear()
 
     @qc.pyqtSlot()
     def on_save_as(self):
@@ -611,6 +610,7 @@ class ProductSpectrum(GLAxis):
     def __init__(self, channels, *args, **kwargs):
         GLAxis.__init__(self, *args, **kwargs)
         self.channels = channels
+        self.grids = [FixGrid(delta=100., horizontal=False)]
         self.xtick_formatter = '%i'
         self.set_ylim(-1., 20.)
         self.set_xlim(0, 2000.)
@@ -642,6 +642,7 @@ class DifferentialPitchWidget(OverView):
 
     @qc.pyqtSlot()
     def on_draw(self):
+        self.ax.clear()
         for i1, cv1 in enumerate(self.channel_views):
             x1, y1 = cv1.channel.pitch.latest_frame(tfollow, clip_min=True)
             xstart = num.min(x1)
@@ -674,10 +675,6 @@ class DifferentialPitchWidget(OverView):
         for high_pitch in self.highlighted_pitches:
             self.ax.axhline(high_pitch, line_width=2)
         self.ax.update()
-
-    @qc.pyqtSlot()
-    def on_clear(self):
-        self.ax.clear()
 
 
 class PitchLevelDifferenceViews(qw.QWidget):
@@ -866,11 +863,10 @@ class MainWidget(qw.QWidget):
         self.worker = Worker(dinput.channels)
 
         self.channel_views_widget = ChannelViews(dinput.channels)
-        channel_views = self.channel_views_widget
+        channel_views = self.channel_views_widget.views[:-1]
         for cv in channel_views:
             self.menu.connect_to_confidence_threshold(cv)
         self.signal_widgets_draw.connect(self.channel_views_widget.on_draw)
-        self.signal_widgets_clear.connect(self.channel_views_widget.on_clear)
 
         self.top_layout.addWidget(self.channel_views_widget, 1, 0, 1, 2)
 
@@ -893,9 +889,6 @@ class MainWidget(qw.QWidget):
         self.menu.derivative_filter_slider.valueChanged.connect(
             pitch_view_all_diff.on_derivative_filter_changed)
         self.menu.connect_channel_views(self.channel_views_widget)
-
-        self.signal_widgets_clear.connect(pitch_view.on_clear)
-        self.signal_widgets_clear.connect(pitch_view_all_diff.on_clear)
 
         self.signal_widgets_draw.connect(pitch_view.on_draw)
         self.signal_widgets_draw.connect(pitch_view_all_diff.on_draw)

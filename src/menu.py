@@ -165,9 +165,10 @@ class MenuWidget(qw.QFrame):
         self.box_show_spectrograms = qw.QCheckBox()
         layout.addWidget(self.box_show_spectrograms, 10, 1)
 
-        layout.addWidget(qw.QLabel('Product-Spectrum'), 11, 0)
-        self.box_show_product_spectrum = qw.QCheckBox()
-        layout.addWidget(self.box_show_product_spectrum, 11, 1)
+        layout.addWidget(qw.QLabel('Products'), 11, 0)
+        self.box_show_products = qw.QCheckBox()
+        self.box_show_products.setChecked(True)
+        layout.addWidget(self.box_show_products, 11, 1)
 
         self.freq_box = FloatQLineEdit(parent=self, default=220)
         layout.addWidget(qw.QLabel('Standard Frequency [Hz]'), 12, 0)
@@ -187,11 +188,10 @@ class MenuWidget(qw.QFrame):
 
         layout.addItem(qw.QSpacerItem(40, 20), 15, 1, qc.Qt.AlignTop)
 
-        self.setFrameStyle(qw.QFrame.Sunken)
         self.setLineWidth(1)
+        self.setFrameStyle(qw.QFrame.Sunken)
         self.setFrameShape(qw.QFrame.Box)
-        self.setSizePolicy(qw.QSizePolicy.Minimum,
-                           qw.QSizePolicy.Minimum)
+        self.setSizePolicy(qw.QSizePolicy.Minimum, qw.QSizePolicy.Minimum)
         self.setup_palette()
         settings.set_menu(self)
 
@@ -225,8 +225,12 @@ class MenuWidget(qw.QFrame):
 
         channel_views.show_trace_widgets(
             self.box_show_traces.isChecked())
+
         self.box_show_spectrograms.stateChanged.connect(
             channel_views.show_spectrogram_widgets)
+
+        self.box_show_products.stateChanged.connect(
+            channel_views.show_product_widgets)
 
         self.freq_box.accepted_value.connect(
             channel_views.on_standard_frequency_changed)
