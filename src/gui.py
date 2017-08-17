@@ -5,22 +5,20 @@ import os
 
 from pytch.two_channel_tuner import Worker
 
-from pytch.data import MicrophoneRecorder, getaudiodevices, pitch_algorithms
-from pytch.gui_util import FloatQLineEdit
-from pytch.gui_util import make_QPolygonF, _color_names, _colors # noqa
-from pytch.util import consecutive, f2cent, index_gradient_filter
-from pytch.plot import GLAxis, Axis, GaugeWidget, MikadoWidget, FixGrid
-from pytch.keyboard import KeyBoard
+from .data import pitch_algorithms
+from .gui_util import add_action_group
+from .gui_util import make_QPolygonF, _color_names, _colors # noqa
+from .util import consecutive, f2cent, index_gradient_filter
+from .plot import GLAxis, Axis, GaugeWidget, MikadoWidget, FixGrid
+from .keyboard import KeyBoard
+from .menu import DeviceMenu, MenuWidget, DeviceMenuSetting
 
 from PyQt5 import QtCore as qc
 from PyQt5 import QtGui as qg
 from PyQt5 import QtWidgets as qw
-from PyQt5.QtWidgets import QWidget, QHBoxLayout, QLabel
-from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QComboBox
+from PyQt5.QtWidgets import QMainWindow, QVBoxLayout
 from PyQt5.QtWidgets import QAction, QPushButton, QDockWidget
-from PyQt5.QtWidgets import QCheckBox, QSizePolicy, QFrame, QMenu
-from PyQt5.QtWidgets import QSpacerItem, QDialog, QLineEdit
-from PyQt5.QtWidgets import QDialogButtonBox, QTabWidget, QActionGroup, QFileDialog
+from PyQt5.QtWidgets import QMenu, QActionGroup, QFileDialog
 
 
 logger = logging.getLogger(__name__)
@@ -29,298 +27,12 @@ fmax = 2000.
 colors = ['viridis', 'wb', 'bw']
 
 
-def add_action_group(options, menu, slot, exclusive=True):
-        action_group = QActionGroup(menu)
-        action_group.setExclusive(exclusive)
-        choices = []
-        for option in options:
-            action = QAction(option, menu)
-            action.triggered.connect(slot)
-            action.setCheckable(True)
-            choices.append(action)
-            action_group.addAction(action)
-            menu.addAction(action)
-        return choices
-
-
-def draw_label(painter, center, radius, text, color):
-    ''' draw white circle with colored frame and colored label'''
-    painter.save()
-    painter.setBrush(qc.Qt.white)
-    pen = painter.pen()
-    pen.setColor(qg.QColor(*_colors[color]))
-    pen.setWidth(3)
-    painter.setRenderHint(qg.QPainter.Antialiasing)
-    painter.setPen(pen)
-    painter.drawEllipse(center, radius, radius)
-    painter.drawText(center, text)
-    painter.restore()
-
-
-class LineEditWithLabel(QWidget):
-    def __init__(self, label, default=None, *args, **kwargs):
-        QWidget.__init__(self, *args, **kwargs)
-        layout = QHBoxLayout()
-        layout.addWidget(QLabel(label))
-        self.setLayout(layout)
-
-        self.edit = QLineEdit()
-        layout.addWidget(self.edit)
-
-        if default:
-            self.edit.setText(str(default))
-
-    @property
-    def value(self):
-        return self.edit.text()
-
-
-class DeviceMenuSetting:
-    device_index = 0
-    accept = True
-    show_traces = True
-
-    def set_menu(self, m):
-        if isinstance(m, MenuWidget):
-            m.box_show_traces.setChecked(self.show_traces)
-
-
-class DeviceMenu(QDialog):
-    ''' Pop up menu at program start devining basic settings'''
-
-    def __init__(self, set_input_callback=None, *args, **kwargs):
-        QDialog.__init__(self, *args, **kwargs)
-        self.setModal(True)
-
-        self.set_input_callback = set_input_callback
-
-        layout = QVBoxLayout()
-        self.setLayout(layout)
-
-        layout.addWidget(QLabel('Select Input Device'))
-        self.select_input = QComboBox()
-        layout.addWidget(self.select_input)
-
-        self.select_input.clear()
-        devices = getaudiodevices()
-        curr = len(devices)-1
-        for idevice, device in enumerate(devices):
-            self.select_input.addItem('%s: %s' % (idevice, device))
-            if 'default' in device:
-                curr = idevice
-
-        self.select_input.setCurrentIndex(curr)
-
-        self.edit_sampling_rate = LineEditWithLabel(
-            'Sampling rate', default=44100)
-        layout.addWidget(self.edit_sampling_rate)
-
-        self.edit_nchannels = LineEditWithLabel(
-            'Number of Channels', default=2)
-        layout.addWidget(self.edit_nchannels)
-
-        layout.addWidget(QLabel('NFFT'))
-        self.nfft_choice = self.get_nfft_box()
-        layout.addWidget(self.nfft_choice)
-
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.accepted.connect(self.on_ok_clicked)
-        buttons.rejected.connect(self.close)
-        layout.addWidget(buttons)
-
-    def get_nfft_box(self):
-        ''' Return a qw.QSlider for modifying FFT width'''
-        b = QComboBox()
-        self.nfft_options = [f*1024 for f in [1, 2, 4, 8, 16]]
-
-        for fft_factor in self.nfft_options:
-            b.addItem('%s' % fft_factor)
-
-        b.setCurrentIndex(3)
-        return b
-
-    def on_ok_clicked(self):
-        fftsize = int(self.nfft_choice.currentText())
-        recorder = MicrophoneRecorder(
-                        chunksize=512,
-                        device_no=self.select_input.currentIndex(),
-                        sampling_rate=int(self.edit_sampling_rate.value),
-                        fftsize=int(fftsize),
-                        nchannels=int(self.edit_nchannels.value))
-        self.set_input_callback(recorder)
-        self.hide()
-
-    @classmethod
-    def from_device_menu_settings(cls, settings, parent, accept=False):
-        '''
-        :param setting: instance of :py:class:`DeviceMenuSetting`
-        :param parent: parent of instance
-        :param ok: accept setting
-        '''
-        menu = cls(parent=parent)
-
-        if settings.device_index is not None:
-            menu.select_input.setCurrentIndex(settings.device_index)
-
-        if accept:
-            qc.QTimer().singleShot(10, menu.on_ok_clicked)
-
-        return menu
-
-
-class MenuWidget(QFrame):
-
-    spectrum_type_selected = qc.pyqtSignal(str)
-
-    ''' Contains all widget of left-side panel menu'''
-    def __init__(self, settings=None, *args, **kwargs):
-        QFrame.__init__(self, *args, **kwargs)
-        layout = qw.QGridLayout()
-        self.setLayout(layout)
-
-        self.input_button = QPushButton('Set Input')
-        layout.addWidget(self.input_button, 0, 0)
-
-        self.play_button = QPushButton('Play')
-        layout.addWidget(self.play_button, 0, 1)
-
-        self.pause_button = QPushButton('Pause')
-        layout.addWidget(self.pause_button, 1, 0)
-
-        self.save_as_button = QPushButton('Save as')
-        layout.addWidget(self.save_as_button, 1, 1)
-
-        layout.addWidget(QLabel('Confidence Threshold'), 4, 0)
-        self.noise_thresh_slider = qw.QSlider()
-        self.noise_thresh_slider.setRange(0, 15)
-        self.noise_thresh_slider.setTickPosition(qw.QSlider.TicksBelow)
-        self.noise_thresh_slider.setOrientation(qc.Qt.Horizontal)
-        self.noise_thresh_slider.valueChanged.connect(
-            lambda x: self.noise_thresh_label.setText(str(x/10.))
-        )
-        layout.addWidget(self.noise_thresh_slider, 4, 1)
-
-        self.noise_thresh_label = QLabel('')
-        layout.addWidget(self.noise_thresh_label, 4, 2)
-
-        layout.addWidget(QLabel('Derivative Filter'), 5, 0)
-        self.derivative_filter_slider = qw.QSlider()
-        self.derivative_filter_slider.setRange(0., 10000.)
-        self.derivative_filter_slider.setValue(1000.)
-        self.derivative_filter_slider.setOrientation(qc.Qt.Horizontal)
-        layout.addWidget(self.derivative_filter_slider, 5, 1)
-        derivative_filter_label = QLabel('')
-        layout.addWidget(derivative_filter_label, 5, 2)
-        self.derivative_filter_slider.valueChanged.connect(
-            lambda x: derivative_filter_label.setText(str(x))
-        )
-
-        layout.addWidget(QLabel('Select Algorithm'), 7, 0)
-        self.select_algorithm = QComboBox(self)
-        layout.addWidget(self.select_algorithm, 7, 1)
-
-        layout.addWidget(QLabel('Traces'), 8, 0)
-        self.box_show_traces = QCheckBox()
-        self.box_show_traces.setChecked(True)
-        layout.addWidget(self.box_show_traces, 8, 1)
-
-        layout.addWidget(QLabel('Spectra'), 9, 0)
-        self.box_show_spectra = QCheckBox()
-        self.box_show_spectra.setChecked(True)
-        layout.addWidget(self.box_show_spectra, 9, 1)
-
-        layout.addWidget(QLabel('Spectrogram'), 10, 0)
-        self.box_show_spectrograms = QCheckBox()
-        layout.addWidget(self.box_show_spectrograms, 10, 1)
-
-        layout.addWidget(QLabel('Product-Spectrum'), 11, 0)
-        self.box_show_product_spectrum = QCheckBox()
-        layout.addWidget(self.box_show_product_spectrum, 11, 1)
-
-        self.freq_box = FloatQLineEdit(parent=self, default=220)
-        layout.addWidget(QLabel('Standard Frequency [Hz]'), 12, 0)
-        layout.addWidget(self.freq_box, 12, 1)
-
-        self.pitch_shift_box = FloatQLineEdit(parent=self, default='0.')
-        layout.addWidget(QLabel('Pitch Shift [Cent]'), 13, 0)
-        layout.addWidget(self.pitch_shift_box, 13, 1)
-
-        layout.addWidget(QLabel('Spectral type'), 14, 0)
-        select_spectral_type = QComboBox(self)
-        layout.addWidget(select_spectral_type, 14, 1)
-
-        for stype in ['log', 'linear', 'pitch']:
-            select_spectral_type.addItem(stype)
-        select_spectral_type.currentTextChanged.connect(
-            self.on_spectrum_type_select)
-
-        layout.addItem(QSpacerItem(40, 20), 15, 1, qc.Qt.AlignTop)
-
-        self.setFrameStyle(QFrame.Sunken)
-        self.setLineWidth(1)
-        self.setFrameShape(QFrame.Box)
-        self.setSizePolicy(QSizePolicy.Minimum,
-                           QSizePolicy.Minimum)
-        self.setup_palette()
-        settings.set_menu(self)
-
-    def setup_palette(self):
-        pal = self.palette()
-        pal.setColor(qg.QPalette.Background, qg.QColor(*_colors['aluminium1']))
-        self.setPalette(pal)
-        self.setAutoFillBackground(True)
-
-    def set_algorithms(self, algorithms, default=None):
-        ''' Query device list and set the drop down menu'''
-        self.select_algorithm.clear()
-        for alg in algorithms:
-            self.select_algorithm.addItem('%s' % alg)
-
-        if default:
-            self.select_algorithm.setCurrentIndex(algorithms.index(default))
-
-    @qc.pyqtSlot(str)
-    def on_spectrum_type_select(self, arg):
-        self.spectrum_type_selected.emit(arg)
-
-    def connect_to_confidence_threshold(self, widget):
-        self.noise_thresh_slider.valueChanged.connect(
-            widget.on_confidence_threshold_changed)
-        self.noise_thresh_slider.setValue(widget.confidence_threshold*10)
-
-    def connect_channel_views(self, channel_views):
-        self.box_show_traces.stateChanged.connect(
-            channel_views.show_trace_widgets)
-
-        channel_views.show_trace_widgets(
-            self.box_show_traces.isChecked())
-
-        self.box_show_spectrograms.stateChanged.connect(
-            channel_views.show_spectrogram_widgets)
-
-        self.freq_box.accepted_value.connect(
-            channel_views.on_standard_frequency_changed)
-
-        self.box_show_spectra.stateChanged.connect(
-            channel_views.show_spectrum_widgets)
- 
-        self.pitch_shift_box.accepted_value.connect(
-            channel_views.on_pitch_shift_changed)
-
-        for cv in channel_views.channel_views:
-            self.spectrum_type_selected.connect(cv.on_spectrum_type_select)
-
-    def sizeHint(self):
-        return qc.QSize(200, 200)
-
-
-class ChannelViews(QWidget):
+class ChannelViews(qw.QWidget):
     '''
     Display all ChannelView objects in a QVBoxLayout
     '''
     def __init__(self, channel_views):
-        QWidget.__init__(self)
+        qw.QWidget.__init__(self)
         self.channel_views = channel_views
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
@@ -422,20 +134,20 @@ class SpectrumWidget(GLAxis):
         # TODO: migrate functionanlity from ChannelView
 
 
-class ChannelView(QWidget):
+class ChannelView(qw.QWidget):
     def __init__(self, channel, color='red', *args, **kwargs):
         '''
         Visual representation of a Channel instance.
 
         :param channel: pytch.data.Channel instance
         '''
-        QWidget.__init__(self, *args, **kwargs)
+        qw.QWidget.__init__(self, *args, **kwargs)
         self.channel = channel
         self.setContentsMargins(-10, -10, -10, -10)
 
         self.color = color
 
-        layout = QHBoxLayout()
+        layout = qw.QHBoxLayout()
         self.setLayout(layout)
 
         self.confidence_threshold = 0.9
@@ -587,11 +299,11 @@ class ChannelView(QWidget):
                 break
 
 
-class CheckBoxSelect(QWidget):
+class CheckBoxSelect(qw.QWidget):
     check_box_toggled = qc.pyqtSignal(int)
 
     def __init__(self, value, parent):
-        QWidget.__init__(self, parent=parent)
+        qw.QWidget.__init__(self, parent=parent)
         self.value = value
         self.check_box = QPushButton(str(self.value), parent=self)
         self.action = qw.QWidgetAction(self)
@@ -614,11 +326,11 @@ def set_tick_choices(menu, default=20):
         menu.addAction(action)
 
 
-class OverView(QWidget):
+class OverView(qw.QWidget):
     highlighted_pitches = set([0.])
 
     def __init__(self, *args, **kwargs):
-        QWidget.__init__(self, *args, **kwargs)
+        qw.QWidget.__init__(self, *args, **kwargs)
 
         layout = qw.QGridLayout()
         self.setLayout(layout)
@@ -656,7 +368,7 @@ class OverView(QWidget):
         if mouse_ev.button() == qc.Qt.RightButton:
             self.right_click_menu.exec_(qg.QCursor.pos())
         else:
-            QWidget.mousePressEvent(self, mouse_ev)
+            qw.QWidget.mousePressEvent(self, mouse_ev)
 
     @qc.pyqtSlot(int)
     def on_check_box_widget_toggled(self, value):
@@ -834,10 +546,10 @@ class ProductSpectrogram(Axis):
             self.menu.exec_(qg.QCursor.pos())
 
 
-class ProductSpectrum(QWidget):
+class ProductSpectrum(qw.QWidget):
 
     def __init__(self, channels, *args, **kwargs):
-        QWidget.__init__(self, *args, **kwargs)
+        qw.QWidget.__init__(self, *args, **kwargs)
         self.channels = channels
 
         layout = qw.QGridLayout()
@@ -912,10 +624,10 @@ class DifferentialPitchWidget(OverView):
         self.ax.clear()
 
 
-class PitchLevelDifferenceViews(QWidget):
+class PitchLevelDifferenceViews(qw.QWidget):
     ''' The Gauge widget collection'''
     def __init__(self, channel_views, *args, **kwargs):
-        QWidget.__init__(self, *args, **kwargs)
+        qw.QWidget.__init__(self, *args, **kwargs)
         self.channel_views = channel_views
         layout = qw.QGridLayout()
         self.setLayout(layout)
@@ -964,12 +676,12 @@ class PitchLevelDifferenceViews(QWidget):
         if mouse_ev.button() == qc.Qt.RightButton:
             self.right_click_menu.exec_(qg.QCursor.pos())
         else:
-            QWidget.mousePressEvent(self, mouse_ev)
+            qw.QWidget.mousePressEvent(self, mouse_ev)
 
 
-class PitchLevelMikadoViews(QWidget):
+class PitchLevelMikadoViews(qw.QWidget):
     def __init__(self, channel_views, *args, **kwargs):
-        QWidget.__init__(self, *args, **kwargs)
+        qw.QWidget.__init__(self, *args, **kwargs)
         self.channel_views = channel_views
         layout = qw.QGridLayout()
         self.setLayout(layout)
@@ -995,9 +707,9 @@ class PitchLevelMikadoViews(QWidget):
             w.update()
 
 
-class RightTabs(QTabWidget):
+class RightTabs(qw.QTabWidget):
     def __init__(self, *args, **kwargs):
-        QTabWidget.__init__(self, *args, **kwargs)
+        qw.QTabWidget.__init__(self, *args, **kwargs)
         self.setSizePolicy(
             qw.QSizePolicy.MinimumExpanding,
             qw.QSizePolicy.MinimumExpanding)
@@ -1012,13 +724,13 @@ class RightTabs(QTabWidget):
         return qc.QSize(300, 200)
         
 
-class MainWidget(QWidget):
+class MainWidget(qw.QWidget):
     ''' top level widget covering the central widget in the MainWindow.'''
     signal_widgets_clear = qc.pyqtSignal()
     signal_widgets_draw = qc.pyqtSignal()
 
     def __init__(self, settings, *args, **kwargs):
-        QWidget.__init__(self, *args, **kwargs)
+        qw.QWidget.__init__(self, *args, **kwargs)
         self.tabbed_pitch_widget = RightTabs(parent=self)
 
         pal = self.palette()
@@ -1175,7 +887,7 @@ class MainWidget(QWidget):
         logger.info('closing')
         self.data_input.terminate()
         self.cleanup()
-        QWidget.closeEvent(self, ev)
+        qw.QWidget.closeEvent(self, ev)
 
     def toggle_keyboard(self):
         self.keyboard.setVisible(not self.keyboard.isVisible())

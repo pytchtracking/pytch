@@ -22,6 +22,7 @@ _color_names = [
     'transparent',
 ]
 
+
 _color_values = [
     (252, 233,  79), (237, 212,   0), (196, 160,   0),
     (138, 226,  52), (115, 210,  22), (78,  154,   6),
@@ -37,8 +38,10 @@ _color_values = [
     (0, 0, 0, 0),
 ]
 
+
 _colors = dict(
     zip(_color_names, _color_values))
+
 
 _pen_styles = {
     'solid': qc.Qt.SolidLine,
@@ -51,6 +54,20 @@ _pen_styles = {
     ':': qc.Qt.DotLine,
     'o': qc.Qt.SolidLine,
 }
+
+
+def add_action_group(options, menu, slot, exclusive=True):
+    action_group = qw.QActionGroup(menu)
+    action_group.setExclusive(exclusive)
+    choices = []
+    for option in options:
+        action = qw.QAction(option, menu)
+        action.triggered.connect(slot)
+        action.setCheckable(True)
+        choices.append(action)
+        action_group.addAction(action)
+        menu.addAction(action)
+    return choices
 
 
 if sys.version_info < (3, 0):
@@ -462,3 +479,22 @@ class PlotBase(object):
         pal = self.palette()
         pal.setBrush(qg.QPalette.Background, self.background_brush)
         self.setPalette(pal)
+
+
+class LineEditWithLabel(qw.QWidget):
+    def __init__(self, label, default=None, *args, **kwargs):
+        qw.QWidget.__init__(self, *args, **kwargs)
+        layout = qw.QHBoxLayout()
+        layout.addWidget(qw.QLabel(label))
+        self.setLayout(layout)
+
+        self.edit = qw.QLineEdit()
+        layout.addWidget(self.edit)
+
+        if default:
+            self.edit.setText(str(default))
+
+    @property
+    def value(self):
+        return self.edit.text()
+

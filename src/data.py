@@ -22,7 +22,7 @@ pitch_algorithms = [
     'default', 'schmitt', 'fcomb', 'mcomb', 'specacf', 'yin', 'yinfft']
 
 
-def getaudiodevices():
+def get_audio_devices():
     ''' returns a list of device descriptions'''
     p = pyaudio.PyAudio()
     devices = []
