@@ -820,16 +820,14 @@ def MakeAxis(gl=True):
                 if self.xlabels:
                     formatter = self.xtick_formatter
                     for i, xval in enumerate(ticks):
-                        painter.drawText(qc.QPointF(ticks_proj[i], tick_anchor),
-                                         formatter%xval)
+                        painter.drawText(
+                            qc.QPointF(ticks_proj[i], tick_anchor*0.75), formatter % xval)
 
         def draw_y_ticks(self, painter):
             w, h = self.wh
-            ymin, ymax, yinc = self.yscaler.make_scale(
-                (self._ymin, self._ymax)
-            )
+            ymin, ymax, yinc = self.yscaler.make_scale((self._ymin, self._ymax))
             if self.scroll_increment == 0:
-                self.scroll_increment = yinc/4
+                self.scroll_increment = yinc / 4
 
             _yinc = self._yinc or yinc
             ticks = num.arange(ymin, ymax, _yinc)

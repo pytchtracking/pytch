@@ -622,9 +622,12 @@ class ProductSpectrum(GLAxis):
     @qc.pyqtSlot()
     def on_draw(self):
         self.clear()
-        ydata = self.channels[0].fft.latest_frame_data(3)
+        ydata = num.asarray(
+            self.channels[0].fft.latest_frame_data(3), dtype=num.float)
+
         for c in self.channels[1:]:
-            ydata *= c.fft.latest_frame_data(3)
+            ydata *= num.asarray(c.fft.latest_frame_data(3), dtype=num.float)
+
         self.plotlog(c.freqs, num.mean(ydata, axis=0), ndecimate=2)
 
 
