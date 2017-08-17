@@ -27,113 +27,6 @@ fmax = 2000.
 colors = ['viridis', 'wb', 'bw']
 
 
-class ChannelViews(qw.QWidget):
-    '''
-    Display all ChannelView objects in a QVBoxLayout
-    '''
-    def __init__(self, channel_views):
-        qw.QWidget.__init__(self)
-        self.channel_views = channel_views
-        self.layout = QVBoxLayout()
-        self.setLayout(self.layout)
-
-        for c_view in self.channel_views:
-            self.layout.addWidget(c_view)
-
-        channels = [cv.channel for cv in self.channel_views]
-
-        self.show_trace_widgets(True)
-        self.show_spectrum_widgets(True)
-        self.show_spectrogram_widgets(False)
-        self.setSizePolicy(
-            qw.QSizePolicy.Minimum,
-            qw.QSizePolicy.Minimum)
-
-    def show_trace_widgets(self, show):
-        for c_view in self.channel_views:
-            c_view.show_trace_widget(show)
-
-    def show_spectrum_widgets(self, show):
-        for c_view in self.channel_views:
-            c_view.show_spectrum_widget(show)
-    
-    def show_spectrogram_widgets(self, show):
-        for c_view in self.channel_views:
-            c_view.show_spectrogram_widget(show)
-
-    def set_in_range(self, val_range):
-        for c_view in self.channel_views:
-            c_view.trace_widget.set_ylim(-val_range, val_range)
-
-    @qc.pyqtSlot(float)
-    def on_standard_frequency_changed(self, f):
-        for cv in self.channel_views:
-            cv.on_standard_frequency_changed(f)
-
-    @qc.pyqtSlot(float)
-    def on_pitch_shift_changed(self, f):
-        for cv in self.channel_views:
-            cv.on_pitch_shift_changed(f)
-
-    def sizeHint(self):
-        return qc.QSize(400, 200)
-
-
-class SpectrogramWidget(Axis):
-    def __init__(self, channel, *args, **kwargs):
-        Axis.__init__(self, *args, **kwargs)
-        self.ny, self.nx = 300, 100
-        self.channel = channel
-        fake = num.ones((self.nx, self.ny))
-        self.image = self.colormesh(z=fake)
-        self.yticks = False
-
-        self.right_click_menu = QMenu('RC', self)
-        self.color_choices = add_action_group(
-            colors, self.right_click_menu, self.on_color_select)
-
-    @qc.pyqtSlot()
-    def update_spectrogram(self):
-        c = self.channel
-
-        try:
-            x = c.freqs[: self.ny]
-            y = c.xdata[-self.nx:]
-            d = c.fft.latest_frame_data(self.nx)
-            self.image.set_data(d[:, :self.ny])
-            self.update_datalims(x, y)
-        except ValueError as e:
-            logger.debug(e)
-            return
-
-        self.update()
-
-    @qc.pyqtSlot()
-    def on_color_select(self):
-        for c in self.color_choices:
-            if c.isChecked():
-                self.image.set_colortable(c.text())
-                break
-
-    @qc.pyqtSlot(qg.QMouseEvent)
-    def mousePressEvent(self, mouse_ev):
-        if mouse_ev.button() == qc.Qt.RightButton:
-            self.right_click_menu.exec_(qg.QCursor.pos())
-
-
-
-class SpectrumWidget(GLAxis):
-    def __init__(self, *args, **kwargs):
-        GLAxis.__init__(self, *args, **kwargs)
-        self.set_xlim(0, 2000)
-        self.set_ylim(0, 20)
-        self.left = 0.
-        self.yticks = False
-        self.grids = [FixGrid(delta=100., horizontal=False)]
-        self.xtick_formatter = '%i'
-        # TODO: migrate functionanlity from ChannelView
-
-
 class ChannelView(qw.QWidget):
     def __init__(self, channel, color='red', *args, **kwargs):
         '''
@@ -143,10 +36,9 @@ class ChannelView(qw.QWidget):
         '''
         qw.QWidget.__init__(self, *args, **kwargs)
         self.channel = channel
-        self.setContentsMargins(-10, -10, -10, -10)
-
         self.color = color
 
+        self.setContentsMargins(-10, -10, -10, -10)
         layout = qw.QHBoxLayout()
         self.setLayout(layout)
 
@@ -183,7 +75,10 @@ class ChannelView(qw.QWidget):
         self.smooth_choices = []
         for factor in range(5):
             factor += 1
-            fft_smooth_action = QAction(str(factor), self.fft_smooth_factor_menu)
+            fft_smooth_action = QAction(
+                str(factor),
+                self.fft_smooth_factor_menu)
+
             fft_smooth_action.triggered.connect(self.on_fft_smooth_select)
             fft_smooth_action.setCheckable(True)
             if factor == self.fft_smooth_factor:
@@ -191,6 +86,7 @@ class ChannelView(qw.QWidget):
             self.smooth_choices.append(fft_smooth_action)
             smooth_action_group.addAction(fft_smooth_action)
             self.fft_smooth_factor_menu.addAction(fft_smooth_action)
+
         self.right_click_menu.addMenu(self.fft_smooth_factor_menu)
 
         self.spectrum_type_menu = QMenu(
@@ -299,6 +195,168 @@ class ChannelView(qw.QWidget):
                 break
 
 
+class ProductView(qw.QWidget):
+    def __init__(self, channels, *args, **kwargs):
+        qw.QWidget.__init__(self, *args, **kwargs)
+
+        self.product_spectrum_widget = ProductSpectrum(channels=channels)
+        self.product_spectrogram_widget = ProductSpectrogram(channels=channels)
+
+        layout = qw.QHBoxLayout()
+        self.setLayout(layout)
+        self.setContentsMargins(-10, -10, -10, -10)
+
+        dummy = Axis()
+        dummy.setContentsMargins(-10, -10, -10, -10)
+        dummy.left = 0.
+        dummy.plot([0., 1.], [0., 2])
+        dummy.grids = []
+        dummy.xticks = False
+        dummy.yticks = False
+        dummy.set_ylim(-1000., 1000.)
+        layout.addWidget(dummy)
+        layout.addWidget(self.product_spectrum_widget)
+        layout.addWidget(self.product_spectrogram_widget)
+        self.confidence_threshold = 1
+
+    def on_confidence_threshold_changed(self, *args):
+        pass
+
+    def on_keyboard_key_pressed(self, *args):
+        pass
+
+    def on_spectrum_type_select(self, *args):
+        pass
+
+    @qc.pyqtSlot()
+    def on_draw(self):
+        self.product_spectrum_widget.on_draw()
+
+    qc.pyqtSlot()
+    def on_clear(self):
+        self.product_spectrum_widget.on_clear()
+
+
+class ChannelViews(qw.QWidget):
+    '''
+    Display all ChannelView objects in a QVBoxLayout
+    '''
+    def __init__(self, channels):
+        qw.QWidget.__init__(self)
+        self.views = []
+        for ichannel, channel in enumerate(channels):
+            self.views.append(
+                ChannelView(channel, color=_color_names[3+3*ichannel])
+            )
+
+        self.layout = QVBoxLayout()
+        self.setLayout(self.layout)
+
+        channels = [cv.channel for cv in self.views]
+        self.views.append(ProductView(channels=channels))
+        for c_view in self.views:
+            self.layout.addWidget(c_view)
+
+        self.show_trace_widgets(True)
+        self.show_spectrum_widgets(True)
+        self.show_spectrogram_widgets(False)
+        self.setSizePolicy(qw.QSizePolicy.Minimum, qw.QSizePolicy.Minimum)
+
+    def show_trace_widgets(self, show):
+        map(lambda x: x.show_traces(show), self.views)
+
+    def show_spectrum_widgets(self, show):
+        map(lambda x: x.show_spectrum_widgets(show), self.views)
+
+    def show_spectrogram_widgets(self, show):
+        map(lambda x: x.show_spectrogram_widget(show), self.views)
+
+    def set_in_range(self, val_range):
+        for c_view in self.views:
+            c_view.trace_widget.set_ylim(-val_range, val_range)
+
+    @qc.pyqtSlot(float)
+    def on_standard_frequency_changed(self, f):
+        for cv in self.views:
+            cv.on_standard_frequency_changed(f)
+
+    @qc.pyqtSlot(float)
+    def on_pitch_shift_changed(self, f):
+        for cv in self.views:
+            cv.on_pitch_shift_changed(f)
+
+    @qc.pyqtSlot()
+    def on_clear(self):
+        for view in self.views:
+            view.on_clear()
+
+    @qc.pyqtSlot()
+    def on_draw(self):
+        for view in self.views:
+            view.on_draw()
+
+    def sizeHint(self):
+        return qc.QSize(400, 200)
+
+    def __iter__(self):
+        for view in self.views:
+            yield view
+
+
+class SpectrogramWidget(Axis):
+    def __init__(self, channel, *args, **kwargs):
+        Axis.__init__(self, *args, **kwargs)
+        self.ny, self.nx = 300, 100
+        self.channel = channel
+        fake = num.ones((self.nx, self.ny))
+        self.image = self.colormesh(z=fake)
+        self.yticks = False
+
+        self.right_click_menu = QMenu('RC', self)
+        self.color_choices = add_action_group(
+            colors, self.right_click_menu, self.on_color_select)
+
+    @qc.pyqtSlot()
+    def update_spectrogram(self):
+        c = self.channel
+
+        try:
+            x = c.freqs[: self.ny]
+            y = c.xdata[-self.nx:]
+            d = c.fft.latest_frame_data(self.nx)
+            self.image.set_data(d[:, :self.ny])
+            self.update_datalims(x, y)
+        except ValueError as e:
+            logger.debug(e)
+            return
+
+        self.update()
+
+    @qc.pyqtSlot()
+    def on_color_select(self):
+        for c in self.color_choices:
+            if c.isChecked():
+                self.image.set_colortable(c.text())
+                break
+
+    @qc.pyqtSlot(qg.QMouseEvent)
+    def mousePressEvent(self, mouse_ev):
+        if mouse_ev.button() == qc.Qt.RightButton:
+            self.right_click_menu.exec_(qg.QCursor.pos())
+
+
+class SpectrumWidget(GLAxis):
+    def __init__(self, *args, **kwargs):
+        GLAxis.__init__(self, *args, **kwargs)
+        self.set_xlim(0, 2000)
+        self.set_ylim(0, 20)
+        self.left = 0.
+        self.yticks = False
+        self.grids = [FixGrid(delta=100., horizontal=False)]
+        self.xtick_formatter = '%i'
+        # TODO: migrate functionanlity from ChannelView
+
+
 class CheckBoxSelect(qw.QWidget):
     check_box_toggled = qc.pyqtSignal(int)
 
@@ -313,6 +371,7 @@ class CheckBoxSelect(qw.QWidget):
     @qc.pyqtSlot()
     def on_state_changed(self):
         self.check_box_toggled.emit(self.value)
+
 
 def set_tick_choices(menu, default=20):
     group = QActionGroup(menu)
@@ -488,6 +547,8 @@ class ProductSpectrogram(Axis):
         self.image = self.colormesh(z=fake)
         self.xtick_formatter = '%i'
         self.yticks = False
+        self.setContentsMargins(-10, -10, -10, -10)
+
 
         menu = QMenu('RC', self)
         color_action_group = QActionGroup(menu)
@@ -546,30 +607,25 @@ class ProductSpectrogram(Axis):
             self.menu.exec_(qg.QCursor.pos())
 
 
-class ProductSpectrum(qw.QWidget):
-
+class ProductSpectrum(GLAxis):
     def __init__(self, channels, *args, **kwargs):
-        qw.QWidget.__init__(self, *args, **kwargs)
+        GLAxis.__init__(self, *args, **kwargs)
         self.channels = channels
-
-        layout = qw.QGridLayout()
-        self.setLayout(layout)
-        self.ax = GLAxis()
-        self.ax.xtick_formatter = '%i'
-        self.ax.set_ylim(-1., 20.)
-        self.ax.set_xlim(0, 2000.)
-        self.ax.yticks = False
-        self.ax.ylabels = False
-        self.setVisible(False)
-        layout.addWidget(self.ax)
+        self.xtick_formatter = '%i'
+        self.set_ylim(-1., 20.)
+        self.set_xlim(0, 2000.)
+        self.yticks = False
+        self.ylabels = False
+        self.setVisible(True)
+        self.setContentsMargins(-10, -10, -10, -10)
 
     @qc.pyqtSlot()
     def on_draw(self):
-        self.ax.clear()
+        self.clear()
         ydata = self.channels[0].fft.latest_frame_data(3)
         for c in self.channels[1:]:
             ydata *= c.fft.latest_frame_data(3)
-        self.ax.plotlog(c.freqs, num.mean(ydata, axis=0), ndecimate=2)
+        self.plotlog(c.freqs, num.mean(ydata, axis=0), ndecimate=2)
 
 
 class DifferentialPitchWidget(OverView):
@@ -634,7 +690,8 @@ class PitchLevelDifferenceViews(qw.QWidget):
         self.widgets = []
         self.right_click_menu = QMenu('Tick Settings', self)
         self.right_click_menu.triggered.connect(
-                self.on_tick_increment_select)
+            self.on_tick_increment_select)
+
         set_tick_choices(self.right_click_menu)
 
         # TODO add slider
@@ -808,21 +865,14 @@ class MainWidget(qw.QWidget):
 
         self.worker = Worker(dinput.channels)
 
-        channel_views = []
-        for ichannel, channel in enumerate(dinput.channels):
-            cv = ChannelView(channel, color=_color_names[3+3*ichannel])
-            self.signal_widgets_clear.connect(cv.on_clear)
-            self.signal_widgets_draw.connect(cv.on_draw)
+        self.channel_views_widget = ChannelViews(dinput.channels)
+        channel_views = self.channel_views_widget
+        for cv in channel_views:
             self.menu.connect_to_confidence_threshold(cv)
-            channel_views.append(cv)
-
-        self.channel_views_widget = ChannelViews(channel_views)
-        product_spectrum_widget = ProductSpectrum(channels=dinput.channels)
-        product_spectrogram_widget = ProductSpectrogram(channels=dinput.channels)
+        self.signal_widgets_draw.connect(self.channel_views_widget.on_draw)
+        self.signal_widgets_clear.connect(self.channel_views_widget.on_clear)
 
         self.top_layout.addWidget(self.channel_views_widget, 1, 0, 1, 2)
-        self.top_layout.addWidget(product_spectrum_widget, 2, 0)
-        self.top_layout.addWidget(product_spectrogram_widget, 2, 1)
 
         self.keyboard = KeyBoard(self)
         self.keyboard.setVisible(False)
@@ -844,21 +894,12 @@ class MainWidget(qw.QWidget):
             pitch_view_all_diff.on_derivative_filter_changed)
         self.menu.connect_channel_views(self.channel_views_widget)
 
-        self.menu.box_show_product_spectrum.stateChanged.connect(
-            lambda x: product_spectrum_widget.setVisible(x))
-
         self.signal_widgets_clear.connect(pitch_view.on_clear)
         self.signal_widgets_clear.connect(pitch_view_all_diff.on_clear)
 
         self.signal_widgets_draw.connect(pitch_view.on_draw)
         self.signal_widgets_draw.connect(pitch_view_all_diff.on_draw)
         self.signal_widgets_draw.connect(pitch_diff_view.on_draw)
-        self.signal_widgets_draw.connect(product_spectrum_widget.on_draw)
-
-        self.spectrogram_refresh_timer = qc.QTimer()
-        self.spectrogram_refresh_timer.timeout.connect(
-            product_spectrogram_widget.update_spectrogram)
-        self.spectrogram_refresh_timer.start(200)
 
         t_wait_buffer = max(dinput.fftsizes)/dinput.sampling_rate*1500.
         qc.QTimer().singleShot(t_wait_buffer, self.start_refresh_timer)

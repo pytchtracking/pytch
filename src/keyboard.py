@@ -214,7 +214,7 @@ class KeyBoard(qw.QWidget):
         :param channel_views_widget: instance of
             :py:class:`pytch.gui.ChannelViewsWidget
         '''
-        for cv in channel_views_widget.channel_views:
+        for cv in channel_views_widget.views:
             self.keyBoardKeyPressed.connect(cv.on_keyboard_key_pressed)
 
     def mousePressEvent(self, mouse_ev):

@@ -237,7 +237,7 @@ class MenuWidget(qw.QFrame):
         self.pitch_shift_box.accepted_value.connect(
             channel_views.on_pitch_shift_changed)
 
-        for cv in channel_views.channel_views:
+        for cv in channel_views.views:
             self.spectrum_type_selected.connect(cv.on_spectrum_type_select)
 
     def sizeHint(self):
