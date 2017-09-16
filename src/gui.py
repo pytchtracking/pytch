@@ -468,6 +468,8 @@ class PitchWidget(OverView):
             index = num.intersect1d(index, index_grad)
             indices_grouped = consecutive(index)
             for group in indices_grouped:
+                if len(group) == 0:
+                    continue
                 self.ax.plot(
                     x[group], y[group], color=cv.color, line_width=4)
 
@@ -652,7 +654,7 @@ class DifferentialPitchWidget(OverView):
             index1 = num.where(cv1.channel.pitch_confidence.latest_frame_data(
                 len(x1))>=cv1.confidence_threshold)
             index1_grad = index_gradient_filter(x1, y1, self.derivative_filter)
-            index1 = num.intersect1d(index1, index1_grad)
+            index1 = num.in1d(index1, index1_grad)
             for i2, cv2 in enumerate(self.channel_views):
                 if i1>=i2:
                     continue
@@ -660,10 +662,12 @@ class DifferentialPitchWidget(OverView):
                 index2_grad = index_gradient_filter(x2, y2, self.derivative_filter)
                 index2 = num.where(cv2.channel.pitch_confidence.latest_frame_data(
                     len(x2))>=cv2.confidence_threshold)
-                index2 = num.intersect1d(index2, index2_grad)
-                indices = num.intersect1d(index1, index2)
+                index2 = num.in1d(index2, index2_grad)
+                indices = num.in1d(index1, index2)
                 indices_grouped = consecutive(indices)
                 for group in indices_grouped:
+                    if len(group) == 0:
+                        continue
                     y = y1[group] - y2[group]
                     x = x1[group]
                     self.ax.plot(
@@ -719,7 +723,7 @@ class PitchLevelDifferenceViews(qw.QWidget):
                 cv1.channel.pitch_confidence.latest_frame_data(self.naverage)>cv1.confidence_threshold)
             confidence2 = num.where(
                 cv2.channel.pitch_confidence.latest_frame_data(self.naverage)>cv2.confidence_threshold)
-            confidence = num.intersect1d(confidence1, confidence2)
+            confidence = num.in1d(confidence1, confidence2)
             if len(confidence)>1:
                 d1 = cv1.channel.pitch.latest_frame_data(self.naverage)[confidence]
                 d2 = cv2.channel.pitch.latest_frame_data(self.naverage)[confidence]

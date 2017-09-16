@@ -56,7 +56,7 @@ def consecutive(arr):
 
 def index_gradient_filter(x, y, max_gradient):
     ''' Get index where the abs gradient of x, y is < max_gradient.'''
-    return num.where(num.abs(num.diff(y)/num.diff(x)) < max_gradient)
+    return num.where(num.abs(num.diff(y)/num.diff(x)) < max_gradient)[0]
 
 
 def smooth(x,window_len=11,window='hanning'):
