@@ -27,20 +27,61 @@ fmax = 2000.
 colors = ['viridis', 'wb', 'bw']
 
 
-class ChannelView(qw.QWidget):
+class BaseView(qw.QWidget):
+    def __init__(self, *args, **kwargs):
+        qw.QWidget.__init__(self, *args, **kwargs)
+
+        self.setLayout(qw.QHBoxLayout())
+        self.setContentsMargins(-10, -10, -10, -10)
+
+    def show_spectrum_widget(self, show):
+        pass
+
+    def show_spectrogram_widget(self, show):
+        pass
+
+    def show_trace_widget(self, show):
+        pass
+
+    @qc.pyqtSlot()
+    def on_confidence_threshold_changed(self, *args):
+        pass
+
+    @qc.pyqtSlot()
+    def on_keyboard_key_pressed(self, *args):
+        pass
+
+    @qc.pyqtSlot()
+    def on_spectrum_type_select(self, *args):
+        pass
+
+    @qc.pyqtSlot()
+    def on_standard_frequency_changed(self, *args):
+        pass
+
+    @qc.pyqtSlot()
+    def on_standard_frequency_changed(self, *args):
+        pass
+
+    @qc.pyqtSlot(float)
+    def on_pitch_shift_changed(self, f):
+        pass
+
+    @qc.pyqtSlot()
+    def on_draw(self):
+        self.product_spectrum_widget.on_draw()
+
+
+class ChannelView(BaseView):
     def __init__(self, channel, color='red', *args, **kwargs):
         '''
         Visual representation of a Channel instance.
 
         :param channel: pytch.data.Channel instance
         '''
-        qw.QWidget.__init__(self, *args, **kwargs)
+        BaseView.__init__(self, *args, **kwargs)
         self.channel = channel
         self.color = color
-
-        self.setContentsMargins(-10, -10, -10, -10)
-        layout = qw.QHBoxLayout()
-        self.setLayout(layout)
 
         self.confidence_threshold = 0.9
         self.freq_keyboard = 0
@@ -58,6 +99,7 @@ class ChannelView(qw.QWidget):
 
         self.fft_smooth_factor = 4
 
+        layout = self.layout()
         layout.addWidget(self.trace_widget)
         layout.addWidget(self.spectrum)
         layout.addWidget(self.spectrogram_widget)
@@ -192,22 +234,19 @@ class ChannelView(qw.QWidget):
                 break
 
 
-class ProductView(qw.QWidget):
+class ProductView(BaseView):
     def __init__(self, channels, *args, **kwargs):
-        qw.QWidget.__init__(self, *args, **kwargs)
+        BaseView.__init__(self, *args, **kwargs)
 
         self.product_spectrum_widget = ProductSpectrum(channels=channels)
         self.product_spectrogram_widget = ProductSpectrogram(channels=channels)
-
-        layout = qw.QHBoxLayout()
-        self.setLayout(layout)
-        self.setContentsMargins(-10, -10, -10, -10)
 
         self.dummy = GLAxis()
         self.dummy.setContentsMargins(-10, -10, -10, -10)
         self.dummy.grids = []
         self.dummy.xticks = False
         self.dummy.yticks = False
+        layout = self.layout()
         layout.addWidget(self.dummy)
         layout.addWidget(self.product_spectrum_widget)
         layout.addWidget(self.product_spectrogram_widget)
@@ -221,15 +260,6 @@ class ProductView(qw.QWidget):
 
     def show_trace_widget(self, show):
         self.dummy.setVisible(show)
-
-    def on_confidence_threshold_changed(self, *args):
-        pass
-
-    def on_keyboard_key_pressed(self, *args):
-        pass
-
-    def on_spectrum_type_select(self, *args):
-        pass
 
     @qc.pyqtSlot()
     def on_draw(self):
@@ -556,7 +586,7 @@ class ProductSpectrogram(Axis):
         color_action_group.setExclusive(True)
         self.color_choices = add_action_group(
             colors, menu, self.on_color_select)
-        
+
         slider = qw.QSlider()
         slider.valueChanged.connect(self.on_scaling_changed)
         slider.setOrientation(qc.Qt.Horizontal)
