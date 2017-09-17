@@ -2,6 +2,8 @@ from PyQt5 import QtWidgets as qw
 from PyQt5 import QtCore as qc
 from PyQt5 import QtGui as qg
 
+import numpy as num
+
 from .gui_util import FloatQLineEdit, LineEditWithLabel, _colors
 from .data import get_audio_devices, MicrophoneRecorder
 
@@ -43,10 +45,12 @@ class DeviceMenu(qw.QDialog):
 
         self.edit_sampling_rate = LineEditWithLabel(
             'Sampling rate', default=44100)
+        self.edit_sampling_rate.edit.setValidator(qg.QDoubleValidator())
         layout.addWidget(self.edit_sampling_rate)
 
         self.edit_nchannels = LineEditWithLabel(
             'Number of Channels', default=2)
+        self.edit_nchannels.edit.setValidator(qg.QDoubleValidator())
         layout.addWidget(self.edit_nchannels)
 
         layout.addWidget(qw.QLabel('NFFT'))
@@ -170,23 +174,32 @@ class MenuWidget(qw.QFrame):
         self.box_show_products.setChecked(True)
         layout.addWidget(self.box_show_products, 11, 1)
 
+        self.f_standard_mode = qw.QComboBox()
+        self.f_standard_mode.addItem('Select')
+        self.f_standard_mode.addItem('Adaptive')
+        self.f_standard_mode.currentTextChanged.connect(
+            self.on_f_standard_mode_changed)
+
+        layout.addWidget(qw.QLabel('Standard Frequency Mode'), 12, 0)
+        layout.addWidget(self.f_standard_mode, 12, 1)
+
         self.freq_box = FloatQLineEdit(parent=self, default=220)
-        layout.addWidget(qw.QLabel('Standard Frequency [Hz]'), 12, 0)
-        layout.addWidget(self.freq_box, 12, 1)
+        layout.addWidget(qw.QLabel('Standard Frequency [Hz]'), 13, 0)
+        layout.addWidget(self.freq_box, 13, 1)
 
         self.pitch_shift_box = FloatQLineEdit(parent=self, default='0.')
-        layout.addWidget(qw.QLabel('Pitch Shift [Cent]'), 13, 0)
-        layout.addWidget(self.pitch_shift_box, 13, 1)
+        layout.addWidget(qw.QLabel('Pitch Shift [Cent]'), 14, 0)
+        layout.addWidget(self.pitch_shift_box, 14, 1)
 
-        layout.addWidget(qw.QLabel('Spectral type'), 14, 0)
+        layout.addWidget(qw.QLabel('Spectral type'), 15, 0)
         select_spectral_type = qw.QComboBox(self)
-        layout.addWidget(select_spectral_type, 14, 1)
+        layout.addWidget(select_spectral_type, 15, 1)
         for stype in ['log', 'linear', 'pitch']:
             select_spectral_type.addItem(stype)
         select_spectral_type.currentTextChanged.connect(
             self.on_spectrum_type_select)
 
-        layout.addItem(qw.QSpacerItem(40, 20), 15, 1, qc.Qt.AlignTop)
+        layout.addItem(qw.QSpacerItem(40, 20), 16, 1, qc.Qt.AlignTop)
 
         self.setLineWidth(1)
         self.setFrameStyle(qw.QFrame.Sunken)
@@ -209,6 +222,19 @@ class MenuWidget(qw.QFrame):
 
         if default:
             self.select_algorithm.setCurrentIndex(algorithms.index(default))
+
+    @qc.pyqtSlot(str)
+    def on_f_standard_mode_changed(self, text):
+        if text == 'Adaptive':
+            self.freq_box.setReadOnly(True)
+        else:
+            self.freq_box.setReadOnly(False)
+
+    @qc.pyqtSlot(float)
+    def on_adapt_standard_frequency(self, f):
+        if self.freq_box.isReadOnly() and f > 0 and f != num.nan:
+            self.freq_box.setText(str(num.round(f, 1)))
+            self.freq_box.do_check()
 
     @qc.pyqtSlot(str)
     def on_spectrum_type_select(self, arg):

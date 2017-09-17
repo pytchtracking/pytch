@@ -361,16 +361,18 @@ class FloatQLineEdit(qw.QLineEdit):
         qw.QLineEdit.__init__(self, *args, **kwargs)
         self.setValidator(qg.QDoubleValidator())
         self.setFocusPolicy(qc.Qt.ClickFocus|qc.Qt.TabFocus)
-        self.returnPressed.connect(self.check)
+        self.returnPressed.connect(self.do_check)
         p = self.parent()
         if p:
             self.returnPressed.connect(p.setFocus)
         if default:
             self.setText(str(default))
 
-    def check(self):
-        self.accepted_value.emit(float(self.text()))
-
+    def do_check(self):
+        text = self.text()
+        val = float(text)
+        if val >= 0.:
+            self.accepted_value.emit(val)
 
 
 class PlotBase(object):

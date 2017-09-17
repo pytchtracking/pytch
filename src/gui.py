@@ -59,10 +59,6 @@ class BaseView(qw.QWidget):
     def on_standard_frequency_changed(self, *args):
         pass
 
-    @qc.pyqtSlot()
-    def on_standard_frequency_changed(self, *args):
-        pass
-
     @qc.pyqtSlot(float)
     def on_pitch_shift_changed(self, f):
         pass
@@ -473,12 +469,16 @@ class OverView(qw.QWidget):
 class PitchWidget(OverView):
     ''' Pitches of each trace as discrete samples.'''
 
+    low_pitch_changed = qc.pyqtSignal(num.float)
+
     def __init__(self, channel_views, *args, **kwargs):
         OverView.__init__(self, *args, **kwargs)
         self.channel_views = channel_views
 
         save_as_action = QAction('Save pitches', self.right_click_menu)
         save_as_action.triggered.connect(self.on_save_as)
+        self.current_low_pitch = num.zeros(len(channel_views))
+        self.current_low_pitch[:] = num.nan
         self.right_click_menu.addAction(save_as_action)
         self.track_start = None
         self.tfollow = 3.
@@ -487,7 +487,7 @@ class PitchWidget(OverView):
     @qc.pyqtSlot()
     def on_draw(self):
         self.ax.clear()
-        for cv in self.channel_views:
+        for i, cv in enumerate(self.channel_views):
             x, y = cv.channel.pitch.latest_frame(
                 self.tfollow, clip_min=True)
             index = num.where(cv.channel.pitch_confidence.latest_frame_data(
@@ -505,11 +505,16 @@ class PitchWidget(OverView):
 
             xstart = num.min(x)
             self.ax.set_xlim(xstart, xstart+self.tfollow)
+        try:
+            self.current_low_pitch[i] = y[indices_grouped[-1][-1]]
+        except IndexError as e:
+            pass
 
         for high_pitch in self.highlighted_pitches:
             self.ax.axhline(high_pitch, line_width=2)
 
         self.ax.update()
+        self.low_pitch_changed.emit(num.nanmin(self.current_low_pitch))
 
     @qc.pyqtSlot()
     def on_save_as(self):
@@ -752,9 +757,11 @@ class PitchLevelDifferenceViews(qw.QWidget):
     def on_draw(self):
         for cv1, cv2, w in self.widgets:
             confidence1 = num.where(
-                cv1.channel.pitch_confidence.latest_frame_data(self.naverage)>cv1.confidence_threshold)
+                cv1.channel.pitch_confidence.latest_frame_data(
+                    self.naverage)>cv1.confidence_threshold)
             confidence2 = num.where(
-                cv2.channel.pitch_confidence.latest_frame_data(self.naverage)>cv2.confidence_threshold)
+                cv2.channel.pitch_confidence.latest_frame_data(
+                    self.naverage)>cv2.confidence_threshold)
             confidence = num.intersect1d(confidence1, confidence2)
             if len(confidence)>1:
                 d1 = cv1.channel.pitch.latest_frame_data(self.naverage)[confidence]
@@ -915,6 +922,8 @@ class MainWidget(qw.QWidget):
         self.top_layout.addWidget(self.keyboard, 0, 0, 1, -1)
 
         pitch_view = PitchWidget(channel_views)
+        pitch_view.low_pitch_changed.connect(
+            self.menu.on_adapt_standard_frequency)
 
         pitch_view_all_diff = DifferentialPitchWidget(channel_views)
         pitch_diff_view = PitchLevelDifferenceViews(channel_views)
