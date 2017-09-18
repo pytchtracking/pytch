@@ -228,10 +228,10 @@ class MenuWidget(qw.QFrame):
 
     @qc.pyqtSlot(str)
     def on_f_standard_mode_changed(self, text):
-        if text == 'Adaptive High':
+        if text == 'Adaptive (High)':
             self.freq_box.setReadOnly(True)
             self.get_adaptive_f = num.nanmin
-        elif text == 'Adaptive Low':
+        elif text == 'Adaptive (Low)':
             self.freq_box.setReadOnly(True)
             self.get_adaptive_f = num.nanmax
         else:
