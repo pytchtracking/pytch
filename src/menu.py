@@ -239,9 +239,7 @@ class MenuWidget(qw.QFrame):
 
     @qc.pyqtSlot(num.ndarray)
     def on_adapt_standard_frequency(self, fs):
-
         f = self.get_adaptive_f(fs)
-        print(f)
         if self.freq_box.isReadOnly() and f != num.nan:
             fref = num.clip(float(self.freq_box.text()), 100., 3000.)
             self.freq_box.setText(str((cent2f(num.round(f, 2), fref) + fref)/2.))
