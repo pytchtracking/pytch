@@ -645,15 +645,16 @@ class ProductSpectrogram(Axis):
             self.menu.exec_(qg.QCursor.pos())
 
 
-class ProductSpectrum(GLAxis):
+class ProductSpectrum(SpectrumWidget): #GLAxis):
     def __init__(self, channels, *args, **kwargs):
-        GLAxis.__init__(self, *args, **kwargs)
+        #GLAxis.__init__(self, *args, **kwargs)
+        SpectrumWidget.__init__(self, *args, **kwargs)
         self.channels = channels
         self.grids = [FixGrid(delta=100., horizontal=False)]
         self.xtick_formatter = '%i'
-        self.set_ylim(-1., 20.)
-        self.set_xlim(0, 2000.)
-        self.yticks = False
+        #self.set_ylim(-1., 20.)
+        #self.set_xlim(0, 2000.)
+        #self.yticks = False
         self.ylabels = False
         self.setVisible(True)
         self.setContentsMargins(-10, -10, -10, -10)
