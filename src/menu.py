@@ -5,6 +5,7 @@ from PyQt5 import QtGui as qg
 import numpy as num
 
 from .gui_util import FloatQLineEdit, LineEditWithLabel, _colors
+from .util import cent2f
 from .data import get_audio_devices, MicrophoneRecorder
 
 
@@ -232,8 +233,9 @@ class MenuWidget(qw.QFrame):
 
     @qc.pyqtSlot(float)
     def on_adapt_standard_frequency(self, f):
-        if self.freq_box.isReadOnly() and f > 0 and f != num.nan:
-            self.freq_box.setText(str(num.round(f, 1)))
+        if self.freq_box.isReadOnly() and f != num.nan:
+            fref = num.clip(float(self.freq_box.text()), 100., 3000.)
+            self.freq_box.setText(str((cent2f(num.round(f, 2), fref) + fref)/2.))
             self.freq_box.do_check()
 
     @qc.pyqtSlot(str)
