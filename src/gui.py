@@ -261,6 +261,12 @@ class ProductView(BaseView):
     def on_draw(self):
         self.product_spectrum_widget.on_draw()
 
+    @qc.pyqtSlot(qg.QMouseEvent)
+    def mousePressEvent(self, mouse_ev):
+        if mouse_ev.button() == qc.Qt.RightButton:
+            self.product_spectrum_widget.setVisible(
+                not self.product_spectrum_widget.isVisible())
+
 
 class ChannelViews(qw.QWidget):
     '''
@@ -646,17 +652,16 @@ class ProductSpectrogram(Axis):
 
 class ProductSpectrum(SpectrumWidget): #GLAxis):
     def __init__(self, channels, *args, **kwargs):
-        #GLAxis.__init__(self, *args, **kwargs)
         SpectrumWidget.__init__(self, *args, **kwargs)
         self.channels = channels
         self.grids = [FixGrid(delta=100., horizontal=False)]
         self.xtick_formatter = '%i'
-        #self.set_ylim(-1., 20.)
-        #self.set_xlim(0, 2000.)
-        #self.yticks = False
         self.ylabels = False
         self.setVisible(True)
         self.setContentsMargins(-10, -10, -10, -10)
+        sp_retain = self.sizePolicy()
+        sp_retain.setRetainSizeWhenHidden(True)
+        self.setSizePolicy(sp_retain)
 
     @qc.pyqtSlot()
     def on_draw(self):
