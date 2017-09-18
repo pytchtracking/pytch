@@ -469,7 +469,8 @@ class OverView(qw.QWidget):
 class PitchWidget(OverView):
     ''' Pitches of each trace as discrete samples.'''
 
-    low_pitch_changed = qc.pyqtSignal(num.float)
+    #low_pitch_changed = qc.pyqtSignal(num.float)
+    low_pitch_changed = qc.pyqtSignal(num.ndarray)
 
     def __init__(self, channel_views, *args, **kwargs):
         OverView.__init__(self, *args, **kwargs)
@@ -514,8 +515,8 @@ class PitchWidget(OverView):
             self.ax.axhline(high_pitch, line_width=2)
 
         self.ax.update()
-
-        self.low_pitch_changed.emit(num.nanmin(self.current_low_pitch))
+        self.low_pitch_changed.emit(self.current_low_pitch)
+        #self.low_pitch_changed.emit(num.nanmin(self.current_low_pitch))
 
     @qc.pyqtSlot()
     def on_save_as(self):

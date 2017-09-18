@@ -177,7 +177,8 @@ class MenuWidget(qw.QFrame):
 
         self.f_standard_mode = qw.QComboBox()
         self.f_standard_mode.addItem('Select')
-        self.f_standard_mode.addItem('Adaptive')
+        self.f_standard_mode.addItem('Adaptive (High)')
+        self.f_standard_mode.addItem('Adaptive (Low)')
         self.f_standard_mode.currentTextChanged.connect(
             self.on_f_standard_mode_changed)
 
@@ -203,6 +204,7 @@ class MenuWidget(qw.QFrame):
         layout.addItem(qw.QSpacerItem(40, 20), 16, 1, qc.Qt.AlignTop)
 
         self.setLineWidth(1)
+        self.get_adaptive_f = num.nanmin
         self.setFrameStyle(qw.QFrame.Sunken)
         self.setFrameShape(qw.QFrame.Box)
         self.setSizePolicy(qw.QSizePolicy.Minimum, qw.QSizePolicy.Minimum)
@@ -226,13 +228,20 @@ class MenuWidget(qw.QFrame):
 
     @qc.pyqtSlot(str)
     def on_f_standard_mode_changed(self, text):
-        if text == 'Adaptive':
+        if text == 'Adaptive High':
             self.freq_box.setReadOnly(True)
+            self.get_adaptive_f = num.nanmin
+        elif text == 'Adaptive Low':
+            self.freq_box.setReadOnly(True)
+            self.get_adaptive_f = num.nanmax
         else:
             self.freq_box.setReadOnly(False)
 
-    @qc.pyqtSlot(float)
-    def on_adapt_standard_frequency(self, f):
+    @qc.pyqtSlot(num.ndarray)
+    def on_adapt_standard_frequency(self, fs):
+
+        f = self.get_adaptive_f(fs)
+        print(f)
         if self.freq_box.isReadOnly() and f != num.nan:
             fref = num.clip(float(self.freq_box.text()), 100., 3000.)
             self.freq_box.setText(str((cent2f(num.round(f, 2), fref) + fref)/2.))
