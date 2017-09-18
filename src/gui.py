@@ -514,6 +514,7 @@ class PitchWidget(OverView):
             self.ax.axhline(high_pitch, line_width=2)
 
         self.ax.update()
+
         self.low_pitch_changed.emit(num.nanmin(self.current_low_pitch))
 
     @qc.pyqtSlot()
