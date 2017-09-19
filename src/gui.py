@@ -8,7 +8,7 @@ from pytch.two_channel_tuner import Worker
 from .data import pitch_algorithms
 from .gui_util import add_action_group
 from .gui_util import make_QPolygonF, _color_names, _colors # noqa
-from .util import consecutive, f2cent, index_gradient_filter
+from .util import consecutive, f2cent, index_gradient_filter, relative_keys
 from .plot import GLAxis, Axis, GaugeWidget, MikadoWidget, FixGrid
 from .keyboard import KeyBoard
 from .menu import DeviceMenu, MenuWidget, DeviceMenuSetting
@@ -24,7 +24,7 @@ from PyQt5.QtWidgets import QMenu, QActionGroup, QFileDialog
 logger = logging.getLogger(__name__)
 tfollow = 3.
 fmax = 2000.
-colors = ['viridis', 'wb', 'bw']
+colormaps = ['viridis', 'wb', 'bw']
 
 
 class BaseView(qw.QWidget):
@@ -55,7 +55,7 @@ class BaseView(qw.QWidget):
     def on_spectrum_type_select(self, *args):
         pass
 
-    @qc.pyqtSlot()
+    @qc.pyqtSlot(float)
     def on_standard_frequency_changed(self, *args):
         pass
 
@@ -104,8 +104,9 @@ class ChannelView(BaseView):
         self.channel_color_menu = QMenu('Channel Color', self.right_click_menu)
 
         self.color_choices = add_action_group(
-            colors, self.right_click_menu, self.on_color_select)
+            _colors, self.channel_color_menu, self.on_color_select)
 
+        self.right_click_menu.addMenu(self.channel_color_menu)
         self.fft_smooth_factor_menu = QMenu(
             'FFT smooth factor', self.right_click_menu)
         smooth_action_group = QActionGroup(self.fft_smooth_factor_menu)
@@ -347,7 +348,7 @@ class SpectrogramWidget(Axis):
 
         self.right_click_menu = QMenu('RC', self)
         self.color_choices = add_action_group(
-            colors, self.right_click_menu, self.on_color_select)
+            colormaps, self.right_click_menu, self.on_color_select)
 
     @qc.pyqtSlot()
     def update_spectrogram(self):
@@ -419,7 +420,7 @@ def set_tick_choices(menu, default=20):
 
 
 class OverView(qw.QWidget):
-    highlighted_pitches = set([0.])
+    highlighted_pitches = []
 
     def __init__(self, *args, **kwargs):
         qw.QWidget.__init__(self, *args, **kwargs)
@@ -443,12 +444,18 @@ class OverView(qw.QWidget):
         self.right_click_menu.addAction(action)
         self.attach_highlight_pitch_menu()
 
+    def draw_highlighted(self, x):
+        for high_pitch, label in self.highlighted_pitches:
+            self.ax.axhline(high_pitch, line_width=2)
+            self.ax.text(x=x, y=high_pitch, text=label)
+
     def attach_highlight_pitch_menu(self):
         pmenu = QMenu('Highlight pitches', self)
         pmenu.addSeparator()
-        for v in ['', 1200, 700, 500]:
+        pmenu.addAction(qw.QWidgetAction(pmenu))
+        for v in range(1, 12):
             action = qw.QWidgetAction(pmenu)
-            check_box_widget = CheckBoxSelect(v, pmenu)
+            check_box_widget = CheckBoxSelect(v * 100, pmenu)
             check_box_widget.check_box_toggled.connect(
                 self.on_check_box_widget_toggled)
             pmenu.addAction(check_box_widget.action)
@@ -464,12 +471,13 @@ class OverView(qw.QWidget):
 
     @qc.pyqtSlot(int)
     def on_check_box_widget_toggled(self, value):
+        label = relative_keys[value]
         if value in self.highlighted_pitches:
-            self.highlighted_pitches.remove(value)
-            self.highlighted_pitches.remove(-1*value)
+            self.highlighted_pitches.remove((value, label))
+            self.highlighted_pitches.remove((-1*value, label))
         else:
-            self.highlighted_pitches.add(value)
-            self.highlighted_pitches.add(-1*value)
+            self.highlighted_pitches.append((value, label))
+            self.highlighted_pitches.append((-1*value, label))
 
 
 class PitchWidget(OverView):
@@ -516,12 +524,9 @@ class PitchWidget(OverView):
         except IndexError as e:
             pass
 
-        for high_pitch in self.highlighted_pitches:
-            self.ax.axhline(high_pitch, line_width=2)
-
-        self.ax.update()
         self.low_pitch_changed.emit(self.current_low_pitch)
-        #self.low_pitch_changed.emit(num.nanmin(self.current_low_pitch))
+        self.draw_highlighted(xstart+self.tfollow)
+        self.ax.update()
 
     @qc.pyqtSlot()
     def on_save_as(self):
@@ -597,7 +602,7 @@ class ProductSpectrogram(Axis):
         color_action_group = QActionGroup(menu)
         color_action_group.setExclusive(True)
         self.color_choices = add_action_group(
-            colors, menu, self.on_color_select)
+            colormaps, menu, self.on_color_select)
 
         slider = qw.QSlider()
         slider.valueChanged.connect(self.on_scaling_changed)
@@ -693,17 +698,18 @@ class DifferentialPitchWidget(OverView):
         for i1, cv1 in enumerate(self.channel_views):
             x1, y1 = cv1.channel.pitch.latest_frame(tfollow, clip_min=True)
             xstart = num.min(x1)
-            index1 = num.where(cv1.channel.pitch_confidence.latest_frame_data(
-                len(x1))>=cv1.confidence_threshold)
+            index1 = cv1.channel.latest_confident_indices(len(x1), cv1.confidence_threshold)
             index1_grad = index_gradient_filter(x1, y1, self.derivative_filter)
             index1 = num.intersect1d(index1, index1_grad)
             for i2, cv2 in enumerate(self.channel_views):
-                if i1>=i2:
+                if i1 >= i2:
                     continue
                 x2, y2 = cv2.channel.pitch.latest_frame(tfollow, clip_min=True)
                 index2_grad = index_gradient_filter(x2, y2, self.derivative_filter)
-                index2 = num.where(cv2.channel.pitch_confidence.latest_frame_data(
-                    len(x2))>=cv2.confidence_threshold)
+                index2 = cv2.channel.latest_confident_indices(
+                    len(x2),
+                    cv2.confidence_threshold)
+
                 index2 = num.intersect1d(index2, index2_grad)
                 indices = num.intersect1d(index1, index2)
                 indices_grouped = consecutive(indices)
@@ -722,9 +728,7 @@ class DifferentialPitchWidget(OverView):
                         antialiasing=False)
 
         self.ax.set_xlim(xstart, xstart+tfollow)
-
-        for high_pitch in self.highlighted_pitches:
-            self.ax.axhline(high_pitch, line_width=2)
+        self.draw_highlighted(xstart)
         self.ax.update()
 
 

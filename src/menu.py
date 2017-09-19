@@ -234,15 +234,22 @@ class MenuWidget(qw.QFrame):
         elif text == 'Adaptive (Low)':
             self.freq_box.setReadOnly(True)
             self.get_adaptive_f = num.nanmax
+        elif 'Adaptive (Channel' in text:
+            self.freq_box.setReadOnly(True)
+            ichannel = int(text[-2])-1
+            self.get_adaptive_f = lambda x: x[ichannel]
         else:
             self.freq_box.setReadOnly(False)
+            self.get_adaptive_f = num.nanmax
 
     @qc.pyqtSlot(num.ndarray)
     def on_adapt_standard_frequency(self, fs):
         f = self.get_adaptive_f(fs)
         if self.freq_box.isReadOnly() and f != num.nan:
-            fref = num.clip(float(self.freq_box.text()), 100., 3000.)
-            self.freq_box.setText(str((cent2f(num.round(f, 2), fref) + fref)/2.))
+            fref = num.clip(float(self.freq_box.text()), -3000., 3000.)
+            txt = str(num.round((cent2f(f, fref) + fref)/2., 2))
+            if txt != 'nan':
+                self.freq_box.setText(txt)
             self.freq_box.do_check()
 
     @qc.pyqtSlot(str)
@@ -276,8 +283,11 @@ class MenuWidget(qw.QFrame):
         self.pitch_shift_box.accepted_value.connect(
             channel_views.on_pitch_shift_changed)
 
-        for cv in channel_views.views:
+        for i, cv in enumerate(channel_views.views):
             self.spectrum_type_selected.connect(cv.on_spectrum_type_select)
+
+        for i, cv in enumerate(channel_views.views[:-1]):
+            self.f_standard_mode.addItem('Adaptive (Channel %s)' % (i+1))
 
     def sizeHint(self):
         return qc.QSize(200, 200)

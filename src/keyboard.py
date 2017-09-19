@@ -17,9 +17,9 @@ keys = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 _semitones = [1, 3, 6, 8, 10]
 
 
-def f2midi(f):
+def f2midi(f, standard_frequency=440.):
     ''' https://en.wikipedia.org/wiki/MIDI_tuning_standard '''
-    return int(69 + 12*num.log2(f/440))
+    return int(69 + 12*num.log2(f/standard_frequency))
 
 
 class Synthy(qc.QObject):

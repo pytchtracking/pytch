@@ -5,6 +5,7 @@ from scipy import signal
 
 logger = logging.getLogger(__name__)
 
+keys = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
 def dummy():
     return
@@ -16,6 +17,12 @@ def f2cent(f, standard_frequency):
 
 def cent2f(p, standard_frequency):
     return num.exp2(p/1200.) * standard_frequency - 0.1
+
+
+relative_keys = dict(
+    zip(list(range(100, 1200, 100)), [
+       '2m', '2M', '3m', '3M', ' 4', '', '5', '6m', '6M', '7m', '7M'])
+)
 
 
 class DummySignal():

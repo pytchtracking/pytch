@@ -430,14 +430,15 @@ class DefinedGrid(AutoGrid):
 
 
 class SceneItem():
-    def __init__(self, pen):
+    def __init__(self, x=None, y=None, pen=None):
         self.pen = pen
+        self.x = x
+        self.y = y
 
 
 class AxHLine(SceneItem):
     def __init__(self, y, pen):
-        SceneItem.__init__(self, pen=pen)
-        self.y = y
+        SceneItem.__init__(self, y=y, pen=pen)
 
     def draw(self, painter, xproj, yproj, rect=None):
         xmin, xmax = xproj.get_out_range()
@@ -449,10 +450,9 @@ class AxHLine(SceneItem):
         painter.restore()
 
 
-class AxVLine():
+class AxVLine(SceneItem):
     def __init__(self, x, pen):
-        SceneItem.__init__(self, pen=pen)
-        self.x = x
+        SceneItem.__init__(self, x=x, pen=pen)
 
     def draw(self, painter, xproj, yproj, rect=None):
         ymin, ymax = yproj.get_out_range()
@@ -464,12 +464,10 @@ class AxVLine():
         painter.restore()
 
 
-class Points():
+class Points(SceneItem):
     ''' Holds and draws data projected to screen dimensions.'''
     def __init__(self, x, y, pen, antialiasing=True):
-        SceneItem.__init__(self, pen=pen)
-        self.x = x
-        self.y = y
+        SceneItem.__init__(self, x=x, y=y, pen=pen)
         self.antialiasing = antialiasing
 
     def draw(self, painter, xproj, yproj, rect=None):
@@ -483,12 +481,10 @@ class Points():
 
 
 
-class Polyline():
+class Polyline(SceneItem):
     ''' Holds and draws data projected to screen dimensions.'''
     def __init__(self, x, y, pen, antialiasing=True):
-        SceneItem.__init__(self, pen=pen)
-        self.x = x
-        self.y = y
+        SceneItem.__init__(self, x=x, y=y, pen=pen)
         self.antialiasing = antialiasing
 
     def draw(self, painter, xproj, yproj, rect=None):
@@ -502,9 +498,19 @@ class Polyline():
         painter.restore()
 
 
+class Text(SceneItem):
+    def __init__(self, x, y, pen, text):
+        SceneItem.__init__(self, x=x, y=y, pen=pen)
+        self.text = qg.QStaticText(str(text))
+
+    def draw(self, painter, xproj, yproj, rect=None):
+        painter.drawStaticText(qc.QPoint(xproj(self.x)*0.9, yproj(self.y)), self.text)
+
+
 class PColormesh(qw.QWidget):
     '''
-    2D array. Currently, opengl is not supported.'''
+    2D array. Currently, opengl is not supported.
+    '''
 
     colortable = 'viridis'
 
@@ -702,6 +708,10 @@ def MakeAxis(gl=True):
         def axhline(self, y, **pen_args):
             pen = self.get_pen(**pen_args)
             self.scene_items.append(AxHLine(y=y, pen=pen))
+
+        def text(self, x, y, text, **pen_args):
+            pen = self.get_pen(**pen_args)
+            self.scene_items.append(Text(x=x, y=y, pen=pen, text=text))
 
         def colormesh(self, x=None, y=None, z=None, **pen_args):
 
