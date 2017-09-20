@@ -472,7 +472,7 @@ class OverView(qw.QWidget):
     @qc.pyqtSlot(int)
     def on_check_box_widget_toggled(self, value):
         label = relative_keys[value]
-        if value in self.highlighted_pitches:
+        if (value, label) in self.highlighted_pitches:
             self.highlighted_pitches.remove((value, label))
             self.highlighted_pitches.remove((-1*value, label))
         else:
