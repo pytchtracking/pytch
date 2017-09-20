@@ -453,9 +453,9 @@ class OverView(qw.QWidget):
         pmenu = QMenu('Highlight pitches', self)
         pmenu.addSeparator()
         pmenu.addAction(qw.QWidgetAction(pmenu))
-        for v in range(1, 12):
+        for k in sorted(list(relative_keys.keys())):
             action = qw.QWidgetAction(pmenu)
-            check_box_widget = CheckBoxSelect(v * 100, pmenu)
+            check_box_widget = CheckBoxSelect(k, pmenu)
             check_box_widget.check_box_toggled.connect(
                 self.on_check_box_widget_toggled)
             pmenu.addAction(check_box_widget.action)

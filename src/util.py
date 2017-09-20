@@ -20,8 +20,8 @@ def cent2f(p, standard_frequency):
 
 
 relative_keys = dict(
-    zip(list(range(100, 1200, 100)), [
-       '2m', '2M', '3m', '3M', ' 4', '', '5', '6m', '6M', '7m', '7M'])
+    zip(list(range(100, 1500, 100)), [
+       '2m', '2M', '3m', '3M', ' 4', 'TT', '5', '6m', '6M', '7m', '7M', 'P8' '9m', '9M'])
 )
 
 
