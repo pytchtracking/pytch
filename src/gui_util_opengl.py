@@ -46,10 +46,11 @@ import sys
 import PyQt5.QtCore as qc
 import PyQt5.QtGui as qg
 import PyQt5.QtWidgets as qw
+import PyQt5.QtOpenGL as qgl
 from pytch.gui_util import make_QPolygonF
 
 
-class GLWidget(qw.QOpenGLWidget):
+class GLWidget(qgl.QGLWidget):
     def __init__(self, *args, **kwargs):
         super(GLWidget, self).__init__(*args, **kwargs)
 
@@ -58,9 +59,9 @@ class GLWidget(qw.QOpenGLWidget):
         self.setAutoFillBackground(True)
         self.gl = False
 
-    def initializeGL(self):
-        self.gl = self.context().versionFunctions()
-        self.gl.initializeOpenGLFunctions()
+    # def initializeGL(self):
+    #     # self.gl = self.context().versionFunctions()
+    #     self.gl.initializeOpenGLFunctions()
 
     @qc.pyqtSlot(qg.QPaintEvent)
     def paintEvent(self, event):
