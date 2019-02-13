@@ -13,6 +13,7 @@ from pytch.util import f2cent, cent2f
 
 _lock = threading.Lock()
 
+# This module contains buffering and input devices
 # class taken from the scipy 2015 vispy talk opening example
 # see https://github.com/vispy/vispy/pull/928
 
@@ -82,6 +83,7 @@ class Buffer():
         self.proxy = self._proxy if not proxy else proxy
 
     def _proxy(self, data):
+        '''subclass this method do do extra work on data chunk.'''
         return data
 
     def empty(self):
@@ -214,6 +216,7 @@ class RingBuffer(Buffer):
 
 
 class RingBuffer2D(RingBuffer):
+    ''' 2 dimensional ring buffer. E.g. used to buffer spectrogram data.'''
     def __init__(self, ndimension2, *args, **kwargs):
         self.ndimension2 = ndimension2
         RingBuffer.__init__(self, *args, **kwargs)
@@ -248,17 +251,6 @@ class RingBuffer2D(RingBuffer):
         self.data[self.i_filled, :] = v
 
 
-class DataProvider(object):
-    ''' Base class defining common interface for data input to Worker'''
-    def __init__(self):
-        self.frames = []
-        atexit.register(self.terminate)
-
-    def terminate(self):
-        # cleanup
-        pass
-
-
 class Channel(RingBuffer):
     def __init__(self, sampling_rate, fftsize=8192):
 
@@ -270,7 +262,9 @@ class Channel(RingBuffer):
         self.pitch_o = None
         self.fftsize = fftsize
         self.setup_pitch()
-        self.update()
+        self.setup_buffers()
+
+        # TODO refactor to processing module
         P = 0.
         R = 0.01**2
         Q = 1e-6
@@ -279,12 +273,15 @@ class Channel(RingBuffer):
         self.pitch_shift = 0.
 
     def pitch_proxy(self, data):
+        # TODO refactor to processing module
         return f2cent(data, self.standard_frequency) + self.pitch_shift
 
     def undo_pitch_proxy(self, data):
+        # TODO refactor to processing module
         return cent2f(data-self.pitch_shift, self.standard_frequency)
 
-    def update(self):
+    def setup_buffers(self):
+        '''Setup Buffers.'''
         nfft = (int(self.fftsize), self.delta)
         self.freqs = num.fft.rfftfreq(*nfft)
         sr = int(1000./58.)
@@ -323,7 +320,7 @@ class Channel(RingBuffer):
     @fftsize.setter
     def fftsize(self, size):
         self.__fftsize = size
-        self.update()
+        self.setup_buffers()
 
     @property
     def pitch_algorithm(self):
@@ -332,7 +329,7 @@ class Channel(RingBuffer):
     @pitch_algorithm.setter
     def pitch_algorithm(self, alg):
         self.__algorithm = alg
-        self.update()
+        self.setup_buffers()
         self.setup_pitch()
 
     def get_latest_pitch(self):
@@ -349,24 +346,35 @@ class Channel(RingBuffer):
         self.pitch_o.set_tolerance(tolerance)
 
 
+class DataProvider(object):
+    ''' Base class defining common interface for data input to Worker'''
+    def __init__(self):
+        self.frames = []
+        atexit.register(self.terminate)
+
+    def terminate(self):
+        # cleanup
+        pass
+
+
 class MicrophoneRecorder(DataProvider):
+    '''Interfacing PyAudio to record data from sound'''
 
     def __init__(self, chunksize=512, device_no=None, sampling_rate=None, fftsize=1024,
                  nchannels=2):
         DataProvider.__init__(self)
 
         self.stream = None
-        self.p = pyaudio.PyAudio()
+        self.paudio = pyaudio.PyAudio()
         self.nchannels = nchannels
-        default = self.p.get_default_input_device_info()
 
-        self.device_no = device_no or default['index']
-        self.sampling_rate = sampling_rate or int(default['defaultSampleRate'])
+        self.device_no = device_no
+        self.sampling_rate = sampling_rate
 
         self.channels = []
         for i in range(self.nchannels):
-            c = Channel(self.sampling_rate, fftsize=fftsize)
-            self.channels.append(c)
+            self.channels.append(
+                Channel(self.sampling_rate, fftsize=fftsize))
 
         self.chunksize = chunksize
 
@@ -379,19 +387,23 @@ class MicrophoneRecorder(DataProvider):
     @property
     def sampling_rate_options(self):
         ''' List of supported sampling rates.'''
-        return sampling_rate_options(self.device_no, audio=self.p)
+        return sampling_rate_options(self.device_no, audio=self.paudio)
 
     def new_frame(self, data, frame_count, time_info, status):
+        '''Callback function called as soon as pyaudio anounces new
+        available data.'''
         data = num.asarray(num.fromstring(data, 'int16'), num.float32)
 
         with _lock:
             self.frames.append(data)
             if self._stop:
                 return None, pyaudio.paComplete
+        # self.flush()
 
         return None, pyaudio.paContinue
 
     def get_frames(self):
+        '''Read frames and empty pre-buffer.'''
         with _lock:
             frames = self.frames
             self.frames = []
@@ -410,12 +422,13 @@ class MicrophoneRecorder(DataProvider):
 
     @sampling_rate.setter
     def sampling_rate(self, rate):
-        check_sampling_rate(self.device_no, rate, audio=self.p)
+        check_sampling_rate(self.device_no, rate, audio=self.paudio)
         self.__sampling_rate = rate
 
     def start_new_stream(self):
+        '''Start audio stream.'''
         self.frames = []
-        self.stream = self.p.open(format=pyaudio.paInt16,
+        self.stream = self.paudio.open(format=pyaudio.paInt16,
                                   channels=self.nchannels,
                                   rate=self.sampling_rate,
                                   input=True,
@@ -440,13 +453,8 @@ class MicrophoneRecorder(DataProvider):
     def terminate(self):
         if self.stream:
             self.close()
-        self.p.terminate()
+        self.paudio.terminate()
         logger.debug('terminated stream')
-
-    def set_device_no(self, i):
-        self.close()
-        self.device_no = i
-        self.start_new_stream()
 
     @property
     def deltat(self):

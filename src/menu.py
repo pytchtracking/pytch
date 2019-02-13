@@ -19,7 +19,7 @@ class DeviceMenuSetting:
     show_traces = True
 
     def set_menu(self, m):
-        if isinstance(m, MenuWidget):
+        if isinstance(m, ProcessingMenu):
             m.box_show_traces.setChecked(self.show_traces)
 
 
@@ -76,6 +76,7 @@ class DeviceMenu(qw.QDialog):
     @qc.pyqtSlot(int)
     def update_channel_info(self, index):
         device = self.devices[index]
+        print(device)
         self.edit_nchannels.edit.setText(str(device['maxInputChannels']))
 
     def get_nfft_box(self):
@@ -120,7 +121,7 @@ class DeviceMenu(qw.QDialog):
         return menu
 
 
-class MenuWidget(qw.QFrame):
+class ProcessingMenu(qw.QFrame):
 
     spectrum_type_selected = qc.pyqtSignal(str)
 

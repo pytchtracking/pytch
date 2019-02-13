@@ -11,7 +11,7 @@ from .gui_util import make_QPolygonF, _color_names, _colors # noqa
 from .util import consecutive, f2cent, index_gradient_filter, relative_keys
 from .plot import GLAxis, Axis, GaugeWidget, MikadoWidget, FixGrid
 from .keyboard import KeyBoard
-from .menu import DeviceMenu, MenuWidget, DeviceMenuSetting
+from .menu import DeviceMenu, ProcessingMenu, DeviceMenuSetting
 
 from PyQt5 import QtCore as qc
 from PyQt5 import QtGui as qg
@@ -855,7 +855,7 @@ class MainWidget(qw.QWidget):
 
         self.refresh_timer = qc.QTimer()
         self.refresh_timer.timeout.connect(self.refresh_widgets)
-        self.menu = MenuWidget(settings)
+        self.menu = ProcessingMenu(settings)
         self.input_dialog = DeviceMenu.from_device_menu_settings(
             settings, accept=settings.accept, parent=self)
 
@@ -970,7 +970,7 @@ class MainWidget(qw.QWidget):
 
     @qc.pyqtSlot()
     def refresh_widgets(self):
-        self.data_input.flush()
+        '''This is the main refresh loop.'''
         self.worker.process()
         self.signal_widgets_clear.emit()
         self.signal_widgets_draw.emit()
@@ -1024,7 +1024,6 @@ class MainWindow(QMainWindow):
 
         else:
             super().keyPressEvent(key_event)
-
 
 
 def from_command_line(close_after=None, settings=None, check_opengl=False,
