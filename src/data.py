@@ -20,7 +20,7 @@ _lock = threading.Lock()
 logger = logging.getLogger('pytch.data')
 
 pitch_algorithms = [
-    'default', 'schmitt', 'fcomb', 'mcomb', 'specacf', 'yin', 'yinfft']
+    'default', 'schmitt', 'fcomb', 'mcomb', 'specacf', 'yin', 'yinfft', 'yinfast']
 
 
 def get_audio_devices():
@@ -257,7 +257,7 @@ class Channel(RingBuffer):
         self.buffer_length_seconds = 40
         RingBuffer.__init__(self, sampling_rate, self.buffer_length_seconds)
 
-        self.__algorithm = 'yinfft'
+        self.__algorithm = 'yinfast'
         self.name = ''
         self.pitch_o = None
         self.fftsize = fftsize
