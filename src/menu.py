@@ -14,7 +14,7 @@ logger = logging.getLogger('pytch.menu')
 
 
 class DeviceMenuSetting:
-    device_index = 0
+    device_index = None
     accept = True
     show_traces = True
 
@@ -45,7 +45,8 @@ class DeviceMenu(qw.QDialog):
         for idevice, device in enumerate(self.devices):
             if is_input_device(device):
                 extra = ''
-                default_device = (idevice, device)
+                if not default_device[0]:
+                    default_device = (idevice, device)
             else:
                 extra = '(No Input)'
 
@@ -71,21 +72,17 @@ class DeviceMenu(qw.QDialog):
         buttons = qw.QDialogButtonBox(
             qw.QDialogButtonBox.Ok | qw.QDialogButtonBox.Cancel)
 
+        self.select_input.currentIndexChanged.connect(
+            self.update_channel_info)
+        self.select_input.setCurrentIndex(default_device[0])
+
         buttons.accepted.connect(self.on_ok_clicked)
         buttons.rejected.connect(self.close)
         layout.addWidget(buttons)
 
-        self.select_input.setCurrentIndex(default_device[0])
-        self.update_channel_info(default_device[0])
-
-        self.select_input.currentIndexChanged.connect(
-            self.update_channel_info)
-
     @qc.pyqtSlot(int)
     def update_channel_info(self, index):
-        print('INDEEX %i' % index)
         device = self.devices[index]
-        print(device)
         self.edit_nchannels.edit.setText(str(device['maxInputChannels']))
 
     def get_nfft_box(self):
@@ -101,7 +98,7 @@ class DeviceMenu(qw.QDialog):
 
     @qc.pyqtSlot()
     def on_ok_clicked(self):
-        print('using %i outchannels' % int(self.edit_nchannels.value))
+        logger.debug('using %i outchannels' % int(self.edit_nchannels.value))
         fftsize = int(self.nfft_choice.currentText())
         recorder = MicrophoneRecorder(
                         chunksize=512,
@@ -112,7 +109,6 @@ class DeviceMenu(qw.QDialog):
         self.set_input_callback(recorder)
         self.hide()
 
-
     @classmethod
     def from_device_menu_settings(cls, settings, parent, accept=False):
         '''
@@ -120,6 +116,7 @@ class DeviceMenu(qw.QDialog):
         :param parent: parent of instance
         :param ok: accept setting
         '''
+        logger.debug('Loading settings: %s' % settings)
         menu = cls(parent=parent)
 
         if settings.device_index is not None:

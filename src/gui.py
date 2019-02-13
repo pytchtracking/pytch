@@ -172,6 +172,8 @@ class ChannelView(BaseView):
         self.channel_views_widget.
         '''
         self.confidence_threshold = threshold/10.
+        logger.debug('update confidence threshold: %i' % 
+            self.confidence_threshold)
 
     @qc.pyqtSlot(float)
     def on_standard_frequency_changed(self, f):
