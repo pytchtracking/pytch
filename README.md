@@ -45,6 +45,10 @@ Installation via Miniconda/Anaconda:
 ```
 conda env create -f environment.yml
 source activate pytch
+git clone https://github.com/HerrMuellerluedenscheid/pytch.git
+cd pytch
+sudo python setup.py install
+
 ```
 
 # Invocation
