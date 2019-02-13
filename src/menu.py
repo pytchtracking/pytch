@@ -39,10 +39,10 @@ class DeviceMenu(qw.QDialog):
         layout.addWidget(self.select_input)
 
         self.select_input.clear()
-        devices = get_audio_devices()
-        curr = len(devices)-1
-        for idevice, device in enumerate(devices):
-            self.select_input.addItem('%s: %s' % (idevice, device))
+        self.devices = get_audio_devices()
+        curr = len(self.devices)-1
+        for idevice, device in enumerate(self.devices):
+            self.select_input.addItem('%s: %s' % (idevice, device['name']))
             if 'default' in device:
                 curr = idevice
 
@@ -55,6 +55,7 @@ class DeviceMenu(qw.QDialog):
 
         self.edit_nchannels = LineEditWithLabel(
             'Number of Channels', default=2)
+
         self.edit_nchannels.edit.setValidator(qg.QDoubleValidator())
         layout.addWidget(self.edit_nchannels)
 
@@ -64,9 +65,18 @@ class DeviceMenu(qw.QDialog):
 
         buttons = qw.QDialogButtonBox(
             qw.QDialogButtonBox.Ok | qw.QDialogButtonBox.Cancel)
+
         buttons.accepted.connect(self.on_ok_clicked)
         buttons.rejected.connect(self.close)
         layout.addWidget(buttons)
+
+        self.select_input.currentIndexChanged.connect(
+            self.update_channel_info)
+
+    @qc.pyqtSlot(int)
+    def update_channel_info(self, index):
+        device = self.devices[index]
+        self.edit_nchannels.edit.setText(str(device['maxInputChannels']))
 
     def get_nfft_box(self):
         ''' Return a qw.QSlider for modifying FFT width'''
@@ -79,6 +89,7 @@ class DeviceMenu(qw.QDialog):
         b.setCurrentIndex(3)
         return b
 
+    @qc.pyqtSlot()
     def on_ok_clicked(self):
         fftsize = int(self.nfft_choice.currentText())
         recorder = MicrophoneRecorder(
@@ -283,7 +294,7 @@ class MenuWidget(qw.QFrame):
 
         self.box_show_spectra.stateChanged.connect(
             channel_views.show_spectrum_widgets)
- 
+
         self.pitch_shift_box.accepted_value.connect(
             channel_views.on_pitch_shift_changed)
 

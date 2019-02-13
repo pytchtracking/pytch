@@ -23,11 +23,11 @@ pitch_algorithms = [
 
 
 def get_audio_devices():
-    ''' returns a list of device descriptions'''
+    ''' returns a dict of device descriptions'''
     p = pyaudio.PyAudio()
     devices = []
     for i in range(p.get_device_count()):
-        devices.append(p.get_device_info_by_index(i).get('name'))
+        devices.append(p.get_device_info_by_index(i))
     p.terminate()
     return devices
 
