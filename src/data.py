@@ -16,7 +16,7 @@ _lock = threading.Lock()
 # class taken from the scipy 2015 vispy talk opening example
 # see https://github.com/vispy/vispy/pull/928
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('pytch.data')
 
 pitch_algorithms = [
     'default', 'schmitt', 'fcomb', 'mcomb', 'specacf', 'yin', 'yinfft']

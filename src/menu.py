@@ -3,10 +3,14 @@ from PyQt5 import QtCore as qc
 from PyQt5 import QtGui as qg
 
 import numpy as num
+import logging
 
 from .gui_util import FloatQLineEdit, LineEditWithLabel, _colors
 from .util import cent2f
 from .data import get_audio_devices, MicrophoneRecorder
+
+
+logger = logging.getLogger('pytch.menu')
 
 
 class DeviceMenuSetting:

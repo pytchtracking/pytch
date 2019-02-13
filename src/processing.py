@@ -3,21 +3,22 @@
 import numpy as num
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('pytch.processing')
 
 
 class Worker():
 
     def __init__(self, channels):
-        ''' Grabbing data, working on it and saving the results
+        '''
+        The Worker does the signal processing in its' `process` method.
 
-        :param buffer_length: in seconds'''
+        :param channels: list of `pytch.data.Channel` instances'''
 
         self.channels = channels
 
     def process(self):
-        ''' Do the work'''
-        logger.debug('start processing')
+        '''Process the channels' data and update the channel instances.'''
+        logger.debug('processing data')
 
         for ic, channel in enumerate(self.channels):
             frame_work = channel.latest_frame_data(channel.fftsize)
@@ -31,10 +32,9 @@ class Worker():
 
             channel.pitch_confidence.append_value(
                 channel.pitch_o.get_confidence())
+
             channel.pitch.append_value(channel.pitch_o(
                 frame_work)[0])
-
-        logger.debug('finished processing')
 
 
 def cross_spectrum(spec1, spec2):

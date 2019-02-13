@@ -21,7 +21,7 @@ from PyQt5.QtWidgets import QAction, QPushButton, QDockWidget
 from PyQt5.QtWidgets import QMenu, QActionGroup, QFileDialog
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('pytch.gui')
 tfollow = 3.
 fmax = 2000.
 colormaps = ['viridis', 'wb', 'bw']

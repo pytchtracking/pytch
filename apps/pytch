@@ -4,12 +4,6 @@ import argparse
 
 from pytch.gui import from_command_line
 import logging
-#logging.basicConfig(level=args.loglevel)
-#logger = logging.getLogger()
-#logger_stream_handler = logging.StreamHandler()
-#logger_stream_handler.setLevel(logging.DEBUG)
-#logger = logging.getLogger(__name__)
-#logger.addHandler(logger_stream_handler)
 
 
 if __name__=='__main__':
@@ -43,11 +37,12 @@ if __name__=='__main__':
                         help='Close after N seconds. Utility option for\
                         performance tests.')
 
-    logging.basicConfig(level=logging.DEBUG)
-    logger = logging.getLogger(__name__)
+    args = parser.parse_args()
+
+    logger = logging.getLogger('pytch')
+    logger.setLevel(args.loglevel)
     logger.info('starting pytch')
 
-    args = parser.parse_args()
     from_command_line(args.close_after,
                       args.settings,
                       args.check_opengl,

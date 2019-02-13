@@ -11,7 +11,8 @@ from . import viridis
 from PyQt5 import QtCore as qc
 from PyQt5 import QtGui as qg
 from PyQt5 import QtWidgets  as qw
-logger = logging.getLogger(__name__)
+
+logger = logging.getLogger('pytch.plot')
 
 try:
     from pytch.gui_util_opengl import GLWidget

@@ -10,7 +10,7 @@ from PyQt5 import QtWidgets as qw
 from pytch.gui_util import _colors
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('pytch.keyboard')
 
 
 keys = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']

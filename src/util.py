@@ -3,7 +3,7 @@ import time
 import numpy as num
 from scipy import signal
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('pytch.util')
 
 keys = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
