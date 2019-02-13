@@ -41,6 +41,12 @@ cd pytch
 sudo python setup.py install
 ```
 
+Installation via Miniconda/Anaconda:
+```
+conda env create -f environment.yml
+source activate pytch
+```
+
 # Invocation
 Open a terminal, type
 ```

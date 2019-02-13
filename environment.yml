@@ -1,0 +1,13 @@
+name: pytch
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - aubio=0.4.7
+  - cython=0.29
+  - numpy=1.15.4
+  - python=3.6.7
+  - scipy=1.1.0
+  pip:
+    - PyQt5
+    - pyaudio
