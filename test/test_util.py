@@ -1,6 +1,6 @@
 import numpy as num
 import unittest
-from pytch.util import consecutive, f2pitch, pitch2f
+from pytch.util import consecutive, f2cent, cent2f
 import time
 
 
@@ -15,8 +15,9 @@ class UtilTestCase(unittest.TestCase):
 
     def test_p2f2p(self):
         fs = num.random.random(1000)*1000.
-        ps = f2pitch(fs)
-        num.testing.assert_almost_equal(fs, pitch2f(ps))
+        standard_frequency = 200
+        ps = f2cent(fs, standard_frequency=standard_frequency)
+        num.testing.assert_almost_equal(fs, cent2f(ps, standard_frequency=standard_frequency))
         
 
 if __name__=='__main__':

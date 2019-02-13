@@ -3,6 +3,7 @@ from subprocess import call
 from pytch.data import MicrophoneRecorder
 import time
 
+
 class MicTestCase(unittest.TestCase):
 
     def test_micInit(self):
@@ -18,26 +19,18 @@ class MicTestCase(unittest.TestCase):
         mic = MicrophoneRecorder()
         #mic.device_no = 7
         mic.start_new_stream()
-        print('OPTIONS', mic.sampling_rate_options)
         mic.terminate()
 
     def test_zoom(self):
         ''' works with the zoom interface.'''
         mic = MicrophoneRecorder(chunksize=512, sampling_rate=44100, nchannels=16)
         mic.device_no = 5
-        #mic.channels = 16
         p = mic.p
         host_device_count = p.get_device_count()
-        import pdb
-        pdb.set_trace()
-        print(host_device_count)
-        print(p.get_device_info_by_index(mic.device_no))
-        #print(mic.p.get_device_info_by_host_api_device_index(host_device_count, 5))
-
-
         mic.start()
         time.sleep(1)
         mic.stop()
+
 
 if __name__=='__main__':
     unittest.main()
