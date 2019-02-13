@@ -878,7 +878,7 @@ class MainWidget(qw.QWidget):
         menu.play_button.clicked.connect(self.data_input.start)
         menu.play_button.clicked.connect(self.refresh_timer.start)
 
-        menu.set_algorithms(pitch_algorithms, default='yin')
+        menu.set_algorithms(pitch_algorithms, default='yinfast')
         menu.select_algorithm.currentTextChanged.connect(
             self.on_algorithm_select)
 

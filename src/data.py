@@ -407,7 +407,6 @@ class MicrophoneRecorder(DataProvider):
             if self._stop:
                 return None, pyaudio.paComplete
 
-        print('flush')
         self.flush()
 
         return None, pyaudio.paContinue
