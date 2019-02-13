@@ -206,11 +206,11 @@ class GUITestCase():
 if __name__=='__main__':
     #unittest.main()
     t = GUITestCase()
-    #t.test_scaling()
-    #t.test_PitchWidget()
-    #t.test_ColormapWidget()
-    t.test_spectrogram()
-    #t.test_gauge()
-    #t.test_graphicsview()
-    #t.test_keyboard()
+    t.test_scaling()
+    t.test_PitchWidget()
+    t.test_ColormapWidget()
+    # t.test_spectrogram()
+    t.test_gauge()
+    t.test_graphicsview()
+    t.test_keyboard()
 
