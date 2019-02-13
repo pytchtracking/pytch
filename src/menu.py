@@ -7,7 +7,7 @@ import logging
 
 from .gui_util import FloatQLineEdit, LineEditWithLabel, _colors
 from .util import cent2f
-from .data import get_audio_devices, MicrophoneRecorder
+from .data import get_input_devices, MicrophoneRecorder, is_input_device
 
 
 logger = logging.getLogger('pytch.menu')
@@ -39,22 +39,27 @@ class DeviceMenu(qw.QDialog):
         layout.addWidget(self.select_input)
 
         self.select_input.clear()
-        self.devices = get_audio_devices()
-        curr = len(self.devices)-1
-        for idevice, device in enumerate(self.devices):
-            self.select_input.addItem('%s: %s' % (idevice, device['name']))
-            if 'default' in device:
-                curr = idevice
+        self.devices = get_input_devices()
 
-        self.select_input.setCurrentIndex(curr)
+        default_device = (0, self.devices[0])
+        for idevice, device in enumerate(self.devices):
+            if is_input_device(device):
+                extra = ''
+                default_device = (idevice, device)
+            else:
+                extra = '(No Input)'
+
+            self.select_input.addItem('%s %s%s' % (
+                idevice, device['name'], extra))
 
         self.edit_sampling_rate = LineEditWithLabel(
             'Sampling rate', default=44100)
+
         self.edit_sampling_rate.edit.setValidator(qg.QDoubleValidator())
         layout.addWidget(self.edit_sampling_rate)
 
-        self.edit_nchannels = LineEditWithLabel(
-            'Number of Channels', default=2)
+        self.edit_nchannels = LineEditWithLabel('Number of Channels',
+            default=default_device[1]['maxInputChannels'])
 
         self.edit_nchannels.edit.setValidator(qg.QDoubleValidator())
         layout.addWidget(self.edit_nchannels)
@@ -70,11 +75,15 @@ class DeviceMenu(qw.QDialog):
         buttons.rejected.connect(self.close)
         layout.addWidget(buttons)
 
+        self.select_input.setCurrentIndex(default_device[0])
+        self.update_channel_info(default_device[0])
+
         self.select_input.currentIndexChanged.connect(
             self.update_channel_info)
 
     @qc.pyqtSlot(int)
     def update_channel_info(self, index):
+        print('INDEEX %i' % index)
         device = self.devices[index]
         print(device)
         self.edit_nchannels.edit.setText(str(device['maxInputChannels']))
@@ -92,6 +101,7 @@ class DeviceMenu(qw.QDialog):
 
     @qc.pyqtSlot()
     def on_ok_clicked(self):
+        print('using %i outchannels' % int(self.edit_nchannels.value))
         fftsize = int(self.nfft_choice.currentText())
         recorder = MicrophoneRecorder(
                         chunksize=512,

@@ -23,19 +23,27 @@ pitch_algorithms = [
     'default', 'schmitt', 'fcomb', 'mcomb', 'specacf', 'yin', 'yinfft']
 
 
-def get_audio_devices():
-    ''' returns a dict of device descriptions'''
+def is_input_device(device):
+    return device['maxInputChannels'] != 0
+
+
+def get_input_devices():
+    ''' returns a dict of device descriptions.
+    If the device's `maxInputChannels` is 0 the device is skipped
+    '''
     p = pyaudio.PyAudio()
     devices = []
     for i in range(p.get_device_count()):
-        devices.append(p.get_device_info_by_index(i))
+        device = p.get_device_info_by_index(i)
+        devices.append(device)
+
     p.terminate()
     return devices
 
 
 def sampling_rate_options(device_no, audio=None):
     ''' list of supported sampling rates.'''
-    candidates = [8000., 11.025, 123123123123., 16000., 22050., 32000., 37.800,
+    candidates = [8000., 11.025, 16000., 22050., 32000., 37.800,
                   44100., 48000.]
     supported_sampling_rates = []
     for c in candidates:
@@ -398,7 +406,9 @@ class MicrophoneRecorder(DataProvider):
             self.frames.append(data)
             if self._stop:
                 return None, pyaudio.paComplete
-        # self.flush()
+
+        print('flush')
+        self.flush()
 
         return None, pyaudio.paContinue
 

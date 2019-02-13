@@ -23,7 +23,7 @@ class custom_build_app(build_ext):
         DATA_FILES = []
         OPTIONS = {
             'argv_emulation': True,
-            'iconfile': '/Users/marius/src/pyrocko/src/data/snuffler.icns',
+            'iconfile': '/home/marius/src/pyrocko/src/data/snuffler.icns',
             'packages': 'pytch',
             'excludes': [
                 # 'PyQt4.QtDesigner',
@@ -36,19 +36,6 @@ class custom_build_app(build_ext):
             options={'py2app': OPTIONS},
             setup_requires=['py2app'],
         )
-
-        # Manually delete files which refuse to be ignored using 'excludes':
-        want_delete = glob.glob(
-            'dist/snuffler.app/Contents/Frameworks/libvtk*')
-
-        map(os.remove, want_delete)
-
-        want_delete_dir = glob.glob(
-            'dist/Snuffler.app/Contents/Resources/lib/python2.7/'
-            'matplotlib/test*')
-        map(shutil.rmtree, want_delete_dir)
-
-
 
 
 setup(

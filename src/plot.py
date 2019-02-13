@@ -717,10 +717,10 @@ def MakeAxis(gl=True):
         def colormesh(self, x=None, y=None, z=None, **pen_args):
 
             nx, ny = z.shape
-            if y is None:
+            if not y:
                 y = num.arange(ny)
 
-            if x is None:
+            if not x:
                 x = num.arange(nx)
 
             spec = PColormesh.from_numpy_array(x=x, y=y, z=z)
