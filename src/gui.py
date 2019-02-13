@@ -3,7 +3,7 @@ import sys
 import numpy as num
 import os
 
-from pytch.two_channel_tuner import Worker
+from pytch.processing import Worker
 
 from .data import pitch_algorithms
 from .gui_util import add_action_group
@@ -278,7 +278,7 @@ class ChannelViews(qw.QWidget):
         self.views = []
         for ichannel, channel in enumerate(channels):
             self.views.append(
-                ChannelView(channel, color=_color_names[3+3*ichannel])
+                ChannelView(channel, color=_color_names[3*ichannel])
             )
 
         self.layout = QVBoxLayout()
@@ -885,7 +885,7 @@ class MainWidget(qw.QWidget):
         '''Write traces to wav files'''
         _fn = QFileDialog().getSaveFileName(self, 'Save as', '.', '')[0]
         if _fn:
-            for i, tr in enumerate(self.channel_views_widget.channel_views):
+            for i, tr in enumerate(self.channel_views_widget.views):
                 if not os.path.exists(_fn):
                     os.makedirs(_fn)
                 fn = os.path.join(_fn, 'channel%s' %i)
