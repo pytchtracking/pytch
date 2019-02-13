@@ -18,7 +18,7 @@ Optional but recommended is the installation of PyQt5-OpenGL bindings.
 Help can be found here: http://pyqt.sourceforge.net/Docs/PyQt5/installation.html
 
 ```
-sudo apt-get install python3-dev portaudio19-dev libportaudio2
+sudo apt-get install portaudio19-dev libportaudio2
 pip install numpy PyQt5 pyaudio git+https://git.aubio.org/aubio/aubio
 ```
 
