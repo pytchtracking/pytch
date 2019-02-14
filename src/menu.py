@@ -92,6 +92,7 @@ class DeviceMenu(qw.QDialog):
         layout.addWidget(self.nfft_choice)
 
         # select number of channels
+        self.max_nchannels = default_device[1]['maxInputChannels']
         self.edit_nchannels = LineEditWithLabel('Number of Channels',
                                                 default=default_device[1]['maxInputChannels'])
 
@@ -135,7 +136,7 @@ class DeviceMenu(qw.QDialog):
                         device_no=self.select_input.currentIndex(),
                         sampling_rate=int(self.edit_sampling_rate.currentText()),
                         fftsize=int(fftsize),
-                        nchannels=int(self.edit_nchannels.value))
+                        nchannels=self.max_nchannels)
         self.set_input_callback(recorder)
         self.hide()
 
