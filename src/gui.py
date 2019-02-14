@@ -16,7 +16,7 @@ from .menu import DeviceMenu, ProcessingMenu, DeviceMenuSetting
 from PyQt5 import QtCore as qc
 from PyQt5 import QtGui as qg
 from PyQt5 import QtWidgets as qw
-from PyQt5.QtWidgets import QMainWindow, QVBoxLayout
+from PyQt5.QtWidgets import QVBoxLayout
 from PyQt5.QtWidgets import QAction, QPushButton, QDockWidget
 from PyQt5.QtWidgets import QMenu, QActionGroup, QFileDialog
 
@@ -988,10 +988,26 @@ class MainWidget(qw.QWidget):
         self.keyboard.setVisible(not self.keyboard.isVisible())
 
 
-class MainWindow(QMainWindow):
+class AdjustableMainWindow(qw.QMainWindow):
+
+    def sizeHint(self):
+        return qc.QSize(1200, 500)
+
+    @qc.pyqtSlot(qg.QKeyEvent)
+    def keyPressEvent(self, key_event):
+        ''' react on keyboard keys when they are pressed.'''
+        key_text = key_event.text()
+        if key_text == 'q':
+            self.close()
+        elif key_text == 'f':
+            self.showMaximized
+        super().keyPressEvent(key_event)
+
+
+class MainWindow(AdjustableMainWindow):
     ''' Top level Window. The entry point of the gui.'''
     def __init__(self, settings, *args, **kwargs):
-        super(QMainWindow, self).__init__(*args, **kwargs)
+        super(MainWindow, self).__init__(*args, **kwargs)
         self.main_widget = MainWidget(settings, )
         self.main_widget.setFocusPolicy(qc.Qt.StrongFocus)
 
@@ -1008,24 +1024,12 @@ class MainWindow(QMainWindow):
 
         self.show()
 
-    def sizeHint(self):
-        return qc.QSize(1400, 600)
-
     @qc.pyqtSlot(qg.QKeyEvent)
     def keyPressEvent(self, key_event):
         ''' react on keyboard keys when they are pressed.'''
-        key_text = key_event.text()
-        if key_text == 'q':
-            self.close()
-
-        elif key_text == 'k':
+        if key_event.text() == 'k':
             self.main_widget.toggle_keyboard()
-
-        elif key_text == 'f':
-            self.showMaximized
-
-        else:
-            super().keyPressEvent(key_event)
+        super().keyPressEvent(key_event)
 
 
 def from_command_line(close_after=None, settings=None, check_opengl=False,
@@ -1034,10 +1038,9 @@ def from_command_line(close_after=None, settings=None, check_opengl=False,
     if check_opengl:
         try:
             from PyQt5.QtWidgets import QOpenGLWidget  # noqa
+            logger.info('opengl supported')
         except ImportError as e:
             logger.warning(str(e) + ' - opengl not supported')
-        else:
-            logger.info('opengl supported')
         finally:
             sys.exit()
 
