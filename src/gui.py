@@ -74,6 +74,9 @@ class ChannelView(SignalDispatcherWidget):
         '''
         Visual representation of a Channel instance.
 
+        This is a per-channel container. It contains the trace-view,
+        spectrogram-view and the sepctrum-view of a single channel.
+
         :param channel: pytch.data.Channel instance
         '''
         SignalDispatcherWidget.__init__(self, *args, **kwargs)
@@ -273,9 +276,7 @@ class ProductView(SignalDispatcherWidget):
 
 
 class ChannelViews(qw.QWidget):
-    '''
-    Display all ChannelView objects in a QVBoxLayout
-    '''
+    '''Creates and contains the channel widgets.'''
     def __init__(self, channels):
         qw.QWidget.__init__(self)
         self.views = []
@@ -930,8 +931,9 @@ class MainWidget(qw.QWidget):
             self.menu.connect_to_confidence_threshold(cv)
         self.signal_widgets_draw.connect(self.channel_views_widget.on_draw)
 
-        self.top_layout.addWidget(self.channel_views_widget, 1, 0, 1, 2)
+        self.top_layout.addWidget(self.channel_views_widget, 1, 1, 1, 1)
 
+        # self.top_layout.addWidget(self.channel_mixer, 1, 0, 1, 1)
         self.keyboard = KeyBoard(self)
         self.keyboard.setVisible(False)
         self.keyboard.connect_channel_views(self.channel_views_widget)
@@ -1022,12 +1024,12 @@ class MainWindow(AdjustableMainWindow):
         views_dock_widget = QDockWidget()
         views_dock_widget.setWidget(self.main_widget.tabbed_pitch_widget)
 
-        level_control_dock_widget = QDockWidget()
-        level_control_dock_widget.setWidget(self.main_widget.channel_mixer)
+        channel_mixer_dock_widget = QDockWidget()
+        channel_mixer_dock_widget.setWidget(self.main_widget.channel_mixer)
 
         self.addDockWidget(qc.Qt.LeftDockWidgetArea, controls_dock_widget)
         self.addDockWidget(qc.Qt.RightDockWidgetArea, views_dock_widget)
-        self.addDockWidget(qc.Qt.BottomDockWidgetArea, level_control_dock_widget)
+        self.addDockWidget(qc.Qt.BottomDockWidgetArea, channel_mixer_dock_widget)
 
         if settings.start_maximized:
             self.showMaximized()
