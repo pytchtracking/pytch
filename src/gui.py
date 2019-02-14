@@ -658,6 +658,10 @@ class ProductSpectrogram(Axis):
         if mouse_ev.button() == qc.Qt.RightButton:
             self.menu.exec_(qg.QCursor.pos())
 
+    def __del__(self):
+        self.thread.quit()
+        self.thread.wait()
+
 
 class ProductSpectrum(SpectrumWidget): #GLAxis):
     def __init__(self, channels, *args, **kwargs):

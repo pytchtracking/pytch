@@ -222,3 +222,8 @@ class KeyBoard(qw.QWidget):
             self.right_click_menu.exec_(mouse_ev.pos())
         else:
             super(KeyBoard, self).mousePressEvent(mouse_ev)
+
+    def __del__(self):
+        self.synthy_thread.quit()
+        self.synthy_thread.wait()
+
