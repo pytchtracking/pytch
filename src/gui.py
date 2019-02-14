@@ -680,7 +680,7 @@ class ProductSpectrum(SpectrumWidget): #GLAxis):
         for c in self.channels[1:]:
             ydata *= num.asarray(c.fft.latest_frame_data(3), dtype=num.float)
 
-        self.plotlog(c.freqs, num.mean(ydata, axis=0), ndecimate=2)
+        self.plotlog(self.channels[0].freqs, num.mean(ydata, axis=0), ndecimate=2)
 
 
 class DifferentialPitchWidget(OverView):
