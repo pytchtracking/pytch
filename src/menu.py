@@ -60,7 +60,8 @@ class DeviceMenu(qw.QDialog):
         layout = qw.QVBoxLayout()
         self.setLayout(layout)
 
-        layout.addWidget(qw.QLabel('Select Input Device'))
+        # select input device
+        layout.addWidget(qw.QLabel('Input Device'))
         self.select_input = qw.QComboBox()
         layout.addWidget(self.select_input)
 
@@ -79,22 +80,25 @@ class DeviceMenu(qw.QDialog):
             self.select_input.addItem('%s %s%s' % (
                 idevice, device['name'], extra))
 
-        self.edit_sampling_rate = LineEditWithLabel(
-            'Sampling rate', default=44100)
-
-        self.edit_sampling_rate.edit.setValidator(qg.QDoubleValidator())
+        # select sampling rate
+        layout.addWidget(qw.QLabel('Sampling Rate'))
+        self.edit_sampling_rate = qw.QComboBox()
         layout.addWidget(self.edit_sampling_rate)
+        self.edit_sampling_rate.addItems(['44100', '22050'])
 
+        # select chunksize
+        layout.addWidget(qw.QLabel('Chunksize in Samples'))
+        self.nfft_choice = self.get_nfft_box()
+        layout.addWidget(self.nfft_choice)
+
+        # select number of channels
         self.edit_nchannels = LineEditWithLabel('Number of Channels',
-            default=default_device[1]['maxInputChannels'])
+                                                default=default_device[1]['maxInputChannels'])
 
         self.edit_nchannels.edit.setValidator(qg.QDoubleValidator())
         layout.addWidget(self.edit_nchannels)
 
-        layout.addWidget(qw.QLabel('NFFT'))
-        self.nfft_choice = self.get_nfft_box()
-        layout.addWidget(self.nfft_choice)
-
+        # ok, cancel buttons
         buttons = qw.QDialogButtonBox(
             qw.QDialogButtonBox.Ok | qw.QDialogButtonBox.Cancel)
 
@@ -129,7 +133,7 @@ class DeviceMenu(qw.QDialog):
         recorder = MicrophoneRecorder(
                         chunksize=512,
                         device_no=self.select_input.currentIndex(),
-                        sampling_rate=int(self.edit_sampling_rate.value),
+                        sampling_rate=int(self.edit_sampling_rate.currentText()),
                         fftsize=int(fftsize),
                         nchannels=int(self.edit_nchannels.value))
         self.set_input_callback(recorder)
@@ -231,11 +235,11 @@ class ProcessingMenu(qw.QFrame):
         self.f_standard_mode.currentTextChanged.connect(
             self.on_f_standard_mode_changed)
 
-        layout.addWidget(qw.QLabel('Standard Frequency Mode'), 12, 0)
+        layout.addWidget(qw.QLabel('Reference Frequency Mode'), 12, 0)
         layout.addWidget(self.f_standard_mode, 12, 1)
 
         self.freq_box = FloatQLineEdit(parent=self, default=220)
-        layout.addWidget(qw.QLabel('Standard Frequency [Hz]'), 13, 0)
+        layout.addWidget(qw.QLabel('Reference Frequency [Hz]'), 13, 0)
         layout.addWidget(self.freq_box, 13, 1)
 
         self.pitch_shift_box = FloatQLineEdit(parent=self, default='0.')
