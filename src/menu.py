@@ -8,19 +8,10 @@ import logging
 from .gui_util import FloatQLineEdit, LineEditWithLabel, _colors
 from .util import cent2f
 from .data import get_input_devices, MicrophoneRecorder, is_input_device
+from .config import PytchConfig
 
 
 logger = logging.getLogger('pytch.menu')
-
-
-class DeviceMenuSetting:
-    device_index = None
-    accept = True
-    show_traces = True
-
-    def set_menu(self, m):
-        if isinstance(m, ProcessingMenu):
-            m.box_show_traces.setChecked(self.show_traces)
 
 
 class DeviceMenu(qw.QDialog):
