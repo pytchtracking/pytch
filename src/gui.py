@@ -11,7 +11,7 @@ from .gui_util import make_QPolygonF, _color_names, _colors # noqa
 from .util import consecutive, f2cent, index_gradient_filter, relative_keys
 from .plot import GLAxis, Axis, GaugeWidget, MikadoWidget, FixGrid
 from .keyboard import KeyBoard
-from .menu import DeviceMenu, ProcessingMenu, DeviceMenuSetting
+from .menu import DeviceMenu, ProcessingMenu, PytchConfig
 
 from PyQt5 import QtCore as qc
 from PyQt5 import QtGui as qg
@@ -27,7 +27,7 @@ fmax = 2000.
 colormaps = ['viridis', 'wb', 'bw']
 
 
-class BaseView(qw.QWidget):
+class SignalDispatcherWidget(qw.QWidget):
     def __init__(self, *args, **kwargs):
         qw.QWidget.__init__(self, *args, **kwargs)
 
@@ -68,14 +68,14 @@ class BaseView(qw.QWidget):
         self.product_spectrum_widget.on_draw()
 
 
-class ChannelView(BaseView):
+class ChannelView(SignalDispatcherWidget):
     def __init__(self, channel, color='red', *args, **kwargs):
         '''
         Visual representation of a Channel instance.
 
         :param channel: pytch.data.Channel instance
         '''
-        BaseView.__init__(self, *args, **kwargs)
+        SignalDispatcherWidget.__init__(self, *args, **kwargs)
         self.channel = channel
         self.color = color
 
@@ -233,9 +233,9 @@ class ChannelView(BaseView):
                 break
 
 
-class ProductView(BaseView):
+class ProductView(SignalDispatcherWidget):
     def __init__(self, channels, *args, **kwargs):
-        BaseView.__init__(self, *args, **kwargs)
+        SignalDispatcherWidget.__init__(self, *args, **kwargs)
 
         self.product_spectrum_widget = ProductSpectrum(channels=channels)
         self.product_spectrogram_widget = ProductSpectrogram(channels=channels)
@@ -1029,6 +1029,7 @@ class MainWindow(AdjustableMainWindow):
         ''' react on keyboard keys when they are pressed.'''
         if key_event.text() == 'k':
             self.main_widget.toggle_keyboard()
+
         super().keyPressEvent(key_event)
 
 
@@ -1047,12 +1048,12 @@ def from_command_line(close_after=None, settings=None, check_opengl=False,
     app = qw.QApplication(sys.argv)
 
     if settings is None:
-        settings = DeviceMenuSetting()
+        settings = PytchConfig()
         settings.accept = False
     else:
         # for debugging!
         # settings file to be loaded in future
-        settings = DeviceMenuSetting()
+        settings = PytchConfig()
         settings.accept = True
 
     win = MainWindow(settings=settings)   # noqa
