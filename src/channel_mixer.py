@@ -72,6 +72,8 @@ class LevelMeter(qw.QWidget):
         self.title = qw.QLabel('')
         self.level_bar = LevelBar(enabled=enabled)
         self.toggle_button = qw.QPushButton()
+        self.toggle_button.setCheckable(True)
+        self.toggle_button.setChecked(enabled)
         self.toggle_button.released.connect(self.toggle_enabled)
         self.set_button_text()
 

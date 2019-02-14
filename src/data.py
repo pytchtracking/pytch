@@ -368,13 +368,14 @@ class DataProvider(object):
 class MicrophoneRecorder(DataProvider):
     '''Interfacing PyAudio to record data from sound'''
 
-    def __init__(self, chunksize=512, device_no=None, sampling_rate=None, fftsize=1024,
-                 nchannels=2, selected_channels=[0, 1]):
+    def __init__(self, chunksize=512, device_no=None, sampling_rate=None,
+            fftsize=1024, selected_channels=None):
+
         DataProvider.__init__(self)
 
         self.stream = None
         self.paudio = pyaudio.PyAudio()
-        self.nchannels = nchannels
+        self.nchannels = max(selected_channels) + 1
 
         self.device_no = device_no
         self.sampling_rate = sampling_rate

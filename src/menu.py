@@ -49,6 +49,24 @@ class PytchConfig:
         pass
 
 
+class ChannelSelector(qw.QWidget):
+    def __init__(self, nchannels, channels_enabled):
+        super(ChannelSelector, self).__init__()
+        self.setLayout(qw.QVBoxLayout())
+
+        self.buttons = []
+        for i in range(nchannels):
+            button = qw.QPushButton('Channel %i' % (i + 1))
+            button.setCheckable(True)
+            button.setChecked(i in channels_enabled)
+            self.buttons.append(button)
+            self.layout().addWidget(button)
+
+    def get_selected_channels(self):
+        return [i for i, button in enumerate(self.buttons) if
+                button.isChecked()]
+
+
 class DeviceMenu(qw.QDialog):
     ''' Pop up menu at program start devining basic settings'''
 
@@ -57,10 +75,9 @@ class DeviceMenu(qw.QDialog):
         self.setModal(True)
         self.set_input_callback = set_input_callback
 
-        layout = qw.QVBoxLayout()
+        layout = qw.QGridLayout()
         self.setLayout(layout)
 
-        # select input device
         layout.addWidget(qw.QLabel('Input Device'))
         self.select_input = qw.QComboBox()
         layout.addWidget(self.select_input)
@@ -91,13 +108,12 @@ class DeviceMenu(qw.QDialog):
         self.nfft_choice = self.get_nfft_box()
         layout.addWidget(self.nfft_choice)
 
-        # select number of channels
-        self.max_nchannels = default_device[1]['maxInputChannels']
-        self.edit_nchannels = LineEditWithLabel('Number of Channels',
-                                                default=default_device[1]['maxInputChannels'])
+        # self.edit_nchannels.edit.setValidator(qg.QDoubleValidator())
+        # layout.addWidget(self.edit_nchannels)
 
-        self.edit_nchannels.edit.setValidator(qg.QDoubleValidator())
-        layout.addWidget(self.edit_nchannels)
+        self.channel_selector_scroll = qw.QScrollArea()
+        layout.addWidget(qw.QLabel('Select Channels'), 0, 2, 1, 1)
+        layout.addWidget(self.channel_selector_scroll, 1, 2, 6, 1)
 
         # ok, cancel buttons
         buttons = qw.QDialogButtonBox(
@@ -111,10 +127,17 @@ class DeviceMenu(qw.QDialog):
         buttons.rejected.connect(self.close)
         layout.addWidget(buttons)
 
+
     @qc.pyqtSlot(int)
     def update_channel_info(self, index):
         device = self.devices[index]
-        self.edit_nchannels.edit.setText(str(device['maxInputChannels']))
+        nmax_channels = device['maxInputChannels']
+
+        self.channel_selector = ChannelSelector(
+            nchannels=nmax_channels, channels_enabled=[0, 1])
+
+        self.channel_selector_scroll.setWidget(
+            self.channel_selector)
 
     def get_nfft_box(self):
         ''' Return a qw.QSlider for modifying FFT width'''
@@ -129,14 +152,16 @@ class DeviceMenu(qw.QDialog):
 
     @qc.pyqtSlot()
     def on_ok_clicked(self):
-        logger.debug('using %i outchannels' % int(self.edit_nchannels.value))
+        selected_channels = self.channel_selector.get_selected_channels()
+        logger.debug('selected channels: %s' % selected_channels)
         fftsize = int(self.nfft_choice.currentText())
         recorder = MicrophoneRecorder(
                         chunksize=512,
                         device_no=self.select_input.currentIndex(),
                         sampling_rate=int(self.edit_sampling_rate.currentText()),
                         fftsize=int(fftsize),
-                        nchannels=self.max_nchannels)
+                        selected_channels=selected_channels)
+
         self.set_input_callback(recorder)
         self.hide()
 
