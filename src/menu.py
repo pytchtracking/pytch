@@ -16,15 +16,30 @@ logger = logging.getLogger('pytch.menu')
 
 
 class PytchConfig:
+    config_file_path = os.getenv("HOME") + '/pytch_config.ini'
+
+    if not os.path.isfile(config_file_path):
+        # create config file in home directory with default settings
+        with open(config_file_path, 'w') as out:
+            line1 = '[DEFAULT]'
+            line2 = 'device_index = None'
+            line3 = 'accept = True'
+            line4 = 'show_traces = True'
+            line5 = 'start_maximized = True'
+            out.write('{}\n{}\n{}\n{}\n{}\n'.format(line1, line2, line3, line4, line5))
+
+        print('Created new config file in: ' + config_file_path)
+
+    # parse config file in home directory
     config = configparser.ConfigParser()
-    config.read(os.getenv("HOME") + '/pytch_config.ini')
+    config.read(config_file_path)
 
     device_index = config['DEFAULT']['device_index']
     if device_index == 'None':
         device_index = None
     accept = config['DEFAULT'].getboolean('accept')
     show_traces = config['DEFAULT'].getboolean('show_traces')
-    start_fullscreen = config['DEFAULT'].getboolean('start_fullscreen')
+    start_maximized = config['DEFAULT'].getboolean('start_maximized')
 
     def set_menu(self, m):
         if isinstance(m, ProcessingMenu):
