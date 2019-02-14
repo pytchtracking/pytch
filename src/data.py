@@ -386,7 +386,6 @@ class MicrophoneRecorder(DataProvider):
                 Channel(self.sampling_rate, fftsize=fftsize))
 
         self.channels = [self.channels[i] for i in self.selected_channels]
-        # TODO: is this really selecting the right channels?
 
         self.chunksize = chunksize
 
@@ -480,5 +479,5 @@ class MicrophoneRecorder(DataProvider):
         for frame in frames:
             r = num.reshape(frame, (self.chunksize,
                                     self.nchannels)).T
-            for i, channel in enumerate(self.channels):
+            for channel, i in zip(self.channels, self.selected_channels):
                 channel.append(r[i])
