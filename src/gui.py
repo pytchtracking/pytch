@@ -1003,7 +1003,7 @@ class AdjustableMainWindow(qw.QMainWindow):
         if key_text == 'q':
             self.close()
         elif key_text == 'f':
-            self.showMaximized
+            self.showMaximized()
         super().keyPressEvent(key_event)
 
 
@@ -1028,6 +1028,9 @@ class MainWindow(AdjustableMainWindow):
         self.addDockWidget(qc.Qt.LeftDockWidgetArea, controls_dock_widget)
         self.addDockWidget(qc.Qt.RightDockWidgetArea, views_dock_widget)
         self.addDockWidget(qc.Qt.BottomDockWidgetArea, level_control_dock_widget)
+
+        if settings.start_maximized:
+            self.showMaximized()
 
         self.show()
 
