@@ -4,14 +4,34 @@ from PyQt5 import QtGui as qg
 
 import numpy as num
 import logging
+import configparser
+import os
 
 from .gui_util import FloatQLineEdit, LineEditWithLabel, _colors
 from .util import cent2f
 from .data import get_input_devices, MicrophoneRecorder, is_input_device
-from .config import PytchConfig
 
 
 logger = logging.getLogger('pytch.menu')
+
+
+class PytchConfig:
+    config = configparser.ConfigParser()
+    config.read(os.getenv("HOME") + '/pytch_config.ini')
+
+    device_index = config['DEFAULT']['device_index']
+    if device_index == 'None':
+        device_index = None
+    accept = config['DEFAULT'].getboolean('accept')
+    show_traces = config['DEFAULT'].getboolean('show_traces')
+    start_fullscreen = config['DEFAULT'].getboolean('start_fullscreen')
+
+    def set_menu(self, m):
+        if isinstance(m, ProcessingMenu):
+            m.box_show_traces.setChecked(self.show_traces)
+
+    def dump(self, filename):
+        pass
 
 
 class DeviceMenu(qw.QDialog):
