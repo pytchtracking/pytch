@@ -1006,6 +1006,9 @@ class MainWindow(QMainWindow):
         self.addDockWidget(qc.Qt.LeftDockWidgetArea, controls_dock_widget)
         self.addDockWidget(qc.Qt.RightDockWidgetArea, views_dock_widget)
 
+        if settings.start_fullscreen:
+            self.showMaximized()
+
         self.show()
 
     def sizeHint(self):
