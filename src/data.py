@@ -369,7 +369,7 @@ class MicrophoneRecorder(DataProvider):
     '''Interfacing PyAudio to record data from sound'''
 
     def __init__(self, chunksize=512, device_no=None, sampling_rate=None, fftsize=1024,
-                 nchannels=2, selected_channels=[1, 2]):
+                 nchannels=2, selected_channels=[0, 1]):
         DataProvider.__init__(self)
 
         self.stream = None
@@ -378,13 +378,14 @@ class MicrophoneRecorder(DataProvider):
 
         self.device_no = device_no
         self.sampling_rate = sampling_rate
+        self.selected_channels = selected_channels
 
         self.channels = []
         for i in range(self.nchannels):
             self.channels.append(
                 Channel(self.sampling_rate, fftsize=fftsize))
 
-        self.channels = [self.channels[i] for i in selected_channels]
+        self.channels = [self.channels[i] for i in self.selected_channels]
         # TODO: is this really selecting the right channels?
 
         self.chunksize = chunksize

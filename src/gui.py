@@ -931,7 +931,7 @@ class MainWidget(qw.QWidget):
             self.menu.connect_to_confidence_threshold(cv)
         self.signal_widgets_draw.connect(self.channel_views_widget.on_draw)
 
-        self.top_layout.addWidget(self.channel_views_widget, 1, 1, 1, 1)
+        self.top_layout.addWidget(self.channel_views_widget, 1, 0, 1, 1)
 
         # self.top_layout.addWidget(self.channel_mixer, 1, 0, 1, 1)
         self.keyboard = KeyBoard(self)
