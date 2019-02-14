@@ -1,7 +1,6 @@
 import math
 import numpy as num
 import sys
-
 import PyQt5.QtGui as qg
 import PyQt5.QtCore as qc
 import PyQt5.QtWidgets as qw
@@ -499,4 +498,21 @@ class LineEditWithLabel(qw.QWidget):
     @property
     def value(self):
         return self.edit.text()
+
+
+class AdjustableMainWindow(qw.QMainWindow):
+
+    def sizeHint(self):
+        return qc.QSize(1200, 500)
+
+    @qc.pyqtSlot(qg.QKeyEvent)
+    def keyPressEvent(self, key_event):
+        ''' react on keyboard keys when they are pressed.'''
+        key_text = key_event.text()
+        if key_text == 'q':
+            self.close()
+        elif key_text == 'f':
+            self.showMaximized
+        super().keyPressEvent(key_event)
+
 
