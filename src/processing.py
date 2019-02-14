@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
-
+import PyQt5.QtCore as qc
 import numpy as num
 import logging
 
 logger = logging.getLogger('pytch.processing')
 
 
-class Worker():
+class Worker(qc.QObject):
 
     def __init__(self, channels):
         '''
@@ -14,6 +14,7 @@ class Worker():
 
         :param channels: list of `pytch.data.Channel` instances'''
 
+        super(Worker, self).__init__()
         self.channels = channels
 
     def process(self):

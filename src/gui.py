@@ -927,7 +927,10 @@ class MainWidget(qw.QWidget):
     def reset(self):
         dinput = self.data_input
 
+        self.worker_thread = qc.QThread()
         self.worker = Worker(dinput.channels)
+        self.worker.moveToThread(self.worker_thread)
+        self.worker_thread.start()
 
         self.channel_views_widget = ChannelViews(dinput.channels)
         channel_views = self.channel_views_widget.views[:-1]
@@ -995,6 +998,11 @@ class MainWidget(qw.QWidget):
 
     def toggle_keyboard(self):
         self.keyboard.setVisible(not self.keyboard.isVisible())
+
+
+    def __del__(self):
+        self.worker_thread.quit()
+        self.worker_thread.wait()
 
 
 class AdjustableMainWindow(qw.QMainWindow):
