@@ -12,6 +12,7 @@ from .util import consecutive, f2cent, index_gradient_filter, relative_keys
 from .plot import GLAxis, Axis, GaugeWidget, MikadoWidget, FixGrid
 from .keyboard import KeyBoard
 from .menu import DeviceMenu, ProcessingMenu, PytchConfig
+from .channel_mixer import ChannelMixer
 
 from PyQt5 import QtCore as qc
 from PyQt5 import QtGui as qg
@@ -835,7 +836,7 @@ class RightTabs(qw.QTabWidget):
 
     def sizeHint(self):
         return qc.QSize(300, 200)
-        
+
 
 class MainWidget(qw.QWidget):
     ''' top level widget covering the central widget in the MainWindow.'''
@@ -863,6 +864,8 @@ class MainWidget(qw.QWidget):
 
         self.input_dialog.set_input_callback = self.set_input
         self.data_input = None
+
+        self.channel_mixer = ChannelMixer()
 
         qc.QTimer().singleShot(0, self.set_input_dialog)
 
@@ -963,8 +966,8 @@ class MainWidget(qw.QWidget):
 
     def set_input(self, input):
         self.cleanup()
-
         self.data_input = input
+        self.channel_mixer.set_channels(self.data_input.channels)
         self.data_input.start_new_stream()
         self.make_connections()
 
@@ -1019,8 +1022,12 @@ class MainWindow(AdjustableMainWindow):
         views_dock_widget = QDockWidget()
         views_dock_widget.setWidget(self.main_widget.tabbed_pitch_widget)
 
+        level_control_dock_widget = QDockWidget()
+        level_control_dock_widget.setWidget(self.main_widget.channel_mixer)
+
         self.addDockWidget(qc.Qt.LeftDockWidgetArea, controls_dock_widget)
         self.addDockWidget(qc.Qt.RightDockWidgetArea, views_dock_widget)
+        self.addDockWidget(qc.Qt.BottomDockWidgetArea, level_control_dock_widget)
 
         self.show()
 

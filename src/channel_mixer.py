@@ -2,14 +2,19 @@ import  PyQt5.QtCore as qc
 import  PyQt5.QtGui as qg
 import  PyQt5.QtWidgets as qw
 import sys
-
+import logging
+import numpy as num
 from .gui_util import AdjustableMainWindow
+
+
+logger = logging.getLogger('pytch.level_meter')
 
 class LevelMeter(qw.QWidget):
     '''Level meter for a single channel'''
 
     def __init__(self, channel, update_interval=0.1):
         super(LevelMeter, self).__init__()
+        self.update_interval = update_interval
         layout = qw.QVBoxLayout(self)
 
         self.channel = channel
@@ -24,33 +29,56 @@ class LevelMeter(qw.QWidget):
         layout.addWidget(title)
 
         self.refresh_timer = qc.QTimer()
-        self.refresh_timer.timeout.connect(1000*self.update)
-        self.refresh_timer.start(self.update_interval)
+        self.refresh_timer.timeout.connect(self.update)
+        self.refresh_timer.start(1000*self.update_interval)
+
+    def normalization(self):
+        '''normalization factor i.e. max bit depth'''
+        nbit = 16
+        return 2 ** nbit / 2.
 
     def get_level(self):
-        return num.mean(self.channel.latest_frame(self.update_interval))
+        v = num.mean(num.abs(self.channel.latest_frame(self.update_interval)))
+        v /= self.normalization()
+        logger.debug('new level: %s' % v)
+        return v
 
     def paintEvent(self, event):
         v = self.get_level()
-        logger.debug('new level: %s' % v)
         painter = qg.QPainter(self)
         bar = self.rect()
         padding = 10
-        level = bar.height() - 2*padding - bar.height() * v
         bar.setCoords(
-            bar.left() + padding, bar.bottom() - padding - level,
-            bar.right() - padding, bar.top() + padding,)
+            bar.left() + padding, bar.top() - padding,
+            bar.right() - padding, bar.bottom() + padding,)
+
+        level = bar.height() * v
+        bar.setTop(bar.height() - level)
+
         painter.fillRect(bar, self.bar_color)
         painter.end()
 
 
 class ChannelMixer(qw.QWidget):
 
-    def __init__(self, channels):
+    def __init__(self, channels=None):
         super(ChannelMixer, self).__init__()
-        layout = self.qw.QHBoxLayout()
+        self.setLayout(qw.QHBoxLayout())
+        self.set_channels(channels or [])
+
+    def set_channels(self, channels):
+        layout = self.layout()
         for channel in channels:
+            logger.debug('Adding channel %s to channel mixer' % channel)
             layout.addWidget(LevelMeter(channel=channel))
+
+
+class DummyChannel():
+    def __init__(self, v):
+        self.v = v
+
+    def latest_frame(self, n):
+        return self.v
 
 
 def app_add_widget():
@@ -60,7 +88,10 @@ def app_add_widget():
     '''
 
     app = qw.QApplication(sys.argv)
-    widget = LevelMeter()
+
+    channels = [DummyChannel(0.5 * 2**16), DummyChannel(0.3 * 2**16), DummyChannel(0.)]
+
+    widget = ChannelMixer(channels=channels)
     win = AdjustableMainWindow()
     win.setCentralWidget(widget)
     print(win)
