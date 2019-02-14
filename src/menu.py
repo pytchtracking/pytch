@@ -10,33 +10,38 @@ import os
 from .gui_util import FloatQLineEdit, LineEditWithLabel, _colors
 from .util import cent2f
 from .data import get_input_devices, MicrophoneRecorder, is_input_device
+from .data import get_sampling_rate_options
 
 
 logger = logging.getLogger('pytch.menu')
 
 
 class PytchConfig:
-    config_file_path = os.getenv("HOME") + '/pytch_config.ini'
+    config_file_path = os.path.join(os.getenv("HOME"), '.pytch.config')
+    config = configparser.ConfigParser()
 
     if not os.path.isfile(config_file_path):
         # create config file in home directory with default settings
-        with open(config_file_path, 'w') as out:
-            line1 = '[DEFAULT]'
-            line2 = 'device_index = None'
-            line3 = 'accept = True'
-            line4 = 'show_traces = True'
-            line5 = 'start_maximized = True'
-            out.write('{}\n{}\n{}\n{}\n{}\n'.format(line1, line2, line3, line4, line5))
+        config['DEFAULT'] = {
+            'device_index': 'None',
+            'accept': 'False',
+            'show_traces': 'False',
+            'start_maximized': 'True'}
 
-        print('Created new config file in: ' + config_file_path)
+        with open(config_file_path, 'w') as out:
+            config.write(out)
+
+        logger.info('Created new config file in: %s' % config_file_path)
 
     # parse config file in home directory
-    config = configparser.ConfigParser()
     config.read(config_file_path)
 
-    device_index = config['DEFAULT']['device_index']
+    device_index = config['DEFAULT'].get('device_index')
     if device_index == 'None':
         device_index = None
+    else:
+        device_index = int(device_index)
+
     accept = config['DEFAULT'].getboolean('accept')
     show_traces = config['DEFAULT'].getboolean('show_traces')
     start_maximized = config['DEFAULT'].getboolean('start_maximized')
@@ -44,9 +49,6 @@ class PytchConfig:
     def set_menu(self, m):
         if isinstance(m, ProcessingMenu):
             m.box_show_traces.setChecked(self.show_traces)
-
-    def dump(self, filename):
-        pass
 
 
 class ChannelSelector(qw.QWidget):
@@ -101,21 +103,16 @@ class DeviceMenu(qw.QDialog):
         layout.addWidget(qw.QLabel('Sampling Rate'))
         self.edit_sampling_rate = qw.QComboBox()
         layout.addWidget(self.edit_sampling_rate)
-        self.edit_sampling_rate.addItems(['44100', '22050'])
 
         # select chunksize
         layout.addWidget(qw.QLabel('Chunksize in Samples'))
         self.nfft_choice = self.get_nfft_box()
         layout.addWidget(self.nfft_choice)
 
-        # self.edit_nchannels.edit.setValidator(qg.QDoubleValidator())
-        # layout.addWidget(self.edit_nchannels)
-
         self.channel_selector_scroll = qw.QScrollArea()
         layout.addWidget(qw.QLabel('Select Channels'), 0, 2, 1, 1)
         layout.addWidget(self.channel_selector_scroll, 1, 2, 6, 1)
 
-        # ok, cancel buttons
         buttons = qw.QDialogButtonBox(
             qw.QDialogButtonBox.Ok | qw.QDialogButtonBox.Cancel)
 
@@ -133,20 +130,20 @@ class DeviceMenu(qw.QDialog):
         device = self.devices[index]
         nmax_channels = device['maxInputChannels']
 
+        sampling_rate_options = get_sampling_rate_options()
         self.channel_selector = ChannelSelector(
             nchannels=nmax_channels, channels_enabled=[0, 1])
 
         self.channel_selector_scroll.setWidget(
             self.channel_selector)
 
+        self.edit_sampling_rate.addItems([
+            str(int(v)) for v in sampling_rate_options[device['index']]])
+
     def get_nfft_box(self):
         ''' Return a qw.QSlider for modifying FFT width'''
         b = qw.QComboBox()
-        self.nfft_options = [f*1024 for f in [1, 2, 4, 8, 16]]
-
-        for fft_factor in self.nfft_options:
-            b.addItem('%s' % fft_factor)
-
+        b.addItems([str(f*1024) for f in [1, 2, 4, 8, 16]])
         b.setCurrentIndex(3)
         return b
 
@@ -156,7 +153,7 @@ class DeviceMenu(qw.QDialog):
         logger.debug('selected channels: %s' % selected_channels)
         fftsize = int(self.nfft_choice.currentText())
         recorder = MicrophoneRecorder(
-                        chunksize=512,
+                        chunksize=1024,
                         device_no=self.select_input.currentIndex(),
                         sampling_rate=int(self.edit_sampling_rate.currentText()),
                         fftsize=int(fftsize),
@@ -233,6 +230,12 @@ class ProcessingMenu(qw.QFrame):
 
         layout.addWidget(qw.QLabel('Select Algorithm'), 7, 0)
         self.select_algorithm = qw.QComboBox(self)
+        algorithms = [
+            'default', 'schmitt', 'fcomb', 'mcomb', 'specacf', 'yin',
+            'yinfft', 'yinfast']
+        self.select_algorithm.addItems(algorithms)
+        self.select_algorithm.setCurrentIndex(algorithms.index('yinfft'))
+
         layout.addWidget(self.select_algorithm, 7, 1)
 
         layout.addWidget(qw.QLabel('Traces'), 8, 0)
@@ -255,9 +258,8 @@ class ProcessingMenu(qw.QFrame):
         layout.addWidget(self.box_show_products, 11, 1)
 
         self.f_standard_mode = qw.QComboBox()
-        self.f_standard_mode.addItem('Select')
-        self.f_standard_mode.addItem('Adaptive (High)')
-        self.f_standard_mode.addItem('Adaptive (Low)')
+        self.f_standard_mode.addItems(
+            ['Select', 'Adaptive (High)', 'Adaptive (Low)'])
         self.f_standard_mode.currentTextChanged.connect(
             self.on_f_standard_mode_changed)
 
@@ -274,11 +276,10 @@ class ProcessingMenu(qw.QFrame):
 
         layout.addWidget(qw.QLabel('Spectral type'), 15, 0)
         select_spectral_type = qw.QComboBox(self)
-        layout.addWidget(select_spectral_type, 15, 1)
-        for stype in ['log', 'linear', 'pitch']:
-            select_spectral_type.addItem(stype)
+        select_spectral_type.addItems(['log', 'linear', 'pitch'])
         select_spectral_type.currentTextChanged.connect(
             self.on_spectrum_type_select)
+        layout.addWidget(select_spectral_type, 15, 1)
 
         layout.addItem(qw.QSpacerItem(40, 20), 16, 1, qc.Qt.AlignTop)
 
@@ -295,15 +296,6 @@ class ProcessingMenu(qw.QFrame):
         pal.setColor(qg.QPalette.Background, qg.QColor(*_colors['aluminium1']))
         self.setPalette(pal)
         self.setAutoFillBackground(True)
-
-    def set_algorithms(self, algorithms, default=None):
-        ''' Query device list and set the drop down menu'''
-        self.select_algorithm.clear()
-        for alg in algorithms:
-            self.select_algorithm.addItem('%s' % alg)
-
-        if default:
-            self.select_algorithm.setCurrentIndex(algorithms.index(default))
 
     @qc.pyqtSlot(str)
     def on_f_standard_mode_changed(self, text):

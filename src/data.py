@@ -5,6 +5,8 @@ import numpy as num
 import logging
 import pyaudio
 
+from collections import defaultdict
+from functools import lru_cache
 from scipy.io import wavfile
 from aubio import pitch
 from pytch.kalman import Kalman
@@ -18,9 +20,6 @@ _lock = threading.Lock()
 # see https://github.com/vispy/vispy/pull/928
 
 logger = logging.getLogger('pytch.data')
-
-pitch_algorithms = [
-    'default', 'schmitt', 'fcomb', 'mcomb', 'specacf', 'yin', 'yinfft', 'yinfast']
 
 
 def is_input_device(device):
@@ -41,14 +40,25 @@ def get_input_devices():
     return devices
 
 
-def sampling_rate_options(device_no, audio=None):
-    ''' list of supported sampling rates.'''
-    candidates = [8000., 11.025, 16000., 22050., 32000., 37.800,
+@lru_cache(maxsize=128)
+def get_sampling_rate_options(audio=None):
+    ''' dictionary of supported sampling rates for all devices.'''
+
+    if not audio:
+        paudio = pyaudio.PyAudio()
+    else:
+        paudio = audio
+
+    candidates = [8000., 11025., 16000., 22050., 32000., 37800.,
                   44100., 48000.]
-    supported_sampling_rates = []
-    for c in candidates:
-        if check_sampling_rate(device_no, int(c), audio=audio):
-            supported_sampling_rates.append(c)
+    supported_sampling_rates = defaultdict(list)
+    for device_no in range(paudio.get_device_count()):
+        for c in candidates:
+            if check_sampling_rate(device_no, int(c), audio=paudio):
+                supported_sampling_rates[device_no].append(c)
+
+    if not audio:
+        paudio.terminate()
 
     return supported_sampling_rates
 
@@ -56,7 +66,7 @@ def sampling_rate_options(device_no, audio=None):
 def check_sampling_rate(device_index, sampling_rate, audio=None):
     p = audio or pyaudio.PyAudio()
     devinfo = p.get_device_info_by_index(device_index)
-    valid = False
+    valid = True
     try:
         p.is_format_supported(
             sampling_rate,
@@ -348,6 +358,8 @@ class Channel(RingBuffer):
             self.pitch_o = None
         tolerance = 0.8
         win_s = self.fftsize
+
+        # TODO check parameters
         self.pitch_o = pitch(self.pitch_algorithm,
           win_s, win_s, self.sampling_rate)
         self.pitch_o.set_unit("Hz")

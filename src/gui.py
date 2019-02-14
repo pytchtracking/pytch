@@ -5,7 +5,6 @@ import os
 
 from pytch.processing import Worker
 
-from .data import pitch_algorithms
 from .gui_util import add_action_group
 from .gui_util import make_QPolygonF, _color_names, _colors # noqa
 from .util import consecutive, f2cent, index_gradient_filter, relative_keys
@@ -886,7 +885,6 @@ class MainWidget(qw.QWidget):
         menu.play_button.clicked.connect(self.data_input.start)
         menu.play_button.clicked.connect(self.refresh_timer.start)
 
-        menu.set_algorithms(pitch_algorithms, default='yinfast')
         menu.select_algorithm.currentTextChanged.connect(
             self.on_algorithm_select)
 
@@ -927,10 +925,7 @@ class MainWidget(qw.QWidget):
     def reset(self):
         dinput = self.data_input
 
-        self.worker_thread = qc.QThread()
         self.worker = Worker(dinput.channels)
-        self.worker.moveToThread(self.worker_thread)
-        self.worker_thread.start()
 
         self.channel_views_widget = ChannelViews(dinput.channels)
         channel_views = self.channel_views_widget.views[:-1]
@@ -998,11 +993,6 @@ class MainWidget(qw.QWidget):
 
     def toggle_keyboard(self):
         self.keyboard.setVisible(not self.keyboard.isVisible())
-
-
-    def __del__(self):
-        self.worker_thread.quit()
-        self.worker_thread.wait()
 
 
 class AdjustableMainWindow(qw.QMainWindow):
