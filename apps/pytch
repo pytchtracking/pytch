@@ -13,11 +13,6 @@ if __name__=='__main__':
         action='store_true',
         help='Set logging level.')
 
-    parser.add_argument('--settings', required=False,
-                        metavar='fn',
-                        default=None,
-                        help='load default settings file named fn')
-
     parser.add_argument('--check-opengl', required=False,
                         dest='check_opengl',
                         default=False,
@@ -48,6 +43,5 @@ if __name__=='__main__':
     logger.info('starting pytch')
 
     from_command_line(args.close_after,
-                      args.settings,
                       args.check_opengl,
                       args.use_opengl)

@@ -10,8 +10,9 @@ from .gui_util import make_QPolygonF, _color_names, _colors # noqa
 from .util import consecutive, f2cent, index_gradient_filter, relative_keys
 from .plot import GLAxis, Axis, GaugeWidget, MikadoWidget, FixGrid
 from .keyboard import KeyBoard
-from .menu import DeviceMenu, ProcessingMenu, PytchConfig
+from .menu import DeviceMenu, ProcessingMenu
 from .channel_mixer import ChannelMixer
+from .config import get_config
 
 from PyQt5 import QtCore as qc
 from PyQt5 import QtGui as qg
@@ -843,11 +844,11 @@ class RightTabs(qw.QTabWidget):
 
 
 class MainWidget(qw.QWidget):
-    ''' top level widget covering the central widget in the MainWindow.'''
+    ''' top level widget (central widget in the MainWindow.'''
     signal_widgets_clear = qc.pyqtSignal()
     signal_widgets_draw = qc.pyqtSignal()
 
-    def __init__(self, settings, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         qw.QWidget.__init__(self, *args, **kwargs)
         self.tabbed_pitch_widget = RightTabs(parent=self)
 
@@ -862,9 +863,8 @@ class MainWidget(qw.QWidget):
 
         self.refresh_timer = qc.QTimer()
         self.refresh_timer.timeout.connect(self.refresh_widgets)
-        self.menu = ProcessingMenu(settings)
-        self.input_dialog = DeviceMenu.from_device_menu_settings(
-            settings, accept=settings.accept, parent=self)
+        self.menu = ProcessingMenu()
+        self.input_dialog = DeviceMenu()
 
         self.input_dialog.set_input_callback = self.set_input
         self.data_input = None
@@ -1013,9 +1013,9 @@ class AdjustableMainWindow(qw.QMainWindow):
 
 class MainWindow(AdjustableMainWindow):
     ''' Top level Window. The entry point of the gui.'''
-    def __init__(self, settings, *args, **kwargs):
-        super(MainWindow, self).__init__(*args, **kwargs)
-        self.main_widget = MainWidget(settings, )
+    def __init__(self):
+        super(MainWindow, self).__init__()
+        self.main_widget = MainWidget()
         self.main_widget.setFocusPolicy(qc.Qt.StrongFocus)
 
         self.setCentralWidget(self.main_widget)
@@ -1033,7 +1033,8 @@ class MainWindow(AdjustableMainWindow):
         self.addDockWidget(qc.Qt.RightDockWidgetArea, views_dock_widget)
         self.addDockWidget(qc.Qt.BottomDockWidgetArea, channel_mixer_dock_widget)
 
-        if settings.start_maximized:
+        config = get_config()
+        if config.start_maximized:
             self.showMaximized()
 
         self.show()
@@ -1047,8 +1048,8 @@ class MainWindow(AdjustableMainWindow):
         super().keyPressEvent(key_event)
 
 
-def from_command_line(close_after=None, settings=None, check_opengl=False,
-                      disable_opengl=False):
+def from_command_line(close_after=None, check_opengl=False,
+        disable_opengl=False):
     ''' Start the GUI from command line'''
     if check_opengl:
         try:
@@ -1061,16 +1062,7 @@ def from_command_line(close_after=None, settings=None, check_opengl=False,
 
     app = qw.QApplication(sys.argv)
 
-    if settings is None:
-        settings = PytchConfig()
-        settings.accept = False
-    else:
-        # for debugging!
-        # settings file to be loaded in future
-        settings = PytchConfig()
-        settings.accept = True
-
-    win = MainWindow(settings=settings)   # noqa
+    win = MainWindow()
     if close_after:
         close_timer = qc.QTimer()
         close_timer.timeout.connect(app.quit)

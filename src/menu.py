@@ -4,51 +4,16 @@ from PyQt5 import QtGui as qg
 
 import numpy as num
 import logging
-import configparser
 import os
 
 from .gui_util import FloatQLineEdit, LineEditWithLabel, _colors
 from .util import cent2f
 from .data import get_input_devices, MicrophoneRecorder, is_input_device
 from .data import get_sampling_rate_options
+from .config import get_config
 
 
 logger = logging.getLogger('pytch.menu')
-
-
-class PytchConfig:
-    config_file_path = os.path.join(os.getenv("HOME"), '.pytch.config')
-    config = configparser.ConfigParser()
-
-    if not os.path.isfile(config_file_path):
-        # create config file in home directory with default settings
-        config['DEFAULT'] = {
-            'device_index': 'None',
-            'accept': 'False',
-            'show_traces': 'False',
-            'start_maximized': 'True'}
-
-        with open(config_file_path, 'w') as out:
-            config.write(out)
-
-        logger.info('Created new config file in: %s' % config_file_path)
-
-    # parse config file in home directory
-    config.read(config_file_path)
-
-    device_index = config['DEFAULT'].get('device_index')
-    if device_index == 'None':
-        device_index = None
-    else:
-        device_index = int(device_index)
-
-    accept = config['DEFAULT'].getboolean('accept')
-    show_traces = config['DEFAULT'].getboolean('show_traces')
-    start_maximized = config['DEFAULT'].getboolean('start_maximized')
-
-    def set_menu(self, m):
-        if isinstance(m, ProcessingMenu):
-            m.box_show_traces.setChecked(self.show_traces)
 
 
 class ChannelSelector(qw.QWidget):
@@ -162,32 +127,16 @@ class DeviceMenu(qw.QDialog):
         self.set_input_callback(recorder)
         self.hide()
 
-    @classmethod
-    def from_device_menu_settings(cls, settings, parent, accept=False):
-        '''
-        :param setting: instance of :py:class:`DeviceMenuSetting`
-        :param parent: parent of instance
-        :param ok: accept setting
-        '''
-        logger.debug('Loading settings: %s' % settings)
-        menu = cls(parent=parent)
-
-        if settings.device_index is not None:
-            menu.select_input.setCurrentIndex(settings.device_index)
-
-        if accept:
-            qc.QTimer().singleShot(10, menu.on_ok_clicked)
-
-        return menu
-
 
 class ProcessingMenu(qw.QFrame):
 
     spectrum_type_selected = qc.pyqtSignal(str)
 
     ''' Contains all widget of left-side panel menu'''
-    def __init__(self, settings=None, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         qw.QFrame.__init__(self, *args, **kwargs)
+
+        config = get_config()
         layout = qw.QGridLayout()
         self.setLayout(layout)
 
@@ -234,13 +183,13 @@ class ProcessingMenu(qw.QFrame):
             'default', 'schmitt', 'fcomb', 'mcomb', 'specacf', 'yin',
             'yinfft', 'yinfast']
         self.select_algorithm.addItems(algorithms)
-        self.select_algorithm.setCurrentIndex(algorithms.index('yinfft'))
+        self.select_algorithm.setCurrentIndex(algorithms.index('yinfast'))
 
         layout.addWidget(self.select_algorithm, 7, 1)
 
         layout.addWidget(qw.QLabel('Traces'), 8, 0)
         self.box_show_traces = qw.QCheckBox()
-        self.box_show_traces.setChecked(True)
+        self.box_show_traces.setChecked(config.show_traces)
         layout.addWidget(self.box_show_traces, 8, 1)
 
         layout.addWidget(qw.QLabel('Spectra'), 9, 0)
@@ -289,7 +238,6 @@ class ProcessingMenu(qw.QFrame):
         self.setFrameShape(qw.QFrame.Box)
         self.setSizePolicy(qw.QSizePolicy.Minimum, qw.QSizePolicy.Minimum)
         self.setup_palette()
-        settings.set_menu(self)
 
     def setup_palette(self):
         pal = self.palette()
