@@ -869,7 +869,7 @@ class MainWidget(qw.QWidget):
         self.input_dialog.set_input_callback = self.set_input
         self.data_input = None
 
-        self.channel_mixer = ChannelMixer()
+        # self.channel_mixer = ChannelMixer()
 
         qc.QTimer().singleShot(0, self.set_input_dialog)
 
@@ -971,7 +971,7 @@ class MainWidget(qw.QWidget):
     def set_input(self, input):
         self.cleanup()
         self.data_input = input
-        self.channel_mixer.set_channels(self.data_input.channels)
+        # self.channel_mixer.set_channels(self.data_input.channels)
         self.data_input.start_new_stream()
         self.make_connections()
 
@@ -1026,12 +1026,12 @@ class MainWindow(AdjustableMainWindow):
         views_dock_widget = QDockWidget()
         views_dock_widget.setWidget(self.main_widget.tabbed_pitch_widget)
 
-        channel_mixer_dock_widget = QDockWidget()
-        channel_mixer_dock_widget.setWidget(self.main_widget.channel_mixer)
+        # channel_mixer_dock_widget = QDockWidget()
+        # channel_mixer_dock_widget.setWidget(self.main_widget.channel_mixer)
 
         self.addDockWidget(qc.Qt.LeftDockWidgetArea, controls_dock_widget)
         self.addDockWidget(qc.Qt.RightDockWidgetArea, views_dock_widget)
-        self.addDockWidget(qc.Qt.BottomDockWidgetArea, channel_mixer_dock_widget)
+        # self.addDockWidget(qc.Qt.BottomDockWidgetArea, channel_mixer_dock_widget)
 
         config = get_config()
         if config.start_maximized:
