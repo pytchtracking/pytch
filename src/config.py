@@ -1,7 +1,9 @@
 import configparser
 import os
+import logging
 
 
+logger = logging.getLogger('pytch.config')
 '''
 Dump a settings file to the user's home directory
 
@@ -12,15 +14,18 @@ to use a different section make sure to adopt the PytchConfig class.
 class PytchConfig():
 
     def __init__(self):
-        config = load_config()
+        self.config = load_config()
 
-        self.show_traces = config['DEFAULT'].getboolean('show_traces')
-        self.start_maximized = config['DEFAULT'].getboolean('start_maximized')
-        device_index = config['DEFAULT'].get('device_index')
-        if device_index == 'None':
+        self.show_traces = self.config['DEFAULT'].getboolean('show_traces')
+
+        self.start_maximized = self.config['DEFAULT'].getboolean('start_maximized')
+        self.accept = self.config['DEFAULT'].getboolean('accept')
+
+        self.device_index = self.config['DEFAULT'].get('device_index')
+        try:
+            self.device_index = int(self.device_index)
+        except ValueError:
             self.device_index = None
-        else:
-            device_index = int(device_index)
 
 
 def load_config():
@@ -33,10 +38,11 @@ def load_config():
     if not os.path.isfile(config_file_path):
         # create config file in home directory with default settings
         config['DEFAULT'] = {
+            'show_traces': False,
+            'start_maximized': False,
+            'accept': False,
             'device_index': 'None',
-            'show_traces': 'False',
-            'start_maximized': 'True'}
-
+            }
         with open(config_file_path, 'w') as out:
             config.write(out)
 
@@ -44,7 +50,6 @@ def load_config():
 
     # parse config file in home directory
     config.read(config_file_path)
-
     return config
 
 

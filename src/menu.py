@@ -88,7 +88,9 @@ class DeviceMenu(qw.QDialog):
         buttons.accepted.connect(self.on_ok_clicked)
         buttons.rejected.connect(self.close)
         layout.addWidget(buttons)
-
+        c = get_config()
+        if get_config().accept:
+            self.on_ok_clicked()
 
     @qc.pyqtSlot(int)
     def update_channel_info(self, index):
@@ -136,7 +138,6 @@ class ProcessingMenu(qw.QFrame):
     def __init__(self, *args, **kwargs):
         qw.QFrame.__init__(self, *args, **kwargs)
 
-        config = get_config()
         layout = qw.QGridLayout()
         self.setLayout(layout)
 
@@ -189,7 +190,7 @@ class ProcessingMenu(qw.QFrame):
 
         layout.addWidget(qw.QLabel('Traces'), 8, 0)
         self.box_show_traces = qw.QCheckBox()
-        self.box_show_traces.setChecked(config.show_traces)
+        self.box_show_traces.setChecked(get_config().show_traces)
         layout.addWidget(self.box_show_traces, 8, 1)
 
         layout.addWidget(qw.QLabel('Spectra'), 9, 0)
