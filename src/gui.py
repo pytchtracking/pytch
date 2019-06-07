@@ -949,6 +949,9 @@ class MainWidget(qw.QWidget):
         pitch_diff_view = PitchLevelDifferenceViews(channel_views)
         # self.pitch_diff_view_colorized = PitchLevelMikadoViews(channel_views)
 
+        # remove old tabs from pitch view
+        self.tabbed_pitch_widget.clear()
+
         self.tabbed_pitch_widget.addTab(pitch_view, 'Pitches')
         self.tabbed_pitch_widget.addTab(pitch_view_all_diff, 'Differential')
         self.tabbed_pitch_widget.addTab(pitch_diff_view, 'Current')
