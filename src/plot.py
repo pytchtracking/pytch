@@ -863,6 +863,9 @@ def MakeAxis(gl=True):
             if isinstance(action, qw.QWidgetAction):
                 return
 
+            if action_text == 'Save pitches':
+                return
+
             if action_text == 'Minor ticks':
                 self.want_minor_grid = action.isChecked()
             else:
