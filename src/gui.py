@@ -140,7 +140,7 @@ class ChannelView(SignalDispatcherWidget):
         self.spectrogram_refresh_timer = qc.QTimer()
         self.spectrogram_refresh_timer.timeout.connect(
             self.spectrogram_widget.update_spectrogram)
-        self.spectrogram_refresh_timer.start(120)
+        self.spectrogram_refresh_timer.start(300)
 
     @qc.pyqtSlot(float)
     def on_keyboard_key_pressed(self, f):
@@ -176,7 +176,7 @@ class ChannelView(SignalDispatcherWidget):
         self.channel_views_widget.
         '''
         self.confidence_threshold = threshold/10.
-        logger.debug('update confidence threshold: %i' % 
+        logger.debug('update confidence threshold: %i' %
             self.confidence_threshold)
 
     @qc.pyqtSlot(float)
@@ -195,6 +195,15 @@ class ChannelView(SignalDispatcherWidget):
 
     def show_spectrogram_widget(self, show=True):
         self.spectrogram_widget.setVisible(show)
+
+    def rotate_spectrogram_widget(self, rotate=True):
+        layout = self.layout()
+        layout.removeWidget(self.spectrogram_widget)
+        if rotate:
+            self.spectrogram_widget = SpectrogramWidgetRotated(channel=self.channel)
+        else:
+            self.spectrogram_widget = SpectrogramWidget(channel=self.channel)
+        layout.addWidget(self.spectrogram_widget)
 
     @qc.pyqtSlot(qg.QMouseEvent)
     def mousePressEvent(self, mouse_ev):
@@ -261,6 +270,9 @@ class ProductView(SignalDispatcherWidget):
     def show_spectrogram_widget(self, show):
         self.product_spectrogram_widget.setVisible(show)
 
+    def rotate_spectrogram_widget(self, rotate=True):
+        pass # TODO
+
     def show_trace_widget(self, show):
         self.dummy.setVisible(show)
 
@@ -311,6 +323,10 @@ class ChannelViews(qw.QWidget):
         for view in self.views:
             view.show_spectrogram_widget(show)
 
+    def rotate_spectrogram_widgets(self, rotate):
+        for view in self.views:
+            view.rotate_spectrogram_widget(rotate)
+
     def show_product_widgets(self, show):
         self.views[-1].setVisible(show)
 
@@ -344,6 +360,47 @@ class ChannelViews(qw.QWidget):
 class SpectrogramWidget(Axis):
     def __init__(self, channel, *args, **kwargs):
         Axis.__init__(self, *args, **kwargs)
+        self.ny, self.nx = 100, 300
+        self.channel = channel
+        fake = num.ones((self.nx, self.ny))
+        self.image = self.colormesh(z=fake)
+        self.xticks = False
+
+        self.right_click_menu = QMenu('RC', self)
+        self.color_choices = add_action_group(
+            colormaps, self.right_click_menu, self.on_color_select)
+
+    @qc.pyqtSlot()
+    def update_spectrogram(self):
+        c = self.channel
+
+        try:
+            y = c.freqs[: self.nx]
+            x = c.xdata[-self.ny:]
+            d = c.fft.latest_frame_data(self.ny)
+            self.image.set_data(num.flipud(d[:, :self.nx].transpose()))
+            self.update_datalims(x, y)
+        except ValueError as e:
+            logger.debug(e)
+            return
+
+        self.update()
+
+    @qc.pyqtSlot()
+    def on_color_select(self):
+        for c in self.color_choices:
+            if c.isChecked():
+                self.image.set_colortable(c.text())
+                break
+
+    @qc.pyqtSlot(qg.QMouseEvent)
+    def mousePressEvent(self, mouse_ev):
+        if mouse_ev.button() == qc.Qt.RightButton:
+            self.right_click_menu.exec_(qg.QCursor.pos())
+
+class SpectrogramWidgetRotated(SpectrogramWidget):
+    def __init__(self, channel, *args, **kwargs):
+        Axis.__init__(self, *args, **kwargs)
         self.ny, self.nx = 300, 100
         self.channel = channel
         fake = num.ones((self.nx, self.ny))
@@ -369,19 +426,6 @@ class SpectrogramWidget(Axis):
             return
 
         self.update()
-
-    @qc.pyqtSlot()
-    def on_color_select(self):
-        for c in self.color_choices:
-            if c.isChecked():
-                self.image.set_colortable(c.text())
-                break
-
-    @qc.pyqtSlot(qg.QMouseEvent)
-    def mousePressEvent(self, mouse_ev):
-        if mouse_ev.button() == qc.Qt.RightButton:
-            self.right_click_menu.exec_(qg.QCursor.pos())
-
 
 class SpectrumWidget(GLAxis):
     def __init__(self, *args, **kwargs):
