@@ -407,6 +407,7 @@ class SpectrogramWidgetRotated(SpectrogramWidget):
         fake = num.ones((self.nx, self.ny))
         self.image = self.colormesh(z=fake)
         self.yticks = False
+        self.xtick_formatter = '%i'
 
         self.right_click_menu = QMenu('RC', self)
         self.color_choices = add_action_group(
@@ -621,8 +622,19 @@ class ImageWorker(qc.QObject):
 
     @qc.pyqtSlot()
     def process(self):
+        z = num.asarray(self.channels[0].fft.latest_frame_data(self.ny), dtype=num.float)
+        for c in self.channels:
+            z *= num.asarray(c.fft.latest_frame_data(self.ny), dtype=num.float)
+
+        self.x = c.xdata[-self.ny:]
+        self.y = c.freqs[: self.nx]
+        self.data = num.ma.log(num.flipud(z[:, :self.nx].transpose()))**self.scaling
+        self.processingFinished.emit()
+
+
+class ImageWorkerRotated(ImageWorker):
+    def process(self):
         z = num.asarray(self.channels[0].fft.latest_frame_data(self.nx), dtype=num.float)
-        nchannels = len(self.channels)
         for c in self.channels:
             z *= num.asarray(c.fft.latest_frame_data(self.nx), dtype=num.float)
 
@@ -632,27 +644,20 @@ class ImageWorker(qc.QObject):
         self.processingFinished.emit()
 
 
-class ProductSpectrogram(Axis):
+class ProductSpectrogram(SpectrogramWidget):
 
     scalingChanged = qc.pyqtSignal(float)
 
     def __init__(self, channels, *args, **kwargs):
-        Axis.__init__(self, *args, **kwargs)
-        self.ny, self.nx = 300, 100
+        SpectrogramWidget.__init__(self, None, *args, **kwargs)
+
         self.channels = channels
-        fake = num.ones((self.nx, self.ny))
-        self.image = self.colormesh(z=fake)
-        self.xtick_formatter = '%i'
-        self.yticks = False
         self.setContentsMargins(-10, -10, -10, -10)
 
+        self.init_gain_slider()
+        self.init_image_worker(False)
 
-        menu = QMenu('RC', self)
-        color_action_group = QActionGroup(menu)
-        color_action_group.setExclusive(True)
-        self.color_choices = add_action_group(
-            colormaps, menu, self.on_color_select)
-
+    def init_gain_slider(self):
         slider = qw.QSlider()
         slider.valueChanged.connect(self.on_scaling_changed)
         slider.setOrientation(qc.Qt.Horizontal)
@@ -660,20 +665,23 @@ class ProductSpectrogram(Axis):
         slider.setMaximum(55)
         slider.setPageStep(1)
         slider.setSliderPosition(40)
-        widget_slider = qw.QWidgetAction(menu)
+        widget_slider = qw.QWidgetAction(self.right_click_menu)
         widget_slider.setDefaultWidget(slider)
-        menu.addSeparator()
-        menu.addAction('gain:')
-        menu.addAction(widget_slider)
-        menu.addSeparator()
+        self.right_click_menu.addSeparator()
+        self.right_click_menu.addAction('gain:')
+        self.right_click_menu.addAction(widget_slider)
+        self.right_click_menu.addSeparator()
 
+    def init_image_worker(self, rotate=False):
         self.thread = qc.QThread()
-        self.image_worker = ImageWorker(channels, self.nx, self.ny)
+        if rotate:
+            self.image_worker = ImageWorkerRotated(self.channels, self.nx, self.ny)
+        else:
+            self.image_worker = ImageWorker(self.channels, self.nx, self.ny)
         self.image_worker.moveToThread(self.thread)
         self.image_worker.processingFinished.connect(self.update_spectrogram)
         self.image_worker.start.emit('Start Thread')
         self.scalingChanged.connect(self.image_worker.on_scaling_changed)
-        self.menu = menu
         self.thread.start()
 
     @qc.pyqtSlot()
@@ -701,11 +709,33 @@ class ProductSpectrogram(Axis):
     @qc.pyqtSlot(qg.QMouseEvent)
     def mousePressEvent(self, mouse_ev):
         if mouse_ev.button() == qc.Qt.RightButton:
-            self.menu.exec_(qg.QCursor.pos())
+            self.right_click_menu.exec_(qg.QCursor.pos())
 
     def __del__(self):
         self.thread.quit()
         self.thread.wait()
+
+
+class ProductSpectrogramRotated(ProductSpectrogram):
+    def __init__(self, channels, *args, **kwargs):
+        SpectrogramWidgetRotated.__init__(self, None, *args, **kwargs)
+
+        self.channels = channels
+        self.setContentsMargins(-10, -10, -10, -10)
+
+        self.init_gain_slider()
+        self.init_image_worker(True)
+
+    @qc.pyqtSlot()
+    def update_spectrogram(self):
+        try:
+            self.update_datalims(self.image_worker.x, self.image_worker.y)
+            self.image.set_data(self.image_worker.data)
+        except ValueError as e:
+            pass
+
+        self.image.update()
+        self.update()
 
 
 class ProductSpectrum(SpectrumWidget): #GLAxis):
