@@ -365,6 +365,7 @@ class SpectrogramWidget(Axis):
         fake = num.ones((self.nx, self.ny))
         self.image = self.colormesh(z=fake)
         self.xticks = False
+        self.ytick_formatter = '%i'
 
         self.right_click_menu = QMenu('RC', self)
         self.color_choices = add_action_group(
