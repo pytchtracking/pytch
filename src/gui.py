@@ -198,12 +198,20 @@ class ChannelView(SignalDispatcherWidget):
 
     def rotate_spectrogram_widget(self, rotate=True):
         layout = self.layout()
+        self.spectrogram_refresh_timer.stop()
+        self.spectrogram_refresh_timer.timeout.disconnect(self.spectrogram_widget.update_spectrogram)
+        visible = self.spectrogram_widget.isVisible()
+        self.show_spectrogram_widget(False)
         layout.removeWidget(self.spectrogram_widget)
+        del self.spectrogram_widget
         if rotate:
             self.spectrogram_widget = SpectrogramWidgetRotated(channel=self.channel)
         else:
             self.spectrogram_widget = SpectrogramWidget(channel=self.channel)
         layout.addWidget(self.spectrogram_widget)
+        self.show_spectrogram_widget(visible)
+        self.spectrogram_refresh_timer.timeout.connect(self.spectrogram_widget.update_spectrogram)
+        self.spectrogram_refresh_timer.start(300)
 
     @qc.pyqtSlot(qg.QMouseEvent)
     def mousePressEvent(self, mouse_ev):
