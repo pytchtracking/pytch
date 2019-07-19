@@ -257,6 +257,7 @@ class ProductView(SignalDispatcherWidget):
         self.spectrum_widget = ProductSpectrum(channels=channels)
         self.spectrogram_widget = ProductSpectrogram(channels=channels)
 
+        self.channels = channels
         self.trace_widget = GLAxis()
         self.trace_widget.setContentsMargins(-10, -10, -10, -10)
         self.trace_widget.grids = []
@@ -269,7 +270,18 @@ class ProductView(SignalDispatcherWidget):
         self.confidence_threshold = 1
 
     def rotate_spectrogram_widget(self, rotate=True):
-        pass #TODO
+        layout = self.layout()
+        visible = self.spectrogram_widget.isVisible()
+        self.show_spectrogram_widget(False)
+        layout.removeWidget(self.spectrogram_widget)
+        del self.spectrogram_widget
+        
+        if rotate:
+            self.spectrogram_widget = ProductSpectrogramRotated(channels=self.channels)
+        else:
+            self.spectrogram_widget = ProductSpectrogram(channels=self.channels)
+        layout.addWidget(self.spectrogram_widget)
+        self.show_spectrogram_widget(visible)
 
     @qc.pyqtSlot()
     def on_draw(self):
