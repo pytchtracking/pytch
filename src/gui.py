@@ -2,6 +2,7 @@ import logging
 import sys
 import numpy as num
 import os
+from abc import abstractmethod
 
 from pytch.processing import Worker
 
@@ -36,13 +37,17 @@ class SignalDispatcherWidget(qw.QWidget):
         self.setContentsMargins(-10, -10, -10, -10)
 
     def show_spectrum_widget(self, show):
-        pass
+        self.spectrum_widget.setVisible(show)
 
     def show_spectrogram_widget(self, show):
+        self.spectrogram_widget.setVisible(show)
+
+    @abstractmethod
+    def rotate_spectrogram_widget(self, rotate):
         pass
 
     def show_trace_widget(self, show):
-        pass
+        self.trace_widget.setVisible(show)
 
     @qc.pyqtSlot()
     def on_confidence_threshold_changed(self, *args):
@@ -66,7 +71,7 @@ class SignalDispatcherWidget(qw.QWidget):
 
     @qc.pyqtSlot()
     def on_draw(self):
-        self.product_spectrum_widget.on_draw()
+        self.spectrum_widget.on_draw()
 
 
 class ChannelView(SignalDispatcherWidget):
@@ -94,14 +99,14 @@ class ChannelView(SignalDispatcherWidget):
 
         self.spectrogram_widget = SpectrogramWidget(channel=channel)
 
-        self.spectrum = SpectrumWidget(parent=self)
-        self.plot_spectrum = self.spectrum.plotlog
+        self.spectrum_widget = SpectrumWidget(parent=self)
+        self.plot_spectrum = self.spectrum_widget.plotlog
 
         self.fft_smooth_factor = 4
 
         layout = self.layout()
         layout.addWidget(self.trace_widget)
-        layout.addWidget(self.spectrum)
+        layout.addWidget(self.spectrum_widget)
         layout.addWidget(self.spectrogram_widget)
 
         self.right_click_menu = QMenu('RC', self)
@@ -149,7 +154,7 @@ class ChannelView(SignalDispatcherWidget):
     @qc.pyqtSlot()
     def on_draw(self):
         self.trace_widget.clear()
-        self.spectrum.clear()
+        self.spectrum_widget.clear()
         c = self.channel
         d = c.fft.latest_frame_data(self.fft_smooth_factor)
         self.trace_widget.plot(*c.latest_frame(
@@ -158,15 +163,15 @@ class ChannelView(SignalDispatcherWidget):
             c.freqs, num.mean(d, axis=0), ndecimate=2,
             color=self.color, ignore_nan=True)
 
-        self.spectrum.set_xlim(0, 2000)
+        self.spectrum_widget.set_xlim(0, 2000)
 
         confidence = c.pitch_confidence.latest_frame_data(1)
         if confidence > self.confidence_threshold:
             x = c.undo_pitch_proxy(c.get_latest_pitch())
-            self.spectrum.axvline(x)
+            self.spectrum_widget.axvline(x)
 
         if self.freq_keyboard:
-            self.spectrum.axvline(
+            self.spectrum_widget.axvline(
                 self.freq_keyboard, color='aluminium4', style='dashed',
                 line_width=4)
 
@@ -186,15 +191,6 @@ class ChannelView(SignalDispatcherWidget):
     @qc.pyqtSlot(float)
     def on_pitch_shift_changed(self, shift):
         self.channel.pitch_shift = shift
-
-    def show_trace_widget(self, show=True):
-        self.trace_widget.setVisible(show)
-
-    def show_spectrum_widget(self, show=True):
-        self.spectrum.setVisible(show)
-
-    def show_spectrogram_widget(self, show=True):
-        self.spectrogram_widget.setVisible(show)
 
     def rotate_spectrogram_widget(self, rotate=True):
         layout = self.layout()
@@ -224,21 +220,21 @@ class ChannelView(SignalDispatcherWidget):
         Slot to update the spectrum type
         '''
         if arg == 'log':
-            self.plot_spectrum = self.spectrum.plotlog
-            self.spectrum.set_ylim(0, 20)
-            self.spectrum.set_xlim(0, 2000)
+            self.plot_spectrum = self.spectrum_widget.plotlog
+            self.spectrum_widget.set_ylim(0, 20)
+            self.spectrum_widget.set_xlim(0, 2000)
         elif arg == 'linear':
-            self.plot_spectrum = self.spectrum.plot
-            self.spectrum.set_ylim(0, num.exp(15))
-            self.spectrum.set_xlim(0, 2000)
+            self.plot_spectrum = self.spectrum_widget.plot
+            self.spectrum_widget.set_ylim(0, num.exp(15))
+            self.spectrum_widget.set_xlim(0, 2000)
         elif arg == 'pitch':
             def plot_pitch(*args, **kwargs):
                 f = f2cent(args[0], self.channel.standard_frequency)
-                self.spectrum.plot(f, *args[1:], **kwargs)
+                self.spectrum_widget.plot(f, *args[1:], **kwargs)
 
             self.plot_spectrum = plot_pitch
-            self.spectrum.set_ylim(0, 1500000)
-            self.spectrum.set_xlim(-5000, 5000)
+            self.spectrum_widget.set_ylim(0, 1500000)
+            self.spectrum_widget.set_xlim(-5000, 5000)
 
     def on_fft_smooth_select(self):
         for c in self.smooth_choices:
@@ -258,41 +254,32 @@ class ProductView(SignalDispatcherWidget):
     def __init__(self, channels, *args, **kwargs):
         SignalDispatcherWidget.__init__(self, *args, **kwargs)
 
-        self.product_spectrum_widget = ProductSpectrum(channels=channels)
-        self.product_spectrogram_widget = ProductSpectrogram(channels=channels)
+        self.spectrum_widget = ProductSpectrum(channels=channels)
+        self.spectrogram_widget = ProductSpectrogram(channels=channels)
 
-        self.dummy = GLAxis()
-        self.dummy.setContentsMargins(-10, -10, -10, -10)
-        self.dummy.grids = []
-        self.dummy.xticks = False
-        self.dummy.yticks = False
+        self.trace_widget = GLAxis()
+        self.trace_widget.setContentsMargins(-10, -10, -10, -10)
+        self.trace_widget.grids = []
+        self.trace_widget.xticks = False
+        self.trace_widget.yticks = False
         layout = self.layout()
-        layout.addWidget(self.dummy)
-        layout.addWidget(self.product_spectrum_widget)
-        layout.addWidget(self.product_spectrogram_widget)
+        layout.addWidget(self.trace_widget)
+        layout.addWidget(self.spectrum_widget)
+        layout.addWidget(self.spectrogram_widget)
         self.confidence_threshold = 1
 
-    def show_spectrum_widget(self, show):
-        self.product_spectrum_widget.setVisible(show)
-
-    def show_spectrogram_widget(self, show):
-        self.product_spectrogram_widget.setVisible(show)
-
     def rotate_spectrogram_widget(self, rotate=True):
-        pass # TODO
-
-    def show_trace_widget(self, show):
-        self.dummy.setVisible(show)
+        pass #TODO
 
     @qc.pyqtSlot()
     def on_draw(self):
-        self.product_spectrum_widget.on_draw()
+        self.spectrum_widget.on_draw()
 
     @qc.pyqtSlot(qg.QMouseEvent)
     def mousePressEvent(self, mouse_ev):
         if mouse_ev.button() == qc.Qt.RightButton:
-            self.product_spectrum_widget.setVisible(
-                not self.product_spectrum_widget.isVisible())
+            self.spectrum_widget.setVisible(
+                not self.spectrum_widget.isVisible())
 
 
 class ChannelViews(qw.QWidget):
@@ -733,17 +720,6 @@ class ProductSpectrogramRotated(ProductSpectrogram):
 
         self.init_gain_slider()
         self.init_image_worker(True)
-
-    @qc.pyqtSlot()
-    def update_spectrogram(self):
-        try:
-            self.update_datalims(self.image_worker.x, self.image_worker.y)
-            self.image.set_data(self.image_worker.data)
-        except ValueError as e:
-            pass
-
-        self.image.update()
-        self.update()
 
 
 class ProductSpectrum(SpectrumWidget): #GLAxis):
