@@ -21,6 +21,7 @@ from PyQt5 import QtWidgets as qw
 from PyQt5.QtWidgets import QVBoxLayout
 from PyQt5.QtWidgets import QAction, QPushButton, QDockWidget
 from PyQt5.QtWidgets import QMenu, QActionGroup, QFileDialog
+from PyQt5.QtChart import QChart, QChartView
 
 
 logger = logging.getLogger('pytch.gui')
@@ -436,16 +437,29 @@ class SpectrogramWidgetRotated(SpectrogramWidget):
 
         self.update()
 
-class SpectrumWidget(GLAxis):
-    def __init__(self, *args, **kwargs):
-        GLAxis.__init__(self, *args, **kwargs)
-        self.set_xlim(0, 2000)
-        self.set_ylim(0, 20)
-        self.left = 0.
-        self.yticks = False
-        self.grids = [FixGrid(delta=100., horizontal=False)]
-        self.xtick_formatter = '%i'
-        # TODO: migrate functionanlity from ChannelView
+#class SpectrumWidget(GLAxis):
+#    def __init__(self, *args, **kwargs):
+#        GLAxis.__init__(self, *args, **kwargs)
+#        self.set_xlim(0, 2000)
+#        self.set_ylim(0, 20)
+#        self.left = 0.
+#        self.yticks = False
+#        self.grids = [FixGrid(delta=100., horizontal=False)]
+#        self.xtick_formatter = '%i'
+#        # TODO: migrate functionanlity from ChannelView
+
+class SpectrumWidget(QtCharts.QChartView):
+    def __init__(self, parent):
+        QChartView.__init__(self)
+
+        # Creating QChart
+        self.chart = QtCharts.QChart()
+        self.chart.setAnimationOptions(QtCharts.QChart.AllAnimations)
+
+        # Adding Chart to view
+        self.setChart(self.chart)
+
+        self.setRenderHint(QPainter.Antialiasing)
 
 
 class CheckBoxSelect(qw.QWidget):
