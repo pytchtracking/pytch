@@ -21,7 +21,7 @@ from PyQt5 import QtWidgets as qw
 from PyQt5.QtWidgets import QVBoxLayout
 from PyQt5.QtWidgets import QAction, QPushButton, QDockWidget
 from PyQt5.QtWidgets import QMenu, QActionGroup, QFileDialog
-from PyQt5.QtChart import QChart, QChartView
+from PyQt5.QtChart import QChart, QChartView, QValueAxis, QLineSeries
 
 
 logger = logging.getLogger('pytch.gui')
@@ -101,7 +101,7 @@ class ChannelView(SignalDispatcherWidget):
         self.spectrogram_widget = SpectrogramWidget(channel=channel)
 
         self.spectrum_widget = SpectrumWidget(parent=self)
-        self.plot_spectrum = self.spectrum_widget.plotlog
+#        self.plot_spectrum = self.spectrum_widget.plotlog
 
         self.fft_smooth_factor = 4
 
@@ -155,21 +155,21 @@ class ChannelView(SignalDispatcherWidget):
     @qc.pyqtSlot()
     def on_draw(self):
         self.trace_widget.clear()
-        self.spectrum_widget.clear()
+#        self.spectrum_widget.clear()
         c = self.channel
         d = c.fft.latest_frame_data(self.fft_smooth_factor)
         self.trace_widget.plot(*c.latest_frame(
             tfollow), ndecimate=25, color=self.color, line_width=1)
-        self.plot_spectrum(
-            c.freqs, num.mean(d, axis=0), ndecimate=2,
-            color=self.color, ignore_nan=True)
+#        self.plot_spectrum(
+#            c.freqs, num.mean(d, axis=0), ndecimate=2,
+#            color=self.color, ignore_nan=True)
 
-        self.spectrum_widget.set_xlim(0, 2000)
+#        self.spectrum_widget.set_xlim(0, 2000)
 
         confidence = c.pitch_confidence.latest_frame_data(1)
         if confidence > self.confidence_threshold:
             x = c.undo_pitch_proxy(c.get_latest_pitch())
-            self.spectrum_widget.axvline(x)
+#            self.spectrum_widget.axvline(x)
 
         if self.freq_keyboard:
             self.spectrum_widget.axvline(
@@ -255,7 +255,7 @@ class ProductView(SignalDispatcherWidget):
     def __init__(self, channels, *args, **kwargs):
         SignalDispatcherWidget.__init__(self, *args, **kwargs)
 
-        self.spectrum_widget = ProductSpectrum(channels=channels)
+        self.spectrum_widget = ProductSpectrum(self, channels=channels)
         self.spectrogram_widget = ProductSpectrogram(channels=channels)
 
         self.channels = channels
@@ -448,19 +448,44 @@ class SpectrogramWidgetRotated(SpectrogramWidget):
 #        self.xtick_formatter = '%i'
 #        # TODO: migrate functionanlity from ChannelView
 
-class SpectrumWidget(QtCharts.QChartView):
+class SpectrumWidget(QChartView):
     def __init__(self, parent):
         QChartView.__init__(self)
 
         # Creating QChart
-        self.chart = QtCharts.QChart()
-        self.chart.setAnimationOptions(QtCharts.QChart.AllAnimations)
+        self.chart = QChart()
+        self.chart.setAnimationOptions(QChart.AllAnimations)
 
         # Adding Chart to view
         self.setChart(self.chart)
 
-        self.setRenderHint(QPainter.Antialiasing)
+        # Setting X-axis (frequency)
+        self.axis_x = QValueAxis()
+        self.axis_x.setTickCount(10)
+        self.axis_x.setLabelFormat('%.2f')
+        self.axis_x.setTitleText('Frequency')
+        self.chart.addAxis(self.axis_x, qc.Qt.AlignBottom)
 
+        # Setting Y-axis (gain)
+        self.axis_y = QValueAxis()
+        self.axis_y.setTickCount(10)
+        self.axis_y.setLabelFormat('%.1f')
+        self.axis_y.setTitleText('Gain')
+        self.chart.addAxis(self.axis_y, qc.Qt.AlignLeft)
+
+        self.setRenderHint(qg.QPainter.Antialiasing)
+
+        self.add_series()
+
+    def add_series(self):
+        self.series = QLineSeries()
+
+        for i in range(100):
+            self.series.append(i, i)
+
+        self.chart.addSeries(self.series)
+        self.series.attachAxis(self.axis_x)
+        self.series.attachAxis(self.axis_y)
 
 class CheckBoxSelect(qw.QWidget):
     check_box_toggled = qc.pyqtSignal(int)
@@ -749,8 +774,8 @@ class ProductSpectrogramRotated(ProductSpectrogram):
 
 
 class ProductSpectrum(SpectrumWidget): #GLAxis):
-    def __init__(self, channels, *args, **kwargs):
-        SpectrumWidget.__init__(self, *args, **kwargs)
+    def __init__(self, parent, channels):
+        SpectrumWidget.__init__(self, parent)
         self.channels = channels
         self.grids = [FixGrid(delta=100., horizontal=False)]
         self.xtick_formatter = '%i'
@@ -763,14 +788,14 @@ class ProductSpectrum(SpectrumWidget): #GLAxis):
 
     @qc.pyqtSlot()
     def on_draw(self):
-        self.clear()
+#        self.clear()
         ydata = num.asarray(
             self.channels[0].fft.latest_frame_data(3), dtype=num.float)
 
         for c in self.channels[1:]:
             ydata *= num.asarray(c.fft.latest_frame_data(3), dtype=num.float)
 
-        self.plotlog(self.channels[0].freqs, num.mean(ydata, axis=0), ndecimate=2)
+#        self.plotlog(self.channels[0].freqs, num.mean(ydata, axis=0), ndecimate=2)
 
 
 class DifferentialPitchWidget(OverView):
