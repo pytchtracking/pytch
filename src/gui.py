@@ -165,6 +165,7 @@ class ChannelView(SignalDispatcherWidget):
 #            color=self.color, ignore_nan=True)
 
 #        self.spectrum_widget.set_xlim(0, 2000)
+        self.spectrum_widget.plot_spectrum(c.freqs, num.mean(d, axis=0))
 
         confidence = c.pitch_confidence.latest_frame_data(1)
         if confidence > self.confidence_threshold:
@@ -454,21 +455,19 @@ class SpectrumWidget(QChartView):
 
         # Creating QChart
         self.chart = QChart()
-        self.chart.setAnimationOptions(QChart.AllAnimations)
+        self.chart.setAnimationOptions(QChart.NoAnimation)
 
         # Adding Chart to view
         self.setChart(self.chart)
 
         # Setting X-axis (frequency)
         self.axis_x = QValueAxis()
-        self.axis_x.setTickCount(10)
         self.axis_x.setLabelFormat('%.2f')
         self.axis_x.setTitleText('Frequency')
         self.chart.addAxis(self.axis_x, qc.Qt.AlignBottom)
 
         # Setting Y-axis (gain)
         self.axis_y = QValueAxis()
-        self.axis_y.setTickCount(10)
         self.axis_y.setLabelFormat('%.1f')
         self.axis_y.setTitleText('Gain')
         self.chart.addAxis(self.axis_y, qc.Qt.AlignLeft)
@@ -480,12 +479,19 @@ class SpectrumWidget(QChartView):
     def add_series(self):
         self.series = QLineSeries()
 
-        for i in range(100):
+        for i in range(1000):
             self.series.append(i, i)
 
         self.chart.addSeries(self.series)
         self.series.attachAxis(self.axis_x)
         self.series.attachAxis(self.axis_y)
+
+    def plot_spectrum(self, x_data, y_data):
+        plot_points = qg.QPolygonF()
+        for i, x in enumerate(x_data):
+            plot_points << qc.QPointF(x, y_data[i])
+        self.series.replace(plot_points)
+
 
 class CheckBoxSelect(qw.QWidget):
     check_box_toggled = qc.pyqtSignal(int)
