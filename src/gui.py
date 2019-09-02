@@ -21,7 +21,7 @@ from PyQt5 import QtWidgets as qw
 from PyQt5.QtWidgets import QVBoxLayout
 from PyQt5.QtWidgets import QAction, QPushButton, QDockWidget
 from PyQt5.QtWidgets import QMenu, QActionGroup, QFileDialog
-from PyQt5.QtChart import QChart, QChartView, QValueAxis, QLineSeries
+from PyQt5.QtChart import QChart, QChartView, QValueAxis, QLogValueAxis, QLineSeries
 
 
 logger = logging.getLogger('pytch.gui')
@@ -456,20 +456,24 @@ class SpectrumWidget(QChartView):
         # Creating QChart
         self.chart = QChart()
         self.chart.setAnimationOptions(QChart.NoAnimation)
+        self.chart.legend().hide()
 
         # Adding Chart to view
         self.setChart(self.chart)
 
         # Setting X-axis (frequency)
         self.axis_x = QValueAxis()
-        self.axis_x.setLabelFormat('%.2f')
+        self.axis_x.setLabelFormat('%d')
         self.axis_x.setTitleText('Frequency')
+        self.axis_x.setMax(880)
         self.chart.addAxis(self.axis_x, qc.Qt.AlignBottom)
 
         # Setting Y-axis (gain)
-        self.axis_y = QValueAxis()
-        self.axis_y.setLabelFormat('%.1f')
+        self.axis_y = QLogValueAxis()
         self.axis_y.setTitleText('Gain')
+        self.axis_y.setLabelsVisible(False)
+        self.y_max = 100000
+        self.axis_y.setMax(self.y_max)
         self.chart.addAxis(self.axis_y, qc.Qt.AlignLeft)
 
         self.setRenderHint(qg.QPainter.Antialiasing)
@@ -480,7 +484,7 @@ class SpectrumWidget(QChartView):
         self.series = QLineSeries()
 
         for i in range(1000):
-            self.series.append(i, i)
+            self.series.append(i, 10*i)
 
         self.chart.addSeries(self.series)
         self.series.attachAxis(self.axis_x)
@@ -488,8 +492,14 @@ class SpectrumWidget(QChartView):
 
     def plot_spectrum(self, x_data, y_data):
         plot_points = qg.QPolygonF()
+        y_data[y_data <= 0] = 1
         for i, x in enumerate(x_data):
             plot_points << qc.QPointF(x, y_data[i])
+        data_y_max = num.amax(y_data)
+        if data_y_max > self.y_max:
+            self.y_max = data_y_max
+            print(data_y_max)
+            self.axis_y.setMax(data_y_max)
         self.series.replace(plot_points)
 
 
