@@ -221,22 +221,8 @@ class ChannelView(SignalDispatcherWidget):
         '''
         Slot to update the spectrum type
         '''
-        if arg == 'log':
-            self.plot_spectrum = self.spectrum_widget.plotlog
-            self.spectrum_widget.set_ylim(0, 20)
-            self.spectrum_widget.set_xlim(0, 2000)
-        elif arg == 'linear':
-            self.plot_spectrum = self.spectrum_widget.plot
-            self.spectrum_widget.set_ylim(0, num.exp(15))
-            self.spectrum_widget.set_xlim(0, 2000)
-        elif arg == 'pitch':
-            def plot_pitch(*args, **kwargs):
-                f = f2cent(args[0], self.channel.standard_frequency)
-                self.spectrum_widget.plot(f, *args[1:], **kwargs)
-
-            self.plot_spectrum = plot_pitch
-            self.spectrum_widget.set_ylim(0, 1500000)
-            self.spectrum_widget.set_xlim(-5000, 5000)
+        self.spectrum_widget.set_spectral_type(arg)
+        # TODO: support 'pitch' type
 
     def on_fft_smooth_select(self):
         for c in self.smooth_choices:
@@ -468,27 +454,27 @@ class SpectrumWidget(QChartView):
         self.axis_x.setMax(880)
         self.chart.addAxis(self.axis_x, qc.Qt.AlignBottom)
 
-        # Setting Y-axis (gain)
-        self.axis_y = QLogValueAxis()
-        self.axis_y.setTitleText('Gain')
-        self.axis_y.setLabelsVisible(False)
         self.y_max = 100000
-        self.axis_y.setMax(self.y_max)
-        self.chart.addAxis(self.axis_y, qc.Qt.AlignLeft)
+        self.setup_y_axis('log')
 
         self.setRenderHint(qg.QPainter.Antialiasing)
 
-        self.add_series()
-
-    def add_series(self):
         self.series = QLineSeries()
-
-        for i in range(1000):
-            self.series.append(i, 10*i)
-
         self.chart.addSeries(self.series)
         self.series.attachAxis(self.axis_x)
         self.series.attachAxis(self.axis_y)
+
+    def setup_y_axis(self, type):
+        # Setting Y-axis (gain)
+        self.current_type = type
+        if type == 'log':
+            self.axis_y = QLogValueAxis()
+        elif type == 'linear':
+            self.axis_y = QValueAxis()
+        self.axis_y.setTitleText('Gain')
+        self.axis_y.setLabelsVisible(False)
+        self.axis_y.setMax(self.y_max)
+        self.chart.addAxis(self.axis_y, qc.Qt.AlignLeft)
 
     def plot_spectrum(self, x_data, y_data):
         plot_points = qg.QPolygonF()
@@ -502,6 +488,12 @@ class SpectrumWidget(QChartView):
             self.axis_y.setMax(data_y_max)
         self.series.replace(plot_points)
 
+    def set_spectral_type(self, type):
+        if self.current_type != type:
+            self.series.detachAxis(self.axis_y)
+            self.chart.removeAxis(self.axis_y)
+            self.setup_y_axis(type)
+            self.series.attachAxis(self.axis_y)
 
 class CheckBoxSelect(qw.QWidget):
     check_box_toggled = qc.pyqtSignal(int)
