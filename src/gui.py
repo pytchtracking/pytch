@@ -155,16 +155,15 @@ class ChannelView(SignalDispatcherWidget):
     @qc.pyqtSlot()
     def on_draw(self):
         self.trace_widget.clear()
-#        self.spectrum_widget.clear()
+        
         c = self.channel
-        d = c.fft.latest_frame_data(self.fft_smooth_factor)
+        d = c.fft.latest_frame_data(self.fft_smooth_factor) # get latest frame data
+
+        # draw trace
         self.trace_widget.plot(*c.latest_frame(
             tfollow), ndecimate=25, color=self.color, line_width=1)
-#        self.plot_spectrum(
-#            c.freqs, num.mean(d, axis=0), ndecimate=2,
-#            color=self.color, ignore_nan=True)
-
-#        self.spectrum_widget.set_xlim(0, 2000)
+        
+        # plot spectrum
         self.spectrum_widget.plot_spectrum(c.freqs, num.mean(d, axis=0))
 
         confidence = c.pitch_confidence.latest_frame_data(1)
