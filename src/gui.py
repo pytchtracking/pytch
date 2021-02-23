@@ -407,6 +407,9 @@ class SpectrogramWidget(Axis):
         if mouse_ev.button() == qc.Qt.RightButton:
             self.right_click_menu.exec_(qg.QCursor.pos())
 
+    def __del__(self):
+        print('Spectrogram deleted')
+
 class SpectrogramWidgetRotated(SpectrogramWidget):
     def __init__(self, channel, *args, **kwargs):
         Axis.__init__(self, *args, **kwargs)
