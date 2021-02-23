@@ -487,7 +487,6 @@ class SpectrumWidget(QChartView):
         data_y_max = num.amax(y_data)
         if data_y_max > self.y_max:
             self.y_max = data_y_max
-            print(data_y_max)
             self.axis_y.setMax(data_y_max)
         self.series.replace(plot_points)
 
