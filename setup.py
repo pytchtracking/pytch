@@ -1,6 +1,5 @@
 import sys
 
-
 import os
 import time
 import shutil
@@ -19,41 +18,39 @@ class custom_build_app(build_ext):
         import shutil
         from setuptools import setup
 
-        APP = ['apps/pytch']
+        APP = ["apps/pytch"]
         DATA_FILES = []
         OPTIONS = {
-            'argv_emulation': True,
-            'iconfile': '/home/marius/src/pyrocko/src/data/snuffler.icns',
-            'packages': 'pytch',
-            'excludes': [
-                # 'PyQt4.QtDesigner',
-        ]
+            "argv_emulation": True,
+            "packages": "pytch",
         }
 
         setup(
             app=APP,
             data_files=DATA_FILES,
-            options={'py2app': OPTIONS},
-            setup_requires=['py2app'],
+            options={"py2app": OPTIONS},
+            setup_requires=["py2app"],
         )
 
 
 setup(
-    name='pytch',
-    version='0.1',
-    description='Vocal Trainer',
-    author='Frank Scherbaum and Marius Kriegerowski',
-    package_dir={'pytch': 'src'},
-    packages=['pytch'],
-    scripts=['apps/pytch'],
+    name="pytch",
+    version="0.1",
+    description="Vocal Trainer",
+    author="Frank Scherbaum and Marius Kriegerowski",
+    package_dir={"pytch": "src"},
+    packages=["pytch"],
+    scripts=["apps/pytch"],
+    install_requires=[
+        "cython>=0.29",
+        "numpy>=1.15.4",
+        "scipy>=1.1.0",
+        "PyQt5",
+        "aubio>=0.4.7",
+        "pyaudio",
+    ],
     cmdclass={
-        'py2app': custom_build_app,
+        "py2app": custom_build_app,
     },
-    # ext_modules=[
-    #     Extension('midi_ext',
-    #               extra_compile_args=['-Wextra'],
-    #               sources=[os.path.join('src', 'midi_ext.c')]),
-    # ]
-
+    python_requires=">=3.6",
 )
-
