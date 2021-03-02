@@ -201,6 +201,9 @@ class ProcessingMenu(qw.QFrame):
         layout.addWidget(qw.QLabel('Spectrogram'), 10, 0)
         self.box_show_spectrograms = qw.QCheckBox()
         layout.addWidget(self.box_show_spectrograms, 10, 1)
+        layout.addWidget(qw.QLabel('rotated'), 10, 2)
+        self.box_rotate_spectrograms = qw.QCheckBox()
+        layout.addWidget(self.box_rotate_spectrograms, 10, 3)
 
         layout.addWidget(qw.QLabel('Products'), 11, 0)
         self.box_show_products = qw.QCheckBox()
@@ -291,6 +294,9 @@ class ProcessingMenu(qw.QFrame):
         self.box_show_spectrograms.stateChanged.connect(
             channel_views.show_spectrogram_widgets)
 
+        self.box_rotate_spectrograms.stateChanged.connect(
+            channel_views.rotate_spectrogram_widgets)
+
         self.box_show_products.stateChanged.connect(
             channel_views.show_product_widgets)
 
@@ -311,5 +317,4 @@ class ProcessingMenu(qw.QFrame):
 
     def sizeHint(self):
         return qc.QSize(200, 200)
-
 

@@ -8,6 +8,8 @@ dependencies:
     - numpy=1.15.4
     - python=3.6.7
     - scipy=1.1.0
+    - pip
     - pip:
       - PyQt5
+      - PyQtChart
       - pyaudio

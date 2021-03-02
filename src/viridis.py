@@ -263,3 +263,4 @@ def get_rgb():
         rgbs.append(rgb)
 
     return rgbs
+

@@ -515,4 +515,3 @@ class AdjustableMainWindow(qw.QMainWindow):
             self.showMaximized
         super().keyPressEvent(key_event)
 
-

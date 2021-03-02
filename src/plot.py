@@ -837,19 +837,19 @@ def MakeAxis(gl=True):
         def draw_y_ticks(self, painter):
             w, h = self.wh
             ymin, ymax, yinc = self.yscaler.make_scale((self._ymin, self._ymax))
-            if self.scroll_increment == 0:
-                self.scroll_increment = yinc / 4
+#            if self.scroll_increment == 0:
+#                self.scroll_increment = yinc / 4
 
             _yinc = self._yinc or yinc
-            ticks = num.arange(ymin, ymax, _yinc)
-            ticks_proj = self.yproj(ticks)
-            if self.yticks:
+            if self.yticks:                
+                ticks = num.arange(ymin, ymax, _yinc)
+                ticks_proj = self.yproj(ticks)
                 lines = [qc.QLineF(w * self.left * 0.8, yval, w*self.left, yval)
                      for yval in ticks_proj]
                 painter.drawLines(lines)
                 if self.ylabels:
+                    formatter = self.ytick_formatter
                     for i, yval in enumerate(ticks):
-                        formatter = self.ytick_formatter or '%s'
                         painter.drawText(qc.QPointF(0, ticks_proj[i]), formatter % (yval))
 
         def draw_labels(self, painter):
@@ -951,3 +951,4 @@ class MikadoWidget(Axis):
             painter.drawLine(line)
             painter.restore()
         self.draw_deco(painter)
+

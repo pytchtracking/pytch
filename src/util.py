@@ -128,4 +128,3 @@ def smooth(x,window_len=11,window='hanning'):
     #return num.convolve(w/w.sum(),s,mode='valid')
     return signal.fftconvolve(w/w.sum(),s,mode='valid')
 
-

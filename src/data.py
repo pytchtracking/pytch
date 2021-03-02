@@ -494,3 +494,4 @@ class MicrophoneRecorder(DataProvider):
                                     self.nchannels)).T
             for channel, i in zip(self.channels, self.selected_channels):
                 channel.append(r[i])
+
