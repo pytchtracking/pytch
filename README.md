@@ -38,9 +38,9 @@ cd pytch
 ### Miniconda/Anaconda:
 
 ```
-conda env create -f environment.yml
-source activate pytch
-sudo python setup.py install
+conda create -n pytch python=3.6.7
+conda activate pytch
+python setup.py install
 ```
 
 ###  From source
