@@ -394,7 +394,7 @@ class SpectrogramWidget(Axis):
             self.right_click_menu.exec_(qg.QCursor.pos())
 
     def __del__(self):
-        print('Spectrogram deleted')
+        logger.debug('Spectrogram deleted')
 
 
 class SpectrogramWidgetRotated(SpectrogramWidget):
