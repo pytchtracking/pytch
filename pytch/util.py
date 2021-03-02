@@ -3,42 +3,61 @@ import time
 import numpy as num
 from scipy import signal
 
-logger = logging.getLogger('pytch.util')
+logger = logging.getLogger("pytch.util")
 
-keys = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+keys = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+
 
 def dummy():
     return
 
 
 def f2cent(f, standard_frequency):
-    return 1200. * num.log2((num.maximum(f, 0.) + .1)/standard_frequency)
+    return 1200.0 * num.log2((num.maximum(f, 0.0) + 0.1) / standard_frequency)
 
 
 def cent2f(p, standard_frequency):
-    return num.exp2(p/1200.) * standard_frequency - 0.1
+    return num.exp2(p / 1200.0) * standard_frequency - 0.1
 
 
 relative_keys = dict(
-    zip(list(range(100, 1500, 100)), [
-       '2m', '2M', '3m', '3M', '4', 'TT', '5', '6m', '6M', '7m', '7M', 'P8', '9m', '9M'])
+    zip(
+        list(range(100, 1500, 100)),
+        [
+            "2m",
+            "2M",
+            "3m",
+            "3M",
+            "4",
+            "TT",
+            "5",
+            "6m",
+            "6M",
+            "7m",
+            "7M",
+            "P8",
+            "9m",
+            "9M",
+        ],
+    )
 )
 
 
-class DummySignal():
-    ''' does nothing when emitted'''
+class DummySignal:
+    """ does nothing when emitted"""
+
     def __init__(self):
         pass
 
     def emit(self):
-        logger.debug('DummySignal emitted')
+        logger.debug("DummySignal emitted")
         return
 
     def connect(self, *args, **kwargs):
-        logger.debug('connected to DummySignal')
+        logger.debug("connected to DummySignal")
 
 
-class Profiler():
+class Profiler:
     def __init__(self):
         self.times = []
 
@@ -46,27 +65,28 @@ class Profiler():
         self.times.append((m, time.time()))
 
     def start(self):
-        self.mark('')
+        self.mark("")
 
     def __str__(self):
         tstart = self.times[0][1]
-        s = ''
+        s = ""
         for imark, mark in enumerate(self.times[1:]):
-            s += '%s: %s\n' % (mark[0], mark[1]-self.times[imark][1])
+            s += "%s: %s\n" % (mark[0], mark[1] - self.times[imark][1])
 
-        s += 'total: %s' % (self.times[-1][1]-self.times[0][1])
+        s += "total: %s" % (self.times[-1][1] - self.times[0][1])
         return s
 
+
 def consecutive(arr):
-    return num.split(arr, num.where(num.diff(arr) != 1)[0]+1)
+    return num.split(arr, num.where(num.diff(arr) != 1)[0] + 1)
 
 
 def index_gradient_filter(x, y, max_gradient):
-    ''' Get index where the abs gradient of x, y is < max_gradient.'''
-    return num.where(num.abs(num.diff(y)/num.diff(x)) < max_gradient)[0]
+    """ Get index where the abs gradient of x, y is < max_gradient."""
+    return num.where(num.abs(num.diff(y) / num.diff(x)) < max_gradient)[0]
 
 
-def smooth(x,window_len=11,window='hanning'):
+def smooth(x, window_len=11, window="hanning"):
     """
     from http://scipy-cookbook.readthedocs.io/items/SignalSmooth.html
 
@@ -106,25 +126,23 @@ def smooth(x,window_len=11,window='hanning'):
 
     if x.size < window_len:
         return x
-        #raise ValueError("Input vector needs to be bigger than window size.")
+        # raise ValueError("Input vector needs to be bigger than window size.")
 
-
-    if window_len<3:
+    if window_len < 3:
         return x
 
+    if not window in ["flat", "hanning", "hamming", "bartlett", "blackman"]:
+        raise ValueError(
+            "Window is on of 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'"
+        )
 
-    if not window in ['flat', 'hanning', 'hamming', 'bartlett', 'blackman']:
-        raise ValueError("Window is on of 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'")
-
-
-    s=num.r_[x[window_len-1:0:-1],x,x[-1:-window_len:-1]]
-    #print(len(s))
-    if window == 'flat': #moving average
-        w=num.ones(window_len,'d')
+    s = num.r_[x[window_len - 1 : 0 : -1], x, x[-1:-window_len:-1]]
+    # print(len(s))
+    if window == "flat":  # moving average
+        w = num.ones(window_len, "d")
     else:
-        w=eval('num.'+window+'(window_len)')
+        w = eval("num." + window + "(window_len)")
 
-    #y=num.convolve(w/w.sum(),s,mode='valid')
-    #return num.convolve(w/w.sum(),s,mode='valid')
-    return signal.fftconvolve(w/w.sum(),s,mode='valid')
-
+    # y=num.convolve(w/w.sum(),s,mode='valid')
+    # return num.convolve(w/w.sum(),s,mode='valid')
+    return signal.fftconvolve(w / w.sum(), s, mode="valid")

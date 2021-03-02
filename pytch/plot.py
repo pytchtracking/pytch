@@ -5,14 +5,14 @@ import logging
 
 from pytch.gui_util import PlotBase
 from pytch.gui_util import AutoScaler, Projection, minmax_decimation
-from pytch.gui_util import make_QPolygonF, _colors, _pen_styles    # noqa
+from pytch.gui_util import make_QPolygonF, _colors, _pen_styles  # noqa
 from . import viridis
 
 from PyQt5 import QtCore as qc
 from PyQt5 import QtGui as qg
-from PyQt5 import QtWidgets  as qw
+from PyQt5 import QtWidgets as qw
 
-logger = logging.getLogger('pytch.plot')
+logger = logging.getLogger("pytch.plot")
 
 try:
     from pytch.gui_util_opengl import GLWidget
@@ -20,62 +20,62 @@ except AttributeError as e:
     logger.debug(e)
     GLWidget = qw.QWidget
 
-d2r = num.pi/180.
+d2r = num.pi / 180.0
 logger = logging.getLogger(__name__)
 
 
 def get_colortable(name, log=False):
-    if name == 'viridis':
+    if name == "viridis":
         ctable = [qg.qRgb(*val) for val in viridis.get_rgb()]
-        if log: 
-            raise Exception('Not implemented')
+        if log:
+            raise Exception("Not implemented")
 
-    elif name in ['bw', 'wb']:
+    elif name in ["bw", "wb"]:
         ctable = []
         if log:
-            a = num.exp(num.linspace(num.log(255.), 0., 256))
+            a = num.exp(num.linspace(num.log(255.0), 0.0, 256))
         else:
             a = num.linspace(0, 255, 256)
 
-        if name == 'bw':
+        if name == "bw":
             a = a[::-1]
 
         for i in a.astype(num.int):
             ctable.append(qg.qRgb(i, i, i))
 
-    elif name == 'matrix':
-        for i in range(256): ctable.append(qg.qRgb(i/4,i*2,i/2))
+    elif name == "matrix":
+        for i in range(256):
+            ctable.append(qg.qRgb(i / 4, i * 2, i / 2))
 
     else:
-        raise Exception('No such colortable %s' % name)
+        raise Exception("No such colortable %s" % name)
 
     return ctable
 
 
 class InterpolatedColormap(object):
-    ''' Continuously interpolating colormap '''
-    def __init__(self, name=''):
-        self.name = name
-        self.colors = num.array([
-                _colors['red'], _colors['green'], _colors['blue']
-            ])
+    """ Continuously interpolating colormap """
 
-        self.values = num.linspace(0, 255., len(self.colors))
+    def __init__(self, name=""):
+        self.name = name
+        self.colors = num.array([_colors["red"], _colors["green"], _colors["blue"]])
+
+        self.values = num.linspace(0, 255.0, len(self.colors))
         self.r_interp = interpolate.interp1d(self.values, self.colors.T[0])
         self.g_interp = interpolate.interp1d(self.values, self.colors.T[1])
         self.b_interp = interpolate.interp1d(self.values, self.colors.T[2])
         self.proj = Projection()
-        self.proj.set_out_range(0, 255.)
+        self.proj.set_out_range(0, 255.0)
 
     def update(self):
         pass
 
     def _map(self, val):
-        ''' Interpolate RGB colormap for *val*
+        """Interpolate RGB colormap for *val*
         val can be a 1D array.
 
         Values which are out of range are clipped.
-        '''
+        """
         val = self.proj.clipped(val)
         return self.r_interp(val), self.g_interp(val), self.b_interp(val)
 
@@ -93,16 +93,16 @@ class InterpolatedColormap(object):
             self.update()
 
     def get_incremented_values(self, n=40):
-        ''' has to be implemented by every subclass. Needed for plotting.'''
+        """ has to be implemented by every subclass. Needed for plotting."""
         mi, ma = self.proj.get_in_range()
         return num.linspace(mi, ma, n)
 
     def get_visualization(self, callback=None):
-        '''get dict of values and colors for visualization.
+        """get dict of values and colors for visualization.
 
         :param callback: method to retrieve colors from value range.
                         default: *map*
-        '''
+        """
         vals = self.get_incremented_values()
 
         if callback:
@@ -117,10 +117,10 @@ class InterpolatedColormap(object):
 
 
 class Colormap(InterpolatedColormap):
-    ''' Like Colormap but with discrete resolution and precalculated.
-    Can return tabulated QColors. Faster than Colormap'''
+    """Like Colormap but with discrete resolution and precalculated.
+    Can return tabulated QColors. Faster than Colormap"""
 
-    def __init__(self, name='', n=20):
+    def __init__(self, name="", n=20):
         InterpolatedColormap.__init__(self, name=name)
         self.n = n
         self.update()
@@ -145,10 +145,10 @@ class Colormap(InterpolatedColormap):
             self.colors_QPen.append(qg.QPen(c))
 
     def get_incremented_values(self):
-        return num.linspace(*self.proj.xr, num=self.n+1)
+        return num.linspace(*self.proj.xr, num=self.n + 1)
 
     def get_index(self, val):
-        return int(self.proj.clipped(val)/self.proj.ur[1] * self.n)
+        return int(self.proj.clipped(val) / self.proj.ur[1] * self.n)
 
     def map(self, val):
         return self.colors_rgb[self.get_index(val)]
@@ -169,34 +169,36 @@ class ColormapWidget(qw.QWidget):
         # size_policy = qw.QSizePolicy()
         # size_policy.setHorizontalPolicy(qw.QSizePolicy.Maximum)
         # self.setSizePolicy(size_policy)
-        self.set_background_color('white')
+        self.set_background_color("white")
         self._update()
 
     def _update(self):
         _, rgb = self.colormap.get_visualization()
         self.vals, self.colors = self.colormap.get_visualization(
-            callback=self.colormap.map_to_QColor)
+            callback=self.colormap.map_to_QColor
+        )
         self.yproj.set_in_range(num.min(self.vals), num.max(self.vals))
 
     @qc.pyqtSlot(qg.QPaintEvent)
     def paintEvent(self, e):
         rect = self.rect()
-        self.yproj.set_out_range((1.-rect.top()), rect.bottom(), flip=True)
+        self.yproj.set_out_range((1.0 - rect.top()), rect.bottom(), flip=True)
 
         yvals = self.yproj(self.vals)
         painter = qg.QPainter(self)
-        for i in range(len(self.vals)-1):
-            patch = qc.QRect(qc.QPoint(rect.left(), yvals[i]),
-                             qc.QPoint(rect.right(), yvals[i+1]))
+        for i in range(len(self.vals) - 1):
+            patch = qc.QRect(
+                qc.QPoint(rect.left(), yvals[i]), qc.QPoint(rect.right(), yvals[i + 1])
+            )
         painter.end()
 
-    #def sizeHint(self):
+    # def sizeHint(self):
     #    return qc.QSize(100, 400)
 
     def set_background_color(self, color):
-        '''
+        """
         :param color: color as string
-        '''
+        """
         background_color = qg.QColor(*_colors[color])
         self.background_brush = qg.QBrush(background_color)
         pal = self.palette()
@@ -209,24 +211,21 @@ def MakeGaugeWidget(gl=False):
         WidgetBase = GLWidget
     else:
         WidgetBase = qw.QWidget
-    
+
     class _GaugeWidget(WidgetBase, PlotBase):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
 
             self.color = qg.QColor(0, 100, 100)
             self._val = 0
-            self.set_title('')
+            self.set_title("")
             self.proj = Projection()
-            out_min = -130.
-            out_max = 130.
+            out_min = -130.0
+            out_max = 130.0
             self.proj.set_out_range(out_min, out_max)
-            self.set_ylim(0., 1500.)
+            self.set_ylim(0.0, 1500.0)
 
-            self.scaler = AutoScaler(
-                no_exp_interval=(-3, 2), approx_ticks=7,
-                snap=True
-            )
+            self.scaler = AutoScaler(no_exp_interval=(-3, 2), approx_ticks=7, snap=True)
 
             self.xtick_increment = 20
             self.pen = qg.QPen(self.color, 20, qc.Qt.SolidLine)
@@ -234,7 +233,7 @@ def MakeGaugeWidget(gl=False):
             self.wheel_pos = 0
 
         def set_ylim(self, ymin, ymax):
-            ''' Set range of Gauge.'''
+            """ Set range of Gauge."""
             self.ymin = ymin
             self.ymax = ymax
             self._ymin = ymin
@@ -246,18 +245,18 @@ def MakeGaugeWidget(gl=False):
 
         @qc.pyqtSlot(qg.QPaintEvent)
         def paintEvent(self, e):
-            ''' This is executed when self.repaint() is called'''
+            """ This is executed when self.repaint() is called"""
             painter = qg.QPainter(self)
-            self.side = min(self.width(), self.height())/1.05
-            self.halfside = self.side/2.
+            self.side = min(self.width(), self.height()) / 1.05
+            self.halfside = self.side / 2.0
             rect = qc.QRectF(-self.halfside, -self.halfside, self.side, self.side)
-            painter.translate(self.width()/2., self.height()/2.)
+            painter.translate(self.width() / 2.0, self.height() / 2.0)
             painter.save()
             painter.setPen(self.pen)
-            self.arc_start = -(self.proj(0)+180) * 16
+            self.arc_start = -(self.proj(0) + 180) * 16
             pmin, pmax = self.proj.get_in_range()
             if self._val:
-                span_angle = self.proj(self._val)*16 + self.arc_start+180*16.
+                span_angle = self.proj(self._val) * 16 + self.arc_start + 180 * 16.0
                 painter.drawArc(rect, self.arc_start, -span_angle)
             painter.restore()
             self.draw_deco(painter)
@@ -269,14 +268,15 @@ def MakeGaugeWidget(gl=False):
             painter.restore()
 
         def draw_title(self, painter):
-            painter.drawText(-40., 2., self.title)
+            painter.drawText(-40.0, 2.0, self.title)
 
         def draw_ticks(self, painter):
             # needs some performance polishing !!!
             xmin, xmax = self.proj.get_in_range()
 
-            ticks = num.arange(xmin, xmax+self.xtick_increment,
-                               self.xtick_increment, dtype=num.int)
+            ticks = num.arange(
+                xmin, xmax + self.xtick_increment, self.xtick_increment, dtype=num.int
+            )
             ticks_proj = self.proj(ticks) + 180
 
             line = qc.QLine(self.halfside * 0.9, 0, self.halfside, 0)
@@ -289,10 +289,10 @@ def MakeGaugeWidget(gl=False):
             for i, degree in enumerate(ticks_proj):
                 painter.save()
                 if i % 5 == 0:
-                    rotate_rad = degree*d2r
-                    x = self.halfside*0.8*num.cos(rotate_rad) - text_box_with/2
-                    y = self.halfside*0.8*num.sin(rotate_rad)
-                    rect = qc.QRectF(x, y, text_box_with, text_box_with/5)
+                    rotate_rad = degree * d2r
+                    x = self.halfside * 0.8 * num.cos(rotate_rad) - text_box_with / 2
+                    y = self.halfside * 0.8 * num.sin(rotate_rad)
+                    rect = qc.QRectF(x, y, text_box_with, text_box_with / 5)
                     painter.drawText(rect, qc.Qt.AlignCenter, str(ticks[i]))
                     painter.rotate(degree)
                     painter.drawLine(line)
@@ -306,9 +306,9 @@ def MakeGaugeWidget(gl=False):
             self.title = title
 
         def set_data(self, val):
-            '''
+            """
             Call this method to update the arc
-            '''
+            """
             self._val = val
 
         # def sizeHint(self):
@@ -316,7 +316,8 @@ def MakeGaugeWidget(gl=False):
 
     return _GaugeWidget
 
-class Grid():
+
+class Grid:
     def __init__(self, horizontal=True, vertical=True, *args, **kwargs):
         self.vertical = vertical
         self.horizontal = horizontal
@@ -325,8 +326,10 @@ class Grid():
         return
 
 
-class AutoGrid():
-    def __init__(self, pen_color='aluminium2', style=':', line_width=1, *args, **kwargs):
+class AutoGrid:
+    def __init__(
+        self, pen_color="aluminium2", style=":", line_width=1, *args, **kwargs
+    ):
         Grid.__init__(self, *args, **kwargs)
 
         self.data_lims_v = (None, None)
@@ -338,7 +341,8 @@ class AutoGrid():
 
     def set_pen(self, pen_color, style, line_width):
         self.grid_pen = qg.QPen(
-            qg.QColor(*_colors[pen_color]), line_width, _pen_styles[style])
+            qg.QColor(*_colors[pen_color]), line_width, _pen_styles[style]
+        )
 
     def draw_grid(self, widget, painter):
         lines = []
@@ -354,33 +358,31 @@ class AutoGrid():
         painter.restore()
 
     def lines_horizontal(self, widget, painter):
-        ''' setup horizontal grid lines'''
+        """ setup horizontal grid lines"""
 
-        #if not (widget._ymin, widget._ymax) == self.data_lims_h:
-        ymin, ymax, yinc = widget.yscaler.make_scale(
-            (widget._ymin, widget._ymax)
-        )
+        # if not (widget._ymin, widget._ymax) == self.data_lims_h:
+        ymin, ymax, yinc = widget.yscaler.make_scale((widget._ymin, widget._ymax))
         ticks_proj = widget.yproj(num.arange(ymin, ymax, yinc))
 
         w, h = widget.wh
-        self.lines_h = [qc.QLineF(w * widget.left, yval, w, yval)
-                 for yval in ticks_proj]
+        self.lines_h = [
+            qc.QLineF(w * widget.left, yval, w, yval) for yval in ticks_proj
+        ]
         self.data_lims_h = (widget._ymin, widget._ymax)
 
         return self.lines_h
 
     def lines_vertical(self, widget, painter):
-        ''' setup vertical grid lines'''
+        """ setup vertical grid lines"""
 
-        #if not (widget._xmin, widget._xmax) == self.data_lims_v:
-        xmin, xmax, xinc = widget.xscaler.make_scale(
-            (widget._xmin, widget._xmax)
-        )
+        # if not (widget._xmin, widget._xmax) == self.data_lims_v:
+        xmin, xmax, xinc = widget.xscaler.make_scale((widget._xmin, widget._xmax))
         ticks_proj = widget.xproj(num.arange(xmin, xmax, xinc))
 
         w, h = widget.wh
-        self.lines_v = [qc.QLineF(xval, h * (1.-widget.top), xval, h)
-                 for xval in ticks_proj]
+        self.lines_v = [
+            qc.QLineF(xval, h * (1.0 - widget.top), xval, h) for xval in ticks_proj
+        ]
         self.data_lims_v = (widget._xmin, widget._xmax)
 
         return self.lines_v
@@ -392,33 +394,31 @@ class FixGrid(AutoGrid):
         AutoGrid.__init__(self, *args, **kwargs)
 
     def lines_horizontal(self, widget, painter):
-        ''' setup horizontal grid lines'''
+        """ setup horizontal grid lines"""
 
-        #if not (widget._ymin, widget._ymax) == self.data_lims_h:
-        ymin, ymax, yinc = widget.yscaler.make_scale(
-            (widget._ymin, widget._ymax)
-        )
+        # if not (widget._ymin, widget._ymax) == self.data_lims_h:
+        ymin, ymax, yinc = widget.yscaler.make_scale((widget._ymin, widget._ymax))
         ticks_proj = widget.yproj(num.arange(ymin, ymax, self.delta))
 
         w, h = widget.wh
-        self.lines_h = [qc.QLineF(w * widget.left, yval, w, yval)
-                 for yval in ticks_proj]
+        self.lines_h = [
+            qc.QLineF(w * widget.left, yval, w, yval) for yval in ticks_proj
+        ]
         self.data_lims_h = (widget._ymin, widget._ymax)
 
         return self.lines_h
 
     def lines_vertical(self, widget, painter):
-        ''' setup vertical grid lines'''
+        """ setup vertical grid lines"""
 
-        #if not (widget._xmin, widget._xmax) == self.data_lims_v:
-        xmin, xmax, xinc = widget.xscaler.make_scale(
-            (widget._xmin, widget._xmax)
-        )
+        # if not (widget._xmin, widget._xmax) == self.data_lims_v:
+        xmin, xmax, xinc = widget.xscaler.make_scale((widget._xmin, widget._xmax))
         ticks_proj = widget.xproj(num.arange(xmin, xmax, self.delta))
 
         w, h = widget.wh
-        self.lines_v = [qc.QLineF(xval, h * (1.-widget.top), xval, h)
-                 for xval in ticks_proj]
+        self.lines_v = [
+            qc.QLineF(xval, h * (1.0 - widget.top), xval, h) for xval in ticks_proj
+        ]
         self.data_lims_v = (widget._xmin, widget._xmax)
 
         return self.lines_v
@@ -430,7 +430,7 @@ class DefinedGrid(AutoGrid):
         # TODO make special user definable grid. Should be the WidgetBase class
 
 
-class SceneItem():
+class SceneItem:
     def __init__(self, x=None, y=None, pen=None):
         self.pen = pen
         self.x = x
@@ -466,7 +466,8 @@ class AxVLine(SceneItem):
 
 
 class Points(SceneItem):
-    ''' Holds and draws data projected to screen dimensions.'''
+    """ Holds and draws data projected to screen dimensions."""
+
     def __init__(self, x, y, pen, antialiasing=True):
         SceneItem.__init__(self, x=x, y=y, pen=pen)
         self.antialiasing = antialiasing
@@ -481,9 +482,9 @@ class Points(SceneItem):
         painter.restore()
 
 
-
 class Polyline(SceneItem):
-    ''' Holds and draws data projected to screen dimensions.'''
+    """ Holds and draws data projected to screen dimensions."""
+
     def __init__(self, x, y, pen, antialiasing=True):
         SceneItem.__init__(self, x=x, y=y, pen=pen)
         self.antialiasing = antialiasing
@@ -505,15 +506,15 @@ class Text(SceneItem):
         self.text = qg.QStaticText(str(text))
 
     def draw(self, painter, xproj, yproj, rect=None):
-        painter.drawStaticText(qc.QPoint(xproj(self.x)*0.9, yproj(self.y)), self.text)
+        painter.drawStaticText(qc.QPoint(xproj(self.x) * 0.9, yproj(self.y)), self.text)
 
 
 class PColormesh(qw.QWidget):
-    '''
+    """
     2D array. Currently, opengl is not supported.
-    '''
+    """
 
-    colortable = 'viridis'
+    colortable = "viridis"
 
     def __init__(self, img, x, y, *args, **kwargs):
         super(qw.QWidget, self).__init__(*args, **kwargs)
@@ -526,11 +527,9 @@ class PColormesh(qw.QWidget):
         buff = self.img.bits()
         nx = len(x)
         ny = len(y)
-        buff.setsize(nx*ny*2**8)
-        self.img_data = num.ndarray(shape=(nx, ny),
-                                    dtype=num.uint8,
-                                    buffer=buff)
-        self.color_table = 'viridis'
+        buff.setsize(nx * ny * 2 ** 8)
+        self.img_data = num.ndarray(shape=(nx, ny), dtype=num.uint8, buffer=buff)
+        self.color_table = "viridis"
 
     def draw(self, painter, xproj, yproj, rect=None):
         painter.save()
@@ -540,16 +539,15 @@ class PColormesh(qw.QWidget):
 
     @classmethod
     def from_numpy_array(cls, x=None, y=None, z=None):
-        '''
+        """
         :param a: RGB array
-        '''
+        """
         if not z.dtype == num.uint8:
             z = num.asarray(z, dtype=num.uint8)
             z = num.ascontiguousarray(z)
 
-        img = qg.QImage(
-            z.data, z.shape[1], z.shape[0], qg.QImage.Format_Indexed8)
-        
+        img = qg.QImage(z.data, z.shape[1], z.shape[0], qg.QImage.Format_Indexed8)
+
         img.setColorTable(get_colortable(cls.colortable))
 
         o = cls(img, x, y)
@@ -560,9 +558,9 @@ class PColormesh(qw.QWidget):
         return num.clip(num.divide(d, self.vmax), 0, 254)
 
     def set_data(self, *args):
-        '''
+        """
         :param args: z(2d) or x, y, z(2d) as arrays
-        '''
+        """
         if len(args) == 3:
             x, y, z = args
         elif len(args) == 1:
@@ -580,8 +578,9 @@ def MakeAxis(gl=True):
         WidgetBase = GLWidget
     else:
         WidgetBase = qw.QWidget
+
     class _Axis(WidgetBase, PlotBase):
-        ''' a plotwidget displays data (x, y coordinates). '''
+        """ a plotwidget displays data (x, y coordinates). """
 
         def __init__(self, *args, **kwargs):
             WidgetBase.__init__(self, *args, **kwargs)
@@ -595,15 +594,15 @@ def MakeAxis(gl=True):
             self.xmin = None
             self.xmax = None
 
-            self._ymin = 0.
-            self._ymax = 1.
+            self._ymin = 0.0
+            self._ymax = 1.0
             self._yinc = None
-            self._xmin = 0.
-            self._xmax = 1.
+            self._xmin = 0.0
+            self._xmax = 1.0
             self._xinc = None
 
             self.left = 0.15
-            self.right = 1.
+            self.right = 1.0
             self.bottom = 0.1
             self.top = 0.9
 
@@ -612,22 +611,20 @@ def MakeAxis(gl=True):
             self.yticks = True
             self.xticks = True
 
-            self.ytick_formatter = '%s'
-            self.xtick_formatter = '%s'
-            self.xzoom = 0.
+            self.ytick_formatter = "%s"
+            self.xtick_formatter = "%s"
+            self.xzoom = 0.0
 
             self.clear()
             self.grids = [AutoGrid()]
             self.__want_minor_grid = True
 
             self.yscaler = AutoScaler(
-                no_exp_interval=(-3, 2), approx_ticks=5,
-                snap=True
+                no_exp_interval=(-3, 2), approx_ticks=5, snap=True
             )
 
             self.xscaler = AutoScaler(
-                no_exp_interval=(-3, 2), approx_ticks=5,
-                snap=True
+                no_exp_interval=(-3, 2), approx_ticks=5, snap=True
             )
             self.draw_points = False
             self.set_brush()
@@ -642,29 +639,36 @@ def MakeAxis(gl=True):
             self.scene_items = []
 
         def setup_annotation_boxes(self):
-            ''' left and top boxes containing labels, dashes, marks, etc.'''
+            """ left and top boxes containing labels, dashes, marks, etc."""
             w, h = self.wh
             l = self.left
             r = self.right
             b = self.bottom
             t = self.top
 
-            tl = qc.QPoint((1.-b) * h, l * w)
-            size = qc.QSize(w * (1. - (l + (1.-r))),
-                            h * (1. - ((1.-t)+b)))
+            tl = qc.QPoint((1.0 - b) * h, l * w)
+            size = qc.QSize(w * (1.0 - (l + (1.0 - r))), h * (1.0 - ((1.0 - t) + b)))
             self.x_annotation_rect = qc.QRect(tl, size)
 
         def set_title(self, title):
             self.title = title
 
-        def plot(self, xdata=None, ydata=None, ndecimate=0,
-                 style='solid', color='black', line_width=1, ignore_nan=False,
-                 antialiasing=True):
-            ''' plot data
+        def plot(
+            self,
+            xdata=None,
+            ydata=None,
+            ndecimate=0,
+            style="solid",
+            color="black",
+            line_width=1,
+            ignore_nan=False,
+            antialiasing=True,
+        ):
+            """plot data
 
             :param *args:  ydata | xdata, ydata
             :param ignore_nan: skip values which are nan
-            '''
+            """
             if ydata is None:
                 return
             if len(ydata) == 0:
@@ -680,24 +684,24 @@ def MakeAxis(gl=True):
                 ydata = ydata[~ydata.mask]
 
             if ndecimate != 0:
-                #self._xvisible = minmax_decimation(xdata, ndecimate)
+                # self._xvisible = minmax_decimation(xdata, ndecimate)
                 xvisible = xdata[::ndecimate]
                 yvisible = minmax_decimation(ydata, ndecimate)
-                #self._yvisible = smooth(ydata, window_len=ndecimate*2)[::ndecimate]
-                #index = num.arange(0, len(self._xvisible), ndecimate)
+                # self._yvisible = smooth(ydata, window_len=ndecimate*2)[::ndecimate]
+                # index = num.arange(0, len(self._xvisible), ndecimate)
             else:
                 xvisible = xdata
                 yvisible = ydata
 
             pen = self.get_pen(color, line_width, style)
-            if style == 'o':
+            if style == "o":
                 self.scene_items.append(
-                    Points(
-                        x=xvisible, y=yvisible, pen=pen, antialiasing=antialiasing))
+                    Points(x=xvisible, y=yvisible, pen=pen, antialiasing=antialiasing)
+                )
             else:
                 self.scene_items.append(
-                    Polyline(
-                        x=xvisible, y=yvisible, pen=pen, antialiasing=antialiasing))
+                    Polyline(x=xvisible, y=yvisible, pen=pen, antialiasing=antialiasing)
+                )
 
             self.update_datalims(xvisible, yvisible)
             self.update()
@@ -770,7 +774,7 @@ def MakeAxis(gl=True):
             return (self._xmin, self._xmax)
 
         def set_xlim(self, xmin, xmax):
-            ''' Set x data range. If unset scale to min|max of ydata range '''
+            """ Set x data range. If unset scale to min|max of ydata range """
             self.xmin = xmin
             self.xmax = xmax
             self.xproj.set_in_range(self.xmin, self.xmax)
@@ -781,8 +785,8 @@ def MakeAxis(gl=True):
 
         @qc.pyqtSlot(qg.QPaintEvent)
         def paintEvent(self, e):
-            ''' this is executed e.g. when self.repaint() is called. Draws the
-            underlying data and scales the content to fit into the widget.'''
+            """this is executed e.g. when self.repaint() is called. Draws the
+            underlying data and scales the content to fit into the widget."""
             painter = qg.QPainter(self)
             self.draw_deco(painter)
             rect = self.canvas_rect()
@@ -803,11 +807,13 @@ def MakeAxis(gl=True):
             painter.restore()
 
         def draw_axes(self, painter):
-            ''' draw x and y axis'''
+            """ draw x and y axis"""
             w, h = self.wh
-            points = [qc.QPoint(w*self.left, h*(self.bottom)),
-                      qc.QPoint(w*self.left, h*(1.-self.top)),
-                      qc.QPoint(w*self.right, h*(1.-self.top))]
+            points = [
+                qc.QPoint(w * self.left, h * (self.bottom)),
+                qc.QPoint(w * self.left, h * (1.0 - self.top)),
+                qc.QPoint(w * self.right, h * (1.0 - self.top)),
+            ]
             painter.drawPoints(qg.QPolygon(points))
 
         def set_xtick_increment(self, increment):
@@ -823,38 +829,46 @@ def MakeAxis(gl=True):
             if self.xticks:
                 ticks = num.arange(xmin, xmax, _xinc)
                 ticks_proj = self.xproj(ticks)
-                tick_anchor = (1.-self.top)*h
-                lines = [qc.QLineF(xval, tick_anchor * 0.8, xval, tick_anchor)
-                         for xval in ticks_proj]
+                tick_anchor = (1.0 - self.top) * h
+                lines = [
+                    qc.QLineF(xval, tick_anchor * 0.8, xval, tick_anchor)
+                    for xval in ticks_proj
+                ]
 
                 painter.drawLines(lines)
                 if self.xlabels:
                     formatter = self.xtick_formatter
                     for i, xval in enumerate(ticks):
                         painter.drawText(
-                            qc.QPointF(ticks_proj[i], tick_anchor*0.75), formatter % xval)
+                            qc.QPointF(ticks_proj[i], tick_anchor * 0.75),
+                            formatter % xval,
+                        )
 
         def draw_y_ticks(self, painter):
             w, h = self.wh
             ymin, ymax, yinc = self.yscaler.make_scale((self._ymin, self._ymax))
-#            if self.scroll_increment == 0:
-#                self.scroll_increment = yinc / 4
+            #            if self.scroll_increment == 0:
+            #                self.scroll_increment = yinc / 4
 
             _yinc = self._yinc or yinc
-            if self.yticks:                
+            if self.yticks:
                 ticks = num.arange(ymin, ymax, _yinc)
                 ticks_proj = self.yproj(ticks)
-                lines = [qc.QLineF(w * self.left * 0.8, yval, w*self.left, yval)
-                     for yval in ticks_proj]
+                lines = [
+                    qc.QLineF(w * self.left * 0.8, yval, w * self.left, yval)
+                    for yval in ticks_proj
+                ]
                 painter.drawLines(lines)
                 if self.ylabels:
                     formatter = self.ytick_formatter
                     for i, yval in enumerate(ticks):
-                        painter.drawText(qc.QPointF(0, ticks_proj[i]), formatter % (yval))
+                        painter.drawText(
+                            qc.QPointF(0, ticks_proj[i]), formatter % (yval)
+                        )
 
         def draw_labels(self, painter):
             self.setup_annotation_boxes()
-            painter.drawText(self.x_annotation_rect, qc.Qt.AlignCenter, 'Time')
+            painter.drawText(self.x_annotation_rect, qc.Qt.AlignCenter, "Time")
 
         @qc.pyqtSlot(qw.QAction)
         def on_tick_increment_select(self, action):
@@ -863,10 +877,10 @@ def MakeAxis(gl=True):
             if isinstance(action, qw.QWidgetAction):
                 return
 
-            if action_text == 'Save pitches':
+            if action_text == "Save pitches":
                 return
 
-            if action_text == 'Minor ticks':
+            if action_text == "Minor ticks":
                 self.want_minor_grid = action.isChecked()
             else:
                 val = int(action.text())
@@ -886,9 +900,10 @@ def MakeAxis(gl=True):
 
         def set_grids(self, minor_value):
             self.grid_major = FixGrid(
-                minor_value*5, pen_color='aluminium2', style='solid')
+                minor_value * 5, pen_color="aluminium2", style="solid"
+            )
             self.grid_minor = FixGrid(minor_value)
-            self.set_ytick_increment(minor_value*5)
+            self.set_ytick_increment(minor_value * 5)
 
             if self.want_minor_grid:
                 self.grids = [self.grid_major, self.grid_minor]
@@ -908,14 +923,14 @@ class MikadoWidget(Axis):
         super(MikadoWidget, self).__init__(*args, **kwargs)
 
     def fill_between(self, xdata1, ydata1, xdata2, ydata2, *args, **kwargs):
-        '''
+        """
         plot only data points which are in both x arrays
 
         :param xdata1, xdata2: xdata arrays
         :param ydata1, ydata2: ydata arrays
         :param colors: either single color or rgb array
                 of length(intersect(xdata1, xdata2))
-        '''
+        """
         indxdata1 = num.in1d(xdata1, xdata2)
         indxdata2 = num.in1d(xdata2, xdata1)
 
@@ -927,8 +942,8 @@ class MikadoWidget(Axis):
 
     @qc.pyqtSlot(qg.QPaintEvent)
     def paintEvent(self, e):
-        ''' this is executed e.g. when self.repaint() is called. Draws the
-        underlying data and scales the content to fit into the widget.'''
+        """this is executed e.g. when self.repaint() is called. Draws the
+        underlying data and scales the content to fit into the widget."""
 
         if len(self._xvisible) == 0:
             return
@@ -951,4 +966,3 @@ class MikadoWidget(Axis):
             painter.drawLine(line)
             painter.restore()
         self.draw_deco(painter)
-

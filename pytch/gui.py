@@ -7,7 +7,7 @@ from abc import abstractmethod
 from pytch.processing import Worker
 
 from .gui_util import add_action_group
-from .gui_util import make_QPolygonF, _color_names, _colors # noqa
+from .gui_util import make_QPolygonF, _color_names, _colors  # noqa
 from .util import consecutive, f2cent, index_gradient_filter, relative_keys
 from .plot import GLAxis, Axis, GaugeWidget, MikadoWidget, FixGrid
 from .keyboard import KeyBoard
@@ -24,10 +24,10 @@ from PyQt5.QtWidgets import QMenu, QActionGroup, QFileDialog
 from PyQt5.QtChart import QChart, QChartView, QValueAxis, QLogValueAxis, QLineSeries
 
 
-logger = logging.getLogger('pytch.gui')
-tfollow = 3.
-fmax = 2000.
-colormaps = ['viridis', 'wb', 'bw']
+logger = logging.getLogger("pytch.gui")
+tfollow = 3.0
+fmax = 2000.0
+colormaps = ["viridis", "wb", "bw"]
 
 
 class SignalDispatcherWidget(qw.QWidget):
@@ -76,15 +76,15 @@ class SignalDispatcherWidget(qw.QWidget):
 
 
 class ChannelView(SignalDispatcherWidget):
-    def __init__(self, channel, color='red', *args, **kwargs):
-        '''
+    def __init__(self, channel, color="red", *args, **kwargs):
+        """
         Visual representation of a Channel instance.
 
         This is a per-channel container. It contains the trace-view,
         spectrogram-view and the sepctrum-view of a single channel.
 
         :param channel: pytch.data.Channel instance
-        '''
+        """
         SignalDispatcherWidget.__init__(self, *args, **kwargs)
         self.channel = channel
         self.color = color
@@ -95,13 +95,13 @@ class ChannelView(SignalDispatcherWidget):
         self.trace_widget = GLAxis()
         self.trace_widget.grids = []
         self.trace_widget.yticks = False
-        self.trace_widget.set_ylim(-1000., 1000.)
-        self.trace_widget.left = 0.
+        self.trace_widget.set_ylim(-1000.0, 1000.0)
+        self.trace_widget.left = 0.0
 
         self.spectrogram_widget = SpectrogramWidget(channel=channel)
 
         self.spectrum_widget = SpectrumWidget(parent=self)
-#        self.plot_spectrum = self.spectrum_widget.plotlog
+        #        self.plot_spectrum = self.spectrum_widget.plotlog
 
         self.fft_smooth_factor = 4
 
@@ -110,23 +110,21 @@ class ChannelView(SignalDispatcherWidget):
         layout.addWidget(self.spectrum_widget)
         layout.addWidget(self.spectrogram_widget)
 
-        self.right_click_menu = QMenu('RC', self)
-        self.channel_color_menu = QMenu('Channel Color', self.right_click_menu)
+        self.right_click_menu = QMenu("RC", self)
+        self.channel_color_menu = QMenu("Channel Color", self.right_click_menu)
 
         self.color_choices = add_action_group(
-            _colors, self.channel_color_menu, self.on_color_select)
+            _colors, self.channel_color_menu, self.on_color_select
+        )
 
         self.right_click_menu.addMenu(self.channel_color_menu)
-        self.fft_smooth_factor_menu = QMenu(
-            'FFT smooth factor', self.right_click_menu)
+        self.fft_smooth_factor_menu = QMenu("FFT smooth factor", self.right_click_menu)
         smooth_action_group = QActionGroup(self.fft_smooth_factor_menu)
         smooth_action_group.setExclusive(True)
         self.smooth_choices = []
         for factor in range(5):
             factor += 1
-            fft_smooth_action = QAction(
-                str(factor),
-                self.fft_smooth_factor_menu)
+            fft_smooth_action = QAction(str(factor), self.fft_smooth_factor_menu)
 
             fft_smooth_action.triggered.connect(self.on_fft_smooth_select)
             fft_smooth_action.setCheckable(True)
@@ -138,14 +136,14 @@ class ChannelView(SignalDispatcherWidget):
 
         self.right_click_menu.addMenu(self.fft_smooth_factor_menu)
 
-        self.spectrum_type_menu = QMenu(
-            'lin/log', self.right_click_menu)
+        self.spectrum_type_menu = QMenu("lin/log", self.right_click_menu)
         plot_action_group = QActionGroup(self.spectrum_type_menu)
         plot_action_group.setExclusive(True)
 
         self.spectrogram_refresh_timer = qc.QTimer()
         self.spectrogram_refresh_timer.timeout.connect(
-            self.spectrogram_widget.update_spectrogram)
+            self.spectrogram_widget.update_spectrogram
+        )
         self.spectrogram_refresh_timer.start(300)
 
     @qc.pyqtSlot(float)
@@ -155,35 +153,35 @@ class ChannelView(SignalDispatcherWidget):
     @qc.pyqtSlot()
     def on_draw(self):
         self.trace_widget.clear()
-        
+
         c = self.channel
-        d = c.fft.latest_frame_data(self.fft_smooth_factor) # get latest frame data
+        d = c.fft.latest_frame_data(self.fft_smooth_factor)  # get latest frame data
 
         # draw trace
-        self.trace_widget.plot(*c.latest_frame(
-            tfollow), ndecimate=25, color=self.color, line_width=1)
-        
+        self.trace_widget.plot(
+            *c.latest_frame(tfollow), ndecimate=25, color=self.color, line_width=1
+        )
+
         # plot spectrum
         self.spectrum_widget.plot_spectrum(c.freqs, num.mean(d, axis=0))
 
         confidence = c.pitch_confidence.latest_frame_data(1)
         if confidence > self.confidence_threshold:
             x = c.undo_pitch_proxy(c.get_latest_pitch())
-#            self.spectrum_widget.axvline(x)
+        #            self.spectrum_widget.axvline(x)
 
         if self.freq_keyboard:
             self.spectrum_widget.axvline(
-                self.freq_keyboard, color='aluminium4', style='dashed',
-                line_width=4)
+                self.freq_keyboard, color="aluminium4", style="dashed", line_width=4
+            )
 
     @qc.pyqtSlot(int)
     def on_confidence_threshold_changed(self, threshold):
-        '''
+        """
         self.channel_views_widget.
-        '''
-        self.confidence_threshold = threshold/10.
-        logger.debug('update confidence threshold: %i' %
-            self.confidence_threshold)
+        """
+        self.confidence_threshold = threshold / 10.0
+        logger.debug("update confidence threshold: %i" % self.confidence_threshold)
 
     @qc.pyqtSlot(float)
     def on_standard_frequency_changed(self, f):
@@ -196,7 +194,9 @@ class ChannelView(SignalDispatcherWidget):
     def rotate_spectrogram_widget(self, rotate=True):
         layout = self.layout()
         self.spectrogram_refresh_timer.stop()
-        self.spectrogram_refresh_timer.timeout.disconnect(self.spectrogram_widget.update_spectrogram)
+        self.spectrogram_refresh_timer.timeout.disconnect(
+            self.spectrogram_widget.update_spectrogram
+        )
         visible = self.spectrogram_widget.isVisible()
         self.show_spectrogram_widget(False)
         layout.removeWidget(self.spectrogram_widget)
@@ -207,7 +207,9 @@ class ChannelView(SignalDispatcherWidget):
             self.spectrogram_widget = SpectrogramWidget(channel=self.channel)
         layout.addWidget(self.spectrogram_widget)
         self.show_spectrogram_widget(visible)
-        self.spectrogram_refresh_timer.timeout.connect(self.spectrogram_widget.update_spectrogram)
+        self.spectrogram_refresh_timer.timeout.connect(
+            self.spectrogram_widget.update_spectrogram
+        )
         self.spectrogram_refresh_timer.start(300)
 
     @qc.pyqtSlot(qg.QMouseEvent)
@@ -217,9 +219,9 @@ class ChannelView(SignalDispatcherWidget):
 
     @qc.pyqtSlot(str)
     def on_spectrum_type_select(self, arg):
-        '''
+        """
         Slot to update the spectrum type
-        '''
+        """
         self.spectrum_widget.set_spectral_type(arg)
         # TODO: support 'pitch' type
 
@@ -262,7 +264,7 @@ class ProductView(SignalDispatcherWidget):
         self.show_spectrogram_widget(False)
         layout.removeWidget(self.spectrogram_widget)
         del self.spectrogram_widget
-        
+
         if rotate:
             self.spectrogram_widget = ProductSpectrogramRotated(channels=self.channels)
         else:
@@ -277,19 +279,17 @@ class ProductView(SignalDispatcherWidget):
     @qc.pyqtSlot(qg.QMouseEvent)
     def mousePressEvent(self, mouse_ev):
         if mouse_ev.button() == qc.Qt.RightButton:
-            self.spectrum_widget.setVisible(
-                not self.spectrum_widget.isVisible())
+            self.spectrum_widget.setVisible(not self.spectrum_widget.isVisible())
 
 
 class ChannelViews(qw.QWidget):
-    '''Creates and contains the channel widgets.'''
+    """Creates and contains the channel widgets."""
+
     def __init__(self, channels):
         qw.QWidget.__init__(self)
         self.views = []
         for ichannel, channel in enumerate(channels):
-            self.views.append(
-                ChannelView(channel, color=_color_names[3*ichannel])
-            )
+            self.views.append(ChannelView(channel, color=_color_names[3 * ichannel]))
 
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
@@ -359,11 +359,12 @@ class SpectrogramWidget(Axis):
         fake = num.ones((self.nx, self.ny))
         self.image = self.colormesh(z=fake)
         self.xticks = False
-        self.ytick_formatter = '%i'
+        self.ytick_formatter = "%i"
 
-        self.right_click_menu = QMenu('RC', self)
+        self.right_click_menu = QMenu("RC", self)
         self.color_choices = add_action_group(
-            colormaps, self.right_click_menu, self.on_color_select)
+            colormaps, self.right_click_menu, self.on_color_select
+        )
 
     @qc.pyqtSlot()
     def update_spectrogram(self):
@@ -371,9 +372,9 @@ class SpectrogramWidget(Axis):
 
         try:
             y = c.freqs[: self.nx]
-            x = c.xdata[-self.ny:]
+            x = c.xdata[-self.ny :]
             d = c.fft.latest_frame_data(self.ny)
-            self.image.set_data(num.flipud(d[:, :self.nx].transpose()))
+            self.image.set_data(num.flipud(d[:, : self.nx].transpose()))
             self.update_datalims(x, y)
         except ValueError as e:
             logger.debug(e)
@@ -394,7 +395,7 @@ class SpectrogramWidget(Axis):
             self.right_click_menu.exec_(qg.QCursor.pos())
 
     def __del__(self):
-        logger.debug('Spectrogram deleted')
+        logger.debug("Spectrogram deleted")
 
 
 class SpectrogramWidgetRotated(SpectrogramWidget):
@@ -405,11 +406,12 @@ class SpectrogramWidgetRotated(SpectrogramWidget):
         fake = num.ones((self.nx, self.ny))
         self.image = self.colormesh(z=fake)
         self.yticks = False
-        self.xtick_formatter = '%i'
+        self.xtick_formatter = "%i"
 
-        self.right_click_menu = QMenu('RC', self)
+        self.right_click_menu = QMenu("RC", self)
         self.color_choices = add_action_group(
-            colormaps, self.right_click_menu, self.on_color_select)
+            colormaps, self.right_click_menu, self.on_color_select
+        )
 
     @qc.pyqtSlot()
     def update_spectrogram(self):
@@ -417,9 +419,9 @@ class SpectrogramWidgetRotated(SpectrogramWidget):
 
         try:
             x = c.freqs[: self.ny]
-            y = c.xdata[-self.nx:]
+            y = c.xdata[-self.nx :]
             d = c.fft.latest_frame_data(self.nx)
-            self.image.set_data(d[:, :self.ny])
+            self.image.set_data(d[:, : self.ny])
             self.update_datalims(x, y)
         except ValueError as e:
             logger.debug(e)
@@ -442,13 +444,13 @@ class SpectrumWidget(QChartView):
 
         # Setting X-axis (frequency)
         self.axis_x = QValueAxis()
-        self.axis_x.setLabelFormat('%d')
-        self.axis_x.setTitleText('Frequency')
+        self.axis_x.setLabelFormat("%d")
+        self.axis_x.setTitleText("Frequency")
         self.axis_x.setMax(880)
         self.chart.addAxis(self.axis_x, qc.Qt.AlignBottom)
 
         self.y_max = 100000
-        self.setup_y_axis('log')
+        self.setup_y_axis("log")
 
         self.setRenderHint(qg.QPainter.Antialiasing)
 
@@ -460,11 +462,11 @@ class SpectrumWidget(QChartView):
     def setup_y_axis(self, type):
         # Setting Y-axis (gain)
         self.current_type = type
-        if type == 'log':
+        if type == "log":
             self.axis_y = QLogValueAxis()
-        elif type == 'linear':
+        elif type == "linear":
             self.axis_y = QValueAxis()
-        self.axis_y.setTitleText('Gain')
+        self.axis_y.setTitleText("Gain")
         self.axis_y.setLabelsVisible(False)
         self.axis_y.setMax(self.y_max)
         self.chart.addAxis(self.axis_y, qc.Qt.AlignLeft)
@@ -525,17 +527,16 @@ class OverView(qw.QWidget):
         layout = qw.QGridLayout()
         self.setLayout(layout)
         self.ax = Axis()
-        self.ax.ytick_formatter = '%i'
+        self.ax.ytick_formatter = "%i"
         self.ax.xlabels = False
-        self.ax.set_ylim(-1500., 1500)
-        self.ax.set_grids(100.)
+        self.ax.set_ylim(-1500.0, 1500)
+        self.ax.set_grids(100.0)
         layout.addWidget(self.ax)
 
-        self.right_click_menu = QMenu('Tick Settings', self)
-        self.right_click_menu.triggered.connect(
-            self.ax.on_tick_increment_select)
+        self.right_click_menu = QMenu("Tick Settings", self)
+        self.right_click_menu.triggered.connect(self.ax.on_tick_increment_select)
         set_tick_choices(self.right_click_menu, default=100)
-        action = QAction('Minor ticks', self.right_click_menu)
+        action = QAction("Minor ticks", self.right_click_menu)
         action.setCheckable(True)
         action.setChecked(True)
         self.right_click_menu.addAction(action)
@@ -547,14 +548,13 @@ class OverView(qw.QWidget):
             self.ax.text(x=x, y=high_pitch, text=label)
 
     def attach_highlight_pitch_menu(self):
-        pmenu = QMenu('Highlight pitches', self)
+        pmenu = QMenu("Highlight pitches", self)
         pmenu.addSeparator()
         pmenu.addAction(qw.QWidgetAction(pmenu))
         for k in sorted(list(relative_keys.keys())):
             action = qw.QWidgetAction(pmenu)
             check_box_widget = CheckBoxSelect(k, pmenu)
-            check_box_widget.check_box_toggled.connect(
-                self.on_check_box_widget_toggled)
+            check_box_widget.check_box_toggled.connect(self.on_check_box_widget_toggled)
             pmenu.addAction(check_box_widget.action)
 
         self.right_click_menu.addMenu(pmenu)
@@ -571,14 +571,14 @@ class OverView(qw.QWidget):
         label = relative_keys[value]
         if (value, label) in self.highlighted_pitches:
             self.highlighted_pitches.remove((value, label))
-            self.highlighted_pitches.remove((-1*value, label))
+            self.highlighted_pitches.remove((-1 * value, label))
         else:
             self.highlighted_pitches.append((value, label))
-            self.highlighted_pitches.append((-1*value, label))
+            self.highlighted_pitches.append((-1 * value, label))
 
 
 class PitchWidget(OverView):
-    ''' Pitches of each trace as discrete samples.'''
+    """ Pitches of each trace as discrete samples."""
 
     low_pitch_changed = qc.pyqtSignal(num.ndarray)
 
@@ -586,23 +586,24 @@ class PitchWidget(OverView):
         OverView.__init__(self, *args, **kwargs)
         self.channel_views = channel_views
 
-        save_as_action = QAction('Save pitches', self.right_click_menu)
+        save_as_action = QAction("Save pitches", self.right_click_menu)
         save_as_action.triggered.connect(self.on_save_as)
         self.current_low_pitch = num.zeros(len(channel_views))
         self.current_low_pitch[:] = num.nan
         self.right_click_menu.addAction(save_as_action)
         self.track_start = None
-        self.tfollow = 3.
+        self.tfollow = 3.0
         self.setContentsMargins(-10, -10, -10, -10)
 
     @qc.pyqtSlot()
     def on_draw(self):
         self.ax.clear()
         for i, cv in enumerate(self.channel_views):
-            x, y = cv.channel.pitch.latest_frame(
-                self.tfollow, clip_min=True)
-            index = num.where(cv.channel.pitch_confidence.latest_frame_data(
-                len(x))>=cv.confidence_threshold)[0]
+            x, y = cv.channel.pitch.latest_frame(self.tfollow, clip_min=True)
+            index = num.where(
+                cv.channel.pitch_confidence.latest_frame_data(len(x))
+                >= cv.confidence_threshold
+            )[0]
 
             # TODO: attach filter 2000 to slider
             index_grad = index_gradient_filter(x, y, 2000)
@@ -611,31 +612,32 @@ class PitchWidget(OverView):
             for group in indices_grouped:
                 if len(group) == 0:
                     continue
-                self.ax.plot(
-                    x[group], y[group], color=cv.color, line_width=4)
+                self.ax.plot(x[group], y[group], color=cv.color, line_width=4)
 
             xstart = num.min(x)
-            self.ax.set_xlim(xstart, xstart+self.tfollow)
+            self.ax.set_xlim(xstart, xstart + self.tfollow)
         try:
             self.current_low_pitch[i] = y[indices_grouped[-1][-1]]
         except IndexError as e:
             pass
 
         self.low_pitch_changed.emit(self.current_low_pitch)
-        self.draw_highlighted(xstart+self.tfollow)
+        self.draw_highlighted(xstart + self.tfollow)
         self.ax.update()
 
     @qc.pyqtSlot()
     def on_save_as(self):
-        _fn = QFileDialog().getSaveFileName(self, 'Save as text file', '.', '')[0]
+        _fn = QFileDialog().getSaveFileName(self, "Save as text file", ".", "")[0]
         if _fn:
             if not os.path.exists(_fn):
                 os.makedirs(_fn)
             for i, cv in enumerate(self.channel_views):
-                fn = os.path.join(_fn, 'channel%s.txt' %i)
+                fn = os.path.join(_fn, "channel%s.txt" % i)
                 x, y = cv.channel.pitch.xdata, cv.channel.pitch.ydata
-                index = num.where(cv.channel.pitch_confidence.latest_frame_data(
-                    len(x))>=cv.confidence_threshold)
+                index = num.where(
+                    cv.channel.pitch_confidence.latest_frame_data(len(x))
+                    >= cv.confidence_threshold
+                )
                 num.savetxt(fn, num.vstack((x[index], y[index])).T)
 
 
@@ -648,7 +650,7 @@ class ImageWorker(qc.QObject):
     def __init__(self, channels, nx, ny):
         super(ImageWorker, self).__init__()
         self.channels = channels
-        self.scaling = 4.
+        self.scaling = 4.0
         self.data = None
         self.x = None
         self.y = None
@@ -663,31 +665,34 @@ class ImageWorker(qc.QObject):
     @qc.pyqtSlot(str)
     def run(self, message):
         self.spectrogram_refresh_timer = qc.QTimer()
-        self.spectrogram_refresh_timer.timeout.connect(
-            self.process)
+        self.spectrogram_refresh_timer.timeout.connect(self.process)
         self.spectrogram_refresh_timer.start(200)
 
     @qc.pyqtSlot()
     def process(self):
-        z = num.asarray(self.channels[0].fft.latest_frame_data(self.ny), dtype=num.float)
+        z = num.asarray(
+            self.channels[0].fft.latest_frame_data(self.ny), dtype=num.float
+        )
         for c in self.channels:
             z *= num.asarray(c.fft.latest_frame_data(self.ny), dtype=num.float)
 
-        self.x = c.xdata[-self.ny:]
+        self.x = c.xdata[-self.ny :]
         self.y = c.freqs[: self.nx]
-        self.data = num.ma.log(num.flipud(z[:, :self.nx].transpose()))**self.scaling
+        self.data = num.ma.log(num.flipud(z[:, : self.nx].transpose())) ** self.scaling
         self.processingFinished.emit()
 
 
 class ImageWorkerRotated(ImageWorker):
     def process(self):
-        z = num.asarray(self.channels[0].fft.latest_frame_data(self.nx), dtype=num.float)
+        z = num.asarray(
+            self.channels[0].fft.latest_frame_data(self.nx), dtype=num.float
+        )
         for c in self.channels:
             z *= num.asarray(c.fft.latest_frame_data(self.nx), dtype=num.float)
 
-        self.y = c.xdata[-self.nx:]
+        self.y = c.xdata[-self.nx :]
         self.x = c.freqs[: self.ny]
-        self.data = num.ma.log(z[:, :self.ny])**self.scaling
+        self.data = num.ma.log(z[:, : self.ny]) ** self.scaling
         self.processingFinished.emit()
 
 
@@ -715,7 +720,7 @@ class ProductSpectrogram(SpectrogramWidget):
         widget_slider = qw.QWidgetAction(self.right_click_menu)
         widget_slider.setDefaultWidget(slider)
         self.right_click_menu.addSeparator()
-        self.right_click_menu.addAction('gain:')
+        self.right_click_menu.addAction("gain:")
         self.right_click_menu.addAction(widget_slider)
         self.right_click_menu.addSeparator()
 
@@ -727,7 +732,7 @@ class ProductSpectrogram(SpectrogramWidget):
             self.image_worker = ImageWorker(self.channels, self.nx, self.ny)
         self.image_worker.moveToThread(self.thread)
         self.image_worker.processingFinished.connect(self.update_spectrogram)
-        self.image_worker.start.emit('Start Thread')
+        self.image_worker.start.emit("Start Thread")
         self.scalingChanged.connect(self.image_worker.on_scaling_changed)
         self.thread.start()
 
@@ -744,7 +749,7 @@ class ProductSpectrogram(SpectrogramWidget):
 
     @qc.pyqtSlot(int)
     def on_scaling_changed(self, value):
-        self.scalingChanged.emit(value/10.)
+        self.scalingChanged.emit(value / 10.0)
 
     @qc.pyqtSlot(bool)
     def on_color_select(self, triggered):
@@ -774,12 +779,12 @@ class ProductSpectrogramRotated(ProductSpectrogram):
         self.init_image_worker(True)
 
 
-class ProductSpectrum(SpectrumWidget): #GLAxis):
+class ProductSpectrum(SpectrumWidget):  # GLAxis):
     def __init__(self, parent, channels):
         SpectrumWidget.__init__(self, parent)
         self.channels = channels
-        self.grids = [FixGrid(delta=100., horizontal=False)]
-        self.xtick_formatter = '%i'
+        self.grids = [FixGrid(delta=100.0, horizontal=False)]
+        self.xtick_formatter = "%i"
         self.ylabels = False
         self.setVisible(True)
         self.setContentsMargins(-10, -10, -10, -10)
@@ -789,23 +794,24 @@ class ProductSpectrum(SpectrumWidget): #GLAxis):
 
     @qc.pyqtSlot()
     def on_draw(self):
-#        self.clear()
-        ydata = num.asarray(
-            self.channels[0].fft.latest_frame_data(3), dtype=num.float)
+        #        self.clear()
+        ydata = num.asarray(self.channels[0].fft.latest_frame_data(3), dtype=num.float)
 
         for c in self.channels[1:]:
             ydata *= num.asarray(c.fft.latest_frame_data(3), dtype=num.float)
+
 
 #        self.plotlog(self.channels[0].freqs, num.mean(ydata, axis=0), ndecimate=2)
 
 
 class DifferentialPitchWidget(OverView):
-    ''' Diffs as line'''
+    """ Diffs as line"""
+
     def __init__(self, channel_views, *args, **kwargs):
         OverView.__init__(self, *args, **kwargs)
         self.setContentsMargins(-10, -10, -10, -10)
         self.channel_views = channel_views
-        self.derivative_filter = 2000    # pitch/seconds
+        self.derivative_filter = 2000  # pitch/seconds
 
     @qc.pyqtSlot(int)
     def on_derivative_filter_changed(self, max_derivative):
@@ -817,7 +823,9 @@ class DifferentialPitchWidget(OverView):
         for i1, cv1 in enumerate(self.channel_views):
             x1, y1 = cv1.channel.pitch.latest_frame(tfollow, clip_min=True)
             xstart = num.min(x1)
-            index1 = cv1.channel.latest_confident_indices(len(x1), cv1.confidence_threshold)
+            index1 = cv1.channel.latest_confident_indices(
+                len(x1), cv1.confidence_threshold
+            )
             index1_grad = index_gradient_filter(x1, y1, self.derivative_filter)
             index1 = num.intersect1d(index1, index1_grad)
             for i2, cv2 in enumerate(self.channel_views):
@@ -826,8 +834,8 @@ class DifferentialPitchWidget(OverView):
                 x2, y2 = cv2.channel.pitch.latest_frame(tfollow, clip_min=True)
                 index2_grad = index_gradient_filter(x2, y2, self.derivative_filter)
                 index2 = cv2.channel.latest_confident_indices(
-                    len(x2),
-                    cv2.confidence_threshold)
+                    len(x2), cv2.confidence_threshold
+                )
 
                 index2 = num.intersect1d(index2, index2_grad)
                 indices = num.intersect1d(index1, index2)
@@ -840,41 +848,51 @@ class DifferentialPitchWidget(OverView):
                     y = y1[group] - y2[group]
                     x = x1[group]
                     self.ax.plot(
-                        x, y, style='solid', line_width=4, color=cv1.color,
-                        antialiasing=False)
+                        x,
+                        y,
+                        style="solid",
+                        line_width=4,
+                        color=cv1.color,
+                        antialiasing=False,
+                    )
                     self.ax.plot(
-                        x, y, style=':', line_width=4, color=cv2.color,
-                        antialiasing=False)
+                        x,
+                        y,
+                        style=":",
+                        line_width=4,
+                        color=cv2.color,
+                        antialiasing=False,
+                    )
 
-        self.ax.set_xlim(xstart, xstart+tfollow)
+        self.ax.set_xlim(xstart, xstart + tfollow)
         self.draw_highlighted(xstart)
         self.ax.update()
 
 
 class PitchLevelDifferenceViews(qw.QWidget):
-    ''' The Gauge widget collection'''
+    """ The Gauge widget collection"""
+
     def __init__(self, channel_views, *args, **kwargs):
         qw.QWidget.__init__(self, *args, **kwargs)
         self.channel_views = channel_views
         layout = qw.QGridLayout()
         self.setLayout(layout)
         self.widgets = []
-        self.right_click_menu = QMenu('Tick Settings', self)
-        self.right_click_menu.triggered.connect(
-            self.on_tick_increment_select)
+        self.right_click_menu = QMenu("Tick Settings", self)
+        self.right_click_menu.triggered.connect(self.on_tick_increment_select)
 
         set_tick_choices(self.right_click_menu)
 
         # TODO add slider
         self.naverage = 7
-        ylim = (-1500, 1500.)
+        ylim = (-1500, 1500.0)
         for i1, cv1 in enumerate(self.channel_views):
             for i2, cv2 in enumerate(self.channel_views):
-                if i1>=i2:
+                if i1 >= i2:
                     continue
                 w = GaugeWidget(gl=True)
                 w.set_ylim(*ylim)
-                w.set_title('Channels: %s | %s' % (i1+1, i2+1))
+                w.set_title("Channels: %s | %s" % (i1 + 1, i2 + 1))
                 self.widgets.append((cv1, cv2, w))
                 layout.addWidget(w, i1, i2)
 
@@ -887,16 +905,18 @@ class PitchLevelDifferenceViews(qw.QWidget):
     def on_draw(self):
         for cv1, cv2, w in self.widgets:
             confidence1 = num.where(
-                cv1.channel.pitch_confidence.latest_frame_data(
-                    self.naverage)>cv1.confidence_threshold)
+                cv1.channel.pitch_confidence.latest_frame_data(self.naverage)
+                > cv1.confidence_threshold
+            )
             confidence2 = num.where(
-                cv2.channel.pitch_confidence.latest_frame_data(
-                    self.naverage)>cv2.confidence_threshold)
+                cv2.channel.pitch_confidence.latest_frame_data(self.naverage)
+                > cv2.confidence_threshold
+            )
             confidence = num.intersect1d(confidence1, confidence2)
-            if len(confidence)>1:
+            if len(confidence) > 1:
                 d1 = cv1.channel.pitch.latest_frame_data(self.naverage)[confidence]
                 d2 = cv2.channel.pitch.latest_frame_data(self.naverage)[confidence]
-                w.set_data(num.median(d1-d2))
+                w.set_data(num.median(d1 - d2))
             else:
                 w.set_data(None)
             w.update()
@@ -919,12 +939,12 @@ class PitchLevelMikadoViews(qw.QWidget):
 
         for i1, cv1 in enumerate(self.channel_views):
             for i2, cv2 in enumerate(self.channel_views):
-                if i1>=i2:
+                if i1 >= i2:
                     continue
                 w = MikadoWidget()
                 w.set_ylim(-1500, 1500)
-                w.set_title('Channels: %s %s' % (i1, i2))
-                w.tfollow = 60.
+                w.set_title("Channels: %s %s" % (i1, i2))
+                w.tfollow = 60.0
                 self.widgets.append((cv1, cv2, w))
                 layout.addWidget(w, i1, i2)
 
@@ -941,13 +961,13 @@ class RightTabs(qw.QTabWidget):
     def __init__(self, *args, **kwargs):
         qw.QTabWidget.__init__(self, *args, **kwargs)
         self.setSizePolicy(
-            qw.QSizePolicy.MinimumExpanding,
-            qw.QSizePolicy.MinimumExpanding)
+            qw.QSizePolicy.MinimumExpanding, qw.QSizePolicy.MinimumExpanding
+        )
 
         self.setAutoFillBackground(True)
 
         pal = self.palette()
-        pal.setColor(qg.QPalette.Background, qg.QColor(*_colors['white']))
+        pal.setColor(qg.QPalette.Background, qg.QColor(*_colors["white"]))
         self.setPalette(pal)
 
     def sizeHint(self):
@@ -955,7 +975,8 @@ class RightTabs(qw.QTabWidget):
 
 
 class MainWidget(qw.QWidget):
-    ''' top level widget (central widget in the MainWindow.'''
+    """ top level widget (central widget in the MainWindow."""
+
     signal_widgets_clear = qc.pyqtSignal()
     signal_widgets_draw = qc.pyqtSignal()
 
@@ -965,7 +986,7 @@ class MainWidget(qw.QWidget):
 
         pal = self.palette()
         self.setAutoFillBackground(True)
-        pal.setColor(qg.QPalette.Background, qg.QColor(*_colors['white']))
+        pal.setColor(qg.QPalette.Background, qg.QColor(*_colors["white"]))
         self.setPalette(pal)
 
         self.setMouseTracking(True)
@@ -996,28 +1017,27 @@ class MainWidget(qw.QWidget):
         menu.play_button.clicked.connect(self.data_input.start)
         menu.play_button.clicked.connect(self.refresh_timer.start)
 
-        menu.select_algorithm.currentTextChanged.connect(
-            self.on_algorithm_select)
+        menu.select_algorithm.currentTextChanged.connect(self.on_algorithm_select)
 
     @qc.pyqtSlot()
     def on_save_as(self):
-        '''Write traces to wav files'''
-        _fn = QFileDialog().getSaveFileName(self, 'Save as', '.', '')[0]
+        """Write traces to wav files"""
+        _fn = QFileDialog().getSaveFileName(self, "Save as", ".", "")[0]
         if _fn:
             for i, tr in enumerate(self.channel_views_widget.views):
                 if not os.path.exists(_fn):
                     os.makedirs(_fn)
-                fn = os.path.join(_fn, 'channel%s' %i)
-                tr.channel.save_as(fn, fmt='wav')
+                fn = os.path.join(_fn, "channel%s" % i)
+                tr.channel.save_as(fn, fmt="wav")
 
     @qc.pyqtSlot(str)
     def on_algorithm_select(self, arg):
-        '''change pitch algorithm'''
+        """change pitch algorithm"""
         for c in self.data_input.channels:
             c.pitch_algorithm = arg
 
     def cleanup(self):
-        ''' clear all widgets. '''
+        """ clear all widgets. """
         if self.data_input:
             self.data_input.stop()
             self.data_input.terminate()
@@ -1027,7 +1047,7 @@ class MainWidget(qw.QWidget):
             item.widget().deleteLater()
 
     def set_input_dialog(self):
-        ''' Query device list and set the drop down menu'''
+        """ Query device list and set the drop down menu"""
         self.refresh_timer.stop()
         self.input_dialog.show()
         self.input_dialog.raise_()
@@ -1053,8 +1073,7 @@ class MainWidget(qw.QWidget):
         self.top_layout.addWidget(self.keyboard, 0, 0, 1, -1)
 
         pitch_view = PitchWidget(channel_views)
-        pitch_view.low_pitch_changed.connect(
-            self.menu.on_adapt_standard_frequency)
+        pitch_view.low_pitch_changed.connect(self.menu.on_adapt_standard_frequency)
 
         pitch_view_all_diff = DifferentialPitchWidget(channel_views)
         pitch_diff_view = PitchLevelDifferenceViews(channel_views)
@@ -1063,20 +1082,21 @@ class MainWidget(qw.QWidget):
         # remove old tabs from pitch view
         self.tabbed_pitch_widget.clear()
 
-        self.tabbed_pitch_widget.addTab(pitch_view, 'Pitches')
-        self.tabbed_pitch_widget.addTab(pitch_view_all_diff, 'Differential')
-        self.tabbed_pitch_widget.addTab(pitch_diff_view, 'Current')
+        self.tabbed_pitch_widget.addTab(pitch_view, "Pitches")
+        self.tabbed_pitch_widget.addTab(pitch_view_all_diff, "Differential")
+        self.tabbed_pitch_widget.addTab(pitch_diff_view, "Current")
         # self.tabbed_pitch_widget.addTab(self.pitch_diff_view_colorized, 'Mikado')
 
         self.menu.derivative_filter_slider.valueChanged.connect(
-            pitch_view_all_diff.on_derivative_filter_changed)
+            pitch_view_all_diff.on_derivative_filter_changed
+        )
         self.menu.connect_channel_views(self.channel_views_widget)
 
         self.signal_widgets_draw.connect(pitch_view.on_draw)
         self.signal_widgets_draw.connect(pitch_view_all_diff.on_draw)
         self.signal_widgets_draw.connect(pitch_diff_view.on_draw)
 
-        t_wait_buffer = max(dinput.fftsizes)/dinput.sampling_rate*1500.
+        t_wait_buffer = max(dinput.fftsizes) / dinput.sampling_rate * 1500.0
         qc.QTimer().singleShot(t_wait_buffer, self.start_refresh_timer)
 
     def start_refresh_timer(self):
@@ -1093,14 +1113,14 @@ class MainWidget(qw.QWidget):
 
     @qc.pyqtSlot()
     def refresh_widgets(self):
-        '''This is the main refresh loop.'''
+        """This is the main refresh loop."""
         self.worker.process()
         self.signal_widgets_clear.emit()
         self.signal_widgets_draw.emit()
 
     def closeEvent(self, ev):
-        '''Called when application is closed.'''
-        logger.info('closing')
+        """Called when application is closed."""
+        logger.info("closing")
         self.data_input.terminate()
         self.cleanup()
         qw.QWidget.closeEvent(self, ev)
@@ -1110,23 +1130,23 @@ class MainWidget(qw.QWidget):
 
 
 class AdjustableMainWindow(qw.QMainWindow):
-
     def sizeHint(self):
         return qc.QSize(1200, 500)
 
     @qc.pyqtSlot(qg.QKeyEvent)
     def keyPressEvent(self, key_event):
-        ''' react on keyboard keys when they are pressed.'''
+        """ react on keyboard keys when they are pressed."""
         key_text = key_event.text()
-        if key_text == 'q':
+        if key_text == "q":
             self.close()
-        elif key_text == 'f':
+        elif key_text == "f":
             self.showMaximized()
         super().keyPressEvent(key_event)
 
 
 class MainWindow(AdjustableMainWindow):
-    ''' Top level Window. The entry point of the gui.'''
+    """ Top level Window. The entry point of the gui."""
+
     def __init__(self):
         super(MainWindow, self).__init__()
         self.main_widget = MainWidget()
@@ -1155,22 +1175,22 @@ class MainWindow(AdjustableMainWindow):
 
     @qc.pyqtSlot(qg.QKeyEvent)
     def keyPressEvent(self, key_event):
-        ''' react on keyboard keys when they are pressed.'''
-        if key_event.text() == 'k':
+        """ react on keyboard keys when they are pressed."""
+        if key_event.text() == "k":
             self.main_widget.toggle_keyboard()
 
         super().keyPressEvent(key_event)
 
 
-def from_command_line(close_after=None, check_opengl=False,
-        disable_opengl=False):
-    ''' Start the GUI from command line'''
+def from_command_line(close_after=None, check_opengl=False, disable_opengl=False):
+    """ Start the GUI from command line"""
     if check_opengl:
         try:
             from PyQt5.QtWidgets import QOpenGLWidget  # noqa
-            logger.info('opengl supported')
+
+            logger.info("opengl supported")
         except ImportError as e:
-            logger.warning(str(e) + ' - opengl not supported')
+            logger.warning(str(e) + " - opengl not supported")
         finally:
             sys.exit()
 
@@ -1180,11 +1200,10 @@ def from_command_line(close_after=None, check_opengl=False,
     if close_after:
         close_timer = qc.QTimer()
         close_timer.timeout.connect(app.quit)
-        close_timer.start(close_after * 1000.)
+        close_timer.start(close_after * 1000.0)
 
     app.exec_()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     from_command_line()
-
