@@ -396,6 +396,7 @@ class SpectrogramWidget(Axis):
     def __del__(self):
         print('Spectrogram deleted')
 
+
 class SpectrogramWidgetRotated(SpectrogramWidget):
     def __init__(self, channel, *args, **kwargs):
         Axis.__init__(self, *args, **kwargs)
@@ -426,16 +427,6 @@ class SpectrogramWidgetRotated(SpectrogramWidget):
 
         self.update()
 
-#class SpectrumWidget(GLAxis):
-#    def __init__(self, *args, **kwargs):
-#        GLAxis.__init__(self, *args, **kwargs)
-#        self.set_xlim(0, 2000)
-#        self.set_ylim(0, 20)
-#        self.left = 0.
-#        self.yticks = False
-#        self.grids = [FixGrid(delta=100., horizontal=False)]
-#        self.xtick_formatter = '%i'
-#        # TODO: migrate functionanlity from ChannelView
 
 class SpectrumWidget(QChartView):
     def __init__(self, parent):
@@ -495,6 +486,7 @@ class SpectrumWidget(QChartView):
             self.chart.removeAxis(self.axis_y)
             self.setup_y_axis(type)
             self.series.attachAxis(self.axis_y)
+
 
 class CheckBoxSelect(qw.QWidget):
     check_box_toggled = qc.pyqtSignal(int)
