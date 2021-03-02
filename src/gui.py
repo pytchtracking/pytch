@@ -1187,3 +1187,4 @@ def from_command_line(close_after=None, check_opengl=False,
 
 if __name__ == '__main__':
     from_command_line()
+

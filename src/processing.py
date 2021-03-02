@@ -65,3 +65,4 @@ def _i(pow_frames):
     filter_banks = numpy.dot(pow_frames, fbank.T)
     filter_banks = numpy.where(filter_banks == 0, numpy.finfo(float).eps, filter_banks)  # Numerical Stability
     filter_banks = 20 * numpy.log10(filter_banks)  # dB
+

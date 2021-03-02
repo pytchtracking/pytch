@@ -317,3 +317,4 @@ class ProcessingMenu(qw.QFrame):
 
     def sizeHint(self):
         return qc.QSize(200, 200)
+

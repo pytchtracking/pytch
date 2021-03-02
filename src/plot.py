@@ -948,3 +948,4 @@ class MikadoWidget(Axis):
             painter.drawLine(line)
             painter.restore()
         self.draw_deco(painter)
+
