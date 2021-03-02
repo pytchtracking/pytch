@@ -83,8 +83,7 @@ class GLWidget(qgl.QGLWidget):
     def setupViewport(self, width, height):
         side = min(width, height)
         if self.gl:
-            self.gl.glViewport((width - side) // 2, (height - side) // 2, side,
-                side)
+            self.gl.glViewport((width - side) // 2, (height - side) // 2, side, side)
 
             self.gl.glMatrixMode(self.gl.GL_PROJECTION)
             self.gl.glLoadIdentity()
@@ -92,7 +91,7 @@ class GLWidget(qgl.QGLWidget):
             self.gl.glMatrixMode(self.gl.GL_MODELVIEW)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
     app = qw.QApplication(sys.argv)
 
@@ -106,13 +105,12 @@ if __name__ == '__main__':
     animationTimer.timeout.connect(glwindow.repaint)
     animationTimer.start(25)
 
-    #window.show()
-    #window = QMainWindow()
+    # window.show()
+    # window = QMainWindow()
     window = qw.QWidget()
     layout = qw.QHBoxLayout()
     layout.addWidget(glwindow)
     window.setLayout(layout)
-    #window.setCentralWidget(glwindow)
+    # window.setCentralWidget(glwindow)
     window.show()
     sys.exit(app.exec_())
-

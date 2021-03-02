@@ -10,8 +10,7 @@ from PyQt5 import QtCore as qc
 from pytch import gui, plot
 
 
-
-#class GUITestCase(unittest.TestCase):
+# class GUITestCase(unittest.TestCase):
 class MainWindowQClose(QMainWindow):
     def __init__(self, *args, **kwargs):
         QMainWindow.__init__(self, *args, **kwargs)
@@ -20,8 +19,8 @@ class MainWindowQClose(QMainWindow):
         self.setMouseTracking(True)
 
     def keyPressEvent(self, key_event):
-        ''' react on keyboard keys when they are pressed.'''
-        if key_event.text() == 'q':
+        """ react on keyboard keys when they are pressed."""
+        if key_event.text() == "q":
             self.close()
         QMainWindow.keyPressEvent(self, key_event)
 
@@ -29,10 +28,10 @@ class MainWindowQClose(QMainWindow):
         painter = qg.QPainter(self)
         rect = self.rect()
         center = rect.center()
-        gui.draw_label(painter, center, 20, 'A', 'red')
+        gui.draw_label(painter, center, 20, "A", "red")
 
-class GUITestCase():
 
+class GUITestCase:
     def test_scaling(self):
         app = QApplication(sys.argv)
         main_window = MainWindowQClose()
@@ -40,8 +39,8 @@ class GUITestCase():
         plot_widget = gui.PlotWidget()
         plot_widget.plot(num.arange(199), num.arange(199))
         main_window.setCentralWidget(plot_widget)
-        #plot_widget.set_xlim(0, 20)
-        #plot_widget.set_ylim(-50, 150)
+        # plot_widget.set_xlim(0, 20)
+        # plot_widget.set_ylim(-50, 150)
 
         main_window.show()
         main_window.repaint()
@@ -51,29 +50,27 @@ class GUITestCase():
         app = QApplication(sys.argv)
         main_window = MainWindowQClose()
         plot_widget = gui.PlotWidget()
-        #plot_widget.set_xlim(0, 18)
-        #plot_widget.set_ylim(0, 1)
+        # plot_widget.set_xlim(0, 18)
+        # plot_widget.set_ylim(0, 1)
         n = 200
 
+        # x1 = num.array([0,1,2,3,6,7,9,10,14,16])
+        # x2 = num.array([0,1,3,4,5,6,8,11,16,17])
+        # y1 = num.random.random(len(x1))*1000
+        # y2 = num.random.random(len(x1))*1000
 
-        #x1 = num.array([0,1,2,3,6,7,9,10,14,16])
-        #x2 = num.array([0,1,3,4,5,6,8,11,16,17])
-        #y1 = num.random.random(len(x1))*1000
-        #y2 = num.random.random(len(x1))*1000
+        x1 = num.linspace(0, 10.0, n)
+        x2 = num.linspace(0, 10.0, n)
+        y1 = num.random.random(len(x1)) * 100
+        y2 = num.random.random(len(x1)) * 100
 
-        x1 = num.linspace(0, 10., n)
-        x2 = num.linspace(0, 10., n)
-        y1 = num.random.random(len(x1))*100
-        y2 = num.random.random(len(x1))*100
-
-
-        #plot_widget.fill_between(x1, y1, x2, y2)
+        # plot_widget.fill_between(x1, y1, x2, y2)
         plot_widget.colormap.set_vlim(0, 100)
         main_window.setCentralWidget(plot_widget)
         main_window.show()
         main_window.repaint()
 
-        #main_window.close()
+        # main_window.close()
         sys.exit(app.exec_())
 
     def test_ColormapWidget(self):
@@ -87,7 +84,7 @@ class GUITestCase():
         main_window.repaint()
         sys.exit(app.exec_())
 
-    #def test_spectrogram(self):
+    # def test_spectrogram(self):
     #    app = QApplication(sys.argv)
     #    main_window = MainWindowQClose()
     #    n = 30
@@ -120,38 +117,38 @@ class GUITestCase():
 
     def test_spectrogram(self):
 
-
         app = QApplication(sys.argv)
         main_window = MainWindowQClose()
-        a = num.loadtxt('spectrogram_data.txt', dtype=num.float)
+        a = num.loadtxt("spectrogram_data.txt", dtype=num.float)
         nx, ny = a.shape
         x = num.arange(nx)
         y = num.arange(ny)
         a -= num.min(a)
         a /= num.max(a)
-        a *= 255.
+        a *= 255.0
         print(num.min(a), num.max(a))
         a = num.ascontiguousarray(a)
-        a = num.require(a, num.uint8, 'C')
+        a = num.require(a, num.uint8, "C")
         plot_widget = gui.PlotWidget()
         plot_widget.setup_annotation_boxes()
         cmesh = plot_widget.colormesh(x, y, a, parent=plot_widget)
-        print('stop')
+        print("stop")
         main_window.setCentralWidget(plot_widget)
         main_window.show()
         main_window.repaint()
         img = None
         imgarr = None
-        self._a = num.loadtxt('spectrogram_data.txt', dtype=num.float)
+        self._a = num.loadtxt("spectrogram_data.txt", dtype=num.float)
         self._i = 0
+
         def update_image():
             self._i += 1
             a = copy.deepcopy(self._a)
             a -= num.min(a)
             a /= num.max(a)
-            a *= 1000000.
-            if self._i%2:
-                a *= -1.
+            a *= 1000000.0
+            if self._i % 2:
+                a *= -1.0
 
             a = num.asarray(a, dtype=num.uint32)
             cmesh.set_data(a)
@@ -161,8 +158,7 @@ class GUITestCase():
             cmesh.repaint()
 
         spectrogram_refresh_timer = qc.QTimer()
-        spectrogram_refresh_timer.timeout.connect(
-            update_image)
+        spectrogram_refresh_timer.timeout.connect(update_image)
         spectrogram_refresh_timer.start(100)
         sys.exit(app.exec_())
 
@@ -170,8 +166,8 @@ class GUITestCase():
         app = QApplication(sys.argv)
         main_window = MainWindowQClose()
         gauge = plot.GaugeWidget()
-        gauge.set_ylim(-1000., 1000)
-        gauge.set_data(-400.)
+        gauge.set_ylim(-1000.0, 1000)
+        gauge.set_data(-400.0)
         main_window.setCentralWidget(gauge)
 
         main_window.show()
@@ -180,6 +176,7 @@ class GUITestCase():
 
     def test_keyboard(self):
         from pytch.keyboard import KeyBoard
+
         app = QApplication(sys.argv)
         main_window = MainWindowQClose()
 
@@ -191,6 +188,7 @@ class GUITestCase():
 
     def test_graphicsview(self):
         from pytch.plot import Figure
+
         app = QApplication(sys.argv)
         main_window = MainWindowQClose()
 
@@ -203,8 +201,8 @@ class GUITestCase():
         sys.exit(app.exec_())
 
 
-if __name__=='__main__':
-    #unittest.main()
+if __name__ == "__main__":
+    # unittest.main()
     t = GUITestCase()
     t.test_scaling()
     t.test_PitchWidget()
@@ -213,4 +211,3 @@ if __name__=='__main__':
     t.test_gauge()
     t.test_graphicsview()
     t.test_keyboard()
-

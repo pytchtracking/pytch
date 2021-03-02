@@ -10,39 +10,39 @@ from PyQt5 import QtWidgets as qw
 from pytch.gui_util import _colors
 
 
-logger = logging.getLogger('pytch.keyboard')
+logger = logging.getLogger("pytch.keyboard")
 
 
-keys = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+keys = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 _semitones = [1, 3, 6, 8, 10]
 
 
-def f2midi(f, standard_frequency=440.):
-    ''' https://en.wikipedia.org/wiki/MIDI_tuning_standard '''
-    return int(69 + 12*num.log2(f/standard_frequency))
+def f2midi(f, standard_frequency=440.0):
+    """ https://en.wikipedia.org/wiki/MIDI_tuning_standard """
+    return int(69 + 12 * num.log2(f / standard_frequency))
 
 
 class Synthy(qc.QObject):
-
     def __init__(self):
         qc.QObject.__init__(self)
 
         self.p = pyaudio.PyAudio()
-        self.stream = self.p.open(format=pyaudio.paFloat32,
-                                  channels=1, rate=44100, output=1)
+        self.stream = self.p.open(
+            format=pyaudio.paFloat32, channels=1, rate=44100, output=1
+        )
         self.stream.start_stream()
         self.stop_playing = False
 
     def sine(self, frequency, length, rate):
         length = int(length * rate)
-        factor = frequency * math.pi * 2. / rate
+        factor = frequency * math.pi * 2.0 / rate
         return num.sin(num.arange(length) * factor)
 
-    def play_tone(self, frequency=440, length=1., rate=44100):
+    def play_tone(self, frequency=440, length=1.0, rate=44100):
         chunks = []
-        y = num.zeros(int(length*rate))
+        y = num.zeros(int(length * rate))
         for i in range(3):
-            y += (self.sine(frequency*(i+1), length, rate) / (i+1))
+            y += self.sine(frequency * (i + 1), length, rate) / (i + 1)
 
         chunks.append(y)
         chunk = num.concatenate(chunks) * 0.25
@@ -79,10 +79,10 @@ class Key(qw.QWidget):
 
     def setup(self):
         self.is_semitone = self.semitone in _semitones
-        self.f = 2.**((self.semitone + self.octave*12.)/12.) * 130.81
+        self.f = 2.0 ** ((self.semitone + self.octave * 12.0) / 12.0) * 130.81
         self.name = keys[self.semitone]
         # self.static_label = qc.QStaticText(self.name)
-        self.brush_pressed = qg.QBrush(qg.QColor(*_colors['aluminium4']))
+        self.brush_pressed = qg.QBrush(qg.QColor(*_colors["aluminium4"]))
         if self.is_semitone:
             self.brush = qg.QBrush(qc.Qt.black)
             self.pen = qg.QPen(qc.Qt.white)
@@ -107,7 +107,7 @@ class Key(qw.QWidget):
             painter.save()
             if self.is_semitone:
                 painter.setPen(qg.QPen(qc.Qt.white))
-            painter.drawText(x1 + (x2-x1)/2, y2, self.name)
+            painter.drawText(x1 + (x2 - x1) / 2, y2, self.name)
             painter.restore()
 
     @qc.pyqtSlot(qg.QMouseEvent)
@@ -156,15 +156,15 @@ class KeyBoard(qw.QWidget):
         self.setup()
 
     def setup_right_click_menu(self):
-        self.right_click_menu = qw.QMenu('Keyboard Settings', self)
-        action = qw.QAction(str('Toggle labels'), self.right_click_menu)
+        self.right_click_menu = qw.QMenu("Keyboard Settings", self)
+        action = qw.QAction(str("Toggle labels"), self.right_click_menu)
         action.triggered.connect(self.toggle_tabels)
         self.right_click_menu.addAction(action)
 
     def setup(self):
         rects = self.get_key_rects()
         for ir, r in enumerate(rects):
-            noctave = int(ir/12)
+            noctave = int(ir / 12)
             key = Key(octave=noctave, semitone=ir % 12, parent=self)
             key.playKeyBoard.connect(self.keyBoardKeyPressed)
             key.playKeyBoard.connect(self.synthy.play)
@@ -177,9 +177,9 @@ class KeyBoard(qw.QWidget):
         self.keyBoardKeyPressed.emit(0)
 
     def get_key_rects(self):
-        ''' Get rectangles for tone keys'''
+        """ Get rectangles for tone keys"""
         n = 14 * self.n_octaves
-        deltax = self.width()/n
+        deltax = self.width() / n
         y = self.height()
         y_semi = self.height() * 0.6
         rects = []
@@ -189,31 +189,29 @@ class KeyBoard(qw.QWidget):
                 continue
             if semitone % 12 in _semitones:
                 rect = qc.QRect(
-                    qc.QPoint(i * deltax, 0),
-                    qc.QPoint(i * deltax + deltax*2, y_semi)
+                    qc.QPoint(i * deltax, 0), qc.QPoint(i * deltax + deltax * 2, y_semi)
                 )
             else:
                 rect = qc.QRect(
-                    qc.QPoint(i * deltax, 0),
-                    qc.QPoint(i * deltax + deltax*2, y)
+                    qc.QPoint(i * deltax, 0), qc.QPoint(i * deltax + deltax * 2, y)
                 )
             rects.append(rect)
             semitone += 1
         return rects
 
     def resizeEvent(self, event):
-        ''' required to move all :py:class:`pytch.keyboard.Key` instances to
-        their approproate locations'''
+        """required to move all :py:class:`pytch.keyboard.Key` instances to
+        their approproate locations"""
         rects = self.get_key_rects()
         for r, k in zip(rects, self.keys):
             k.setGeometry(r)
 
     def connect_channel_views(self, channel_views_widget):
-        ''' Connect Keyboard's signals to channel views.
+        """Connect Keyboard's signals to channel views.
 
         :param channel_views_widget: instance of
             :py:class:`pytch.gui.ChannelViewsWidget
-        '''
+        """
         for cv in channel_views_widget.views:
             self.keyBoardKeyPressed.connect(cv.on_keyboard_key_pressed)
 
@@ -226,4 +224,3 @@ class KeyBoard(qw.QWidget):
     def __del__(self):
         self.synthy_thread.quit()
         self.synthy_thread.wait()
-
