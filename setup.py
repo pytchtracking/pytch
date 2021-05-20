@@ -38,7 +38,6 @@ setup(
     version="0.1",
     description="Vocal Trainer",
     author="Frank Scherbaum and Marius Kriegerowski",
-    package_dir={"pytch": "src"},
     packages=["pytch"],
     scripts=["apps/pytch"],
     install_requires=[
