@@ -1,8 +1,6 @@
 Vocal Trainer
 ===============
 
-[![Build Status](https://travis-ci.org/HerrMuellerluedenscheid/pytch.svg?branch=master)](https://travis-ci.org/HerrMuellerluedenscheid/pytch)
-
 ## Prerequisites
 
 Pytch requires python3, as well as the following libraries:
@@ -27,7 +25,7 @@ Help can be found here: http://pyqt.sourceforge.net/Docs/PyQt5/installation.html
 
 Download the project
 ```
-git clone https://github.com/HerrMuellerluedenscheid/pytch.git
+git clone https://github.com/pytchtracking/pytch
 cd pytch
 ```
 
@@ -47,7 +45,7 @@ python setup.py install
 
 Go to a directory where you keep your source codes and clone the project:
 ```
-git clone https://github.com/HerrMuellerluedenscheid/pytch.git
+git clone https://github.com/pytchtracking/pytch
 cd pytch
 sudo python setup.py install
 ```
