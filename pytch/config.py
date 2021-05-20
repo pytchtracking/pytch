@@ -29,10 +29,10 @@ class PytchConfig:
 
 
 def load_config():
-    """Read the local configurations file and returned a parsed dictonary.
+    """Read the local configurations file and returned a parsed dictionary.
     If the file does not exist, create a fresh one."""
 
-    config_file_path = os.path.join(os.getenv("HOME"), ".pytch.config")
+    config_file_path = os.path.join(os.getenv("HOME", ""), ".pytch.config")
     config = configparser.ConfigParser()
 
     if not os.path.isfile(config_file_path):
@@ -46,7 +46,7 @@ def load_config():
         with open(config_file_path, "w") as out:
             config.write(out)
 
-        logger.info("Created new config file in: %s" % config_file_path)
+        logger.info("Created new config file in: %s", config_file_path)
 
     # parse config file in home directory
     config.read(config_file_path)
