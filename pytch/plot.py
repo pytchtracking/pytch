@@ -424,12 +424,6 @@ class FixGrid(AutoGrid):
         return self.lines_v
 
 
-class DefinedGrid(AutoGrid):
-    def __init__(self):
-        AutoGrid.__init__(self, *args, **kwargs)
-        # TODO make special user definable grid. Should be the WidgetBase class
-
-
 class SceneItem:
     def __init__(self, x=None, y=None, pen=None):
         self.pen = pen
