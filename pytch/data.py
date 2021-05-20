@@ -385,7 +385,7 @@ class Channel(RingBuffer):
         self.pitch_o.set_tolerance(tolerance)
 
 
-class DataProvider(object):
+class DataProvider:
     """ Base class defining common interface for data input to Worker"""
 
     def __init__(self):

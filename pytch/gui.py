@@ -347,8 +347,7 @@ class ChannelViews(qw.QWidget):
         return qc.QSize(400, 200)
 
     def __iter__(self):
-        for view in self.views:
-            yield view
+        yield from self.views
 
 
 class SpectrogramWidget(Axis):
@@ -648,7 +647,7 @@ class ImageWorker(qc.QObject):
     start = qc.pyqtSignal(str)
 
     def __init__(self, channels, nx, ny):
-        super(ImageWorker, self).__init__()
+        super().__init__()
         self.channels = channels
         self.scaling = 4.0
         self.data = None
@@ -892,7 +891,7 @@ class PitchLevelDifferenceViews(qw.QWidget):
                     continue
                 w = GaugeWidget(gl=True)
                 w.set_ylim(*ylim)
-                w.set_title("Channels: %s | %s" % (i1 + 1, i2 + 1))
+                w.set_title("Channels: {} | {}".format(i1 + 1, i2 + 1))
                 self.widgets.append((cv1, cv2, w))
                 layout.addWidget(w, i1, i2)
 
@@ -943,7 +942,7 @@ class PitchLevelMikadoViews(qw.QWidget):
                     continue
                 w = MikadoWidget()
                 w.set_ylim(-1500, 1500)
-                w.set_title("Channels: %s %s" % (i1, i2))
+                w.set_title(f"Channels: {i1} {i2}")
                 w.tfollow = 60.0
                 self.widgets.append((cv1, cv2, w))
                 layout.addWidget(w, i1, i2)
@@ -1148,7 +1147,7 @@ class MainWindow(AdjustableMainWindow):
     """ Top level Window. The entry point of the gui."""
 
     def __init__(self):
-        super(MainWindow, self).__init__()
+        super().__init__()
         self.main_widget = MainWidget()
         self.main_widget.setFocusPolicy(qc.Qt.StrongFocus)
 

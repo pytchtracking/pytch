@@ -129,7 +129,7 @@ if __name__ == "__main__":
     plt.plot(x, y, "k+", label="noisy measurements")
     plt.plot(x, xhat, "b-", label="a posteri estimate")
     fig = plt.gcf()
-    plt.text(0.5, 0.01, "Q: %s, R: %s, P:%s" % (Q, R, P), transform=fig.transFigure)
+    plt.text(0.5, 0.01, f"Q: {Q}, R: {R}, P:{P}", transform=fig.transFigure)
     plt.legend()
     plt.title("Estimate vs. iteration step", fontweight="bold")
     plt.xlabel("Time")

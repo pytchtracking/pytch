@@ -53,7 +53,7 @@ def get_colortable(name, log=False):
     return ctable
 
 
-class InterpolatedColormap(object):
+class InterpolatedColormap:
     """ Continuously interpolating colormap """
 
     def __init__(self, name=""):
@@ -920,7 +920,7 @@ GaugeWidget = MakeGaugeWidget(gl=True)
 
 class MikadoWidget(Axis):
     def __init__(self, *args, **kwargs):
-        super(MikadoWidget, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def fill_between(self, xdata1, ydata1, xdata2, ydata2, *args, **kwargs):
         """

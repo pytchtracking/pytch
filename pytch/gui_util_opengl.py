@@ -52,7 +52,7 @@ from pytch.gui_util import make_QPolygonF
 
 class GLWidget(qgl.QGLWidget):
     def __init__(self, *args, **kwargs):
-        super(GLWidget, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self.canvas = False
 

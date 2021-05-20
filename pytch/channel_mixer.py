@@ -59,7 +59,7 @@ class LevelMeter(qw.QWidget):
     state_changed = qc.pyqtSignal(bool)
 
     def __init__(self, channel, enabled=True, update_interval=0.1):
-        super(LevelMeter, self).__init__()
+        super().__init__()
         self.update_interval = update_interval
         layout = qw.QVBoxLayout(self)
 
@@ -123,7 +123,7 @@ class LevelMeter(qw.QWidget):
 
 class ChannelMixer(qw.QWidget):
     def __init__(self, channels=None):
-        super(ChannelMixer, self).__init__()
+        super().__init__()
         self.setLayout(qw.QHBoxLayout())
         self.set_channels(channels or [])
 

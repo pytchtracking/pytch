@@ -18,7 +18,7 @@ logger = logging.getLogger("pytch.menu")
 
 class ChannelSelector(qw.QWidget):
     def __init__(self, nchannels, channels_enabled):
-        super(ChannelSelector, self).__init__()
+        super().__init__()
         self.setLayout(qw.QVBoxLayout())
 
         self.buttons = []
@@ -60,7 +60,7 @@ class DeviceMenu(qw.QDialog):
             else:
                 extra = "(No Input)"
 
-            self.select_input.addItem("%s %s%s" % (idevice, device["name"], extra))
+            self.select_input.addItem("{} {}{}".format(idevice, device["name"], extra))
 
         # select sampling rate
         layout.addWidget(qw.QLabel("Sampling Rate"))

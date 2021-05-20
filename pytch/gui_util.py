@@ -112,10 +112,7 @@ def add_action_group(options, menu, slot, exclusive=True):
     return choices
 
 
-if sys.version_info < (3, 0):
-    _buffer = buffer
-else:
-    _buffer = memoryview
+_buffer = memoryview
 
 
 def nice_value(x):
@@ -149,7 +146,7 @@ def normalized_to01(d):
     return (d - dmin) / (num.max(d) - dmin)
 
 
-class AutoScaler(object):
+class AutoScaler:
     """ taken from pyrocko.org"""
 
     def __init__(
@@ -314,7 +311,7 @@ class AutoScaler(object):
         return a
 
 
-class Projection(object):
+class Projection:
     def __init__(self):
         self.xr = 0.0, 1.0
         self.ur = 0.0, 1.0
@@ -419,7 +416,7 @@ class FloatQLineEdit(qw.QLineEdit):
             self.accepted_value.emit(val)
 
 
-class PlotBase(object):
+class PlotBase:
     def __init__(self, *args, **kwargs):
         self.wheel_pos = 0
         self.scroll_increment = 100

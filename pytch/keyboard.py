@@ -69,7 +69,7 @@ class Key(qw.QWidget):
     stopKeyBoard = qc.pyqtSignal()
 
     def __init__(self, octave, semitone, *args, **kwargs):
-        super(Key, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.setContentsMargins(1, 1, 1, 1)
         self.octave = octave
         self.semitone = semitone
@@ -116,7 +116,7 @@ class Key(qw.QWidget):
             self.pressed = True
             self.playKeyBoard.emit(self.f)
         else:
-            super(Key, self).mousePressEvent(mouse_ev)
+            super().mousePressEvent(mouse_ev)
         self.update()
 
     @qc.pyqtSlot(qg.QMouseEvent)
@@ -139,7 +139,7 @@ class KeyBoard(qw.QWidget):
     toggle_tabels = qc.pyqtSignal()
 
     def __init__(self, *args, **kwargs):
-        super(KeyBoard, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self.setContentsMargins(1, 1, 1, 1)
         self.setMaximumHeight(200)
@@ -157,7 +157,7 @@ class KeyBoard(qw.QWidget):
 
     def setup_right_click_menu(self):
         self.right_click_menu = qw.QMenu("Keyboard Settings", self)
-        action = qw.QAction(str("Toggle labels"), self.right_click_menu)
+        action = qw.QAction("Toggle labels", self.right_click_menu)
         action.triggered.connect(self.toggle_tabels)
         self.right_click_menu.addAction(action)
 
@@ -219,7 +219,7 @@ class KeyBoard(qw.QWidget):
         if mouse_ev.button() == qc.Qt.RightButton:
             self.right_click_menu.exec_(mouse_ev.pos())
         else:
-            super(KeyBoard, self).mousePressEvent(mouse_ev)
+            super().mousePressEvent(mouse_ev)
 
     def __del__(self):
         self.synthy_thread.quit()

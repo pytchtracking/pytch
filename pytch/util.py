@@ -71,7 +71,7 @@ class Profiler:
         tstart = self.times[0][1]
         s = ""
         for imark, mark in enumerate(self.times[1:]):
-            s += "%s: %s\n" % (mark[0], mark[1] - self.times[imark][1])
+            s += "{}: {}\n".format(mark[0], mark[1] - self.times[imark][1])
 
         s += "total: %s" % (self.times[-1][1] - self.times[0][1])
         return s
