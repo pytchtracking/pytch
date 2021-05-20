@@ -136,8 +136,6 @@ class GUITestCase:
         main_window.setCentralWidget(plot_widget)
         main_window.show()
         main_window.repaint()
-        img = None
-        imgarr = None
         self._a = num.loadtxt("spectrogram_data.txt", dtype=num.float)
         self._i = 0
 
@@ -182,20 +180,6 @@ class GUITestCase:
 
         kb = KeyBoard()
         main_window.setCentralWidget(kb)
-        main_window.show()
-        main_window.repaint()
-        sys.exit(app.exec_())
-
-    def test_graphicsview(self):
-        from pytch.plot import Figure
-
-        app = QApplication(sys.argv)
-        main_window = MainWindowQClose()
-
-        figure = Figure()
-        figure.add_subplot()
-
-        main_window.setCentralWidget(gauge)
         main_window.show()
         main_window.repaint()
         sys.exit(app.exec_())

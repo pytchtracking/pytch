@@ -411,6 +411,7 @@ class MicrophoneRecorder(DataProvider):
 
         DataProvider.__init__(self)
 
+        selected_channels = selected_channels or []
         self.stream = None
         self.paudio = pyaudio.PyAudio()
         self.nchannels = max(selected_channels) + 1
@@ -436,7 +437,7 @@ class MicrophoneRecorder(DataProvider):
     @property
     def sampling_rate_options(self):
         """ List of supported sampling rates."""
-        return sampling_rate_options(self.device_no, audio=self.paudio)
+        return get_sampling_rate_options(self.device_no, audio=self.paudio)
 
     def new_frame(self, data, frame_count, time_info, status):
         """Callback function called as soon as pyaudio anounces new

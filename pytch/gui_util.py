@@ -362,9 +362,6 @@ class Projection(object):
         xmin, xmax = self.xr
         return xmin + (u - umin) * ((xmax - xmin) / (umax - umin))
 
-    def copy(self):
-        return copy.copy(self)
-
 
 def make_QPolygonF(xdata, ydata):
     """Create a :py:class:`qg.QPolygonF` instance from xdata and ydata, both
