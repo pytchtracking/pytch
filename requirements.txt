@@ -2,3 +2,4 @@ PyQt5
 aubio
 pyaudio
 numpy
+scipy

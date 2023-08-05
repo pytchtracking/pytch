@@ -109,7 +109,7 @@ class LevelMeter(qw.QWidget):
     def normalization(self):
         """normalization factor i.e. max bit depth"""
         nbit = 16
-        return 2 ** nbit / 2.0
+        return 2**nbit / 2.0
 
     def get_level(self):
         v = num.mean(num.abs(self.channel.latest_frame(self.update_interval)))
@@ -152,8 +152,8 @@ def app_add_widget():
     app = qw.QApplication(sys.argv)
 
     channels = [
-        DummyChannel(0.5 * 2 ** 16),
-        DummyChannel(0.3 * 2 ** 16),
+        DummyChannel(0.5 * 2**16),
+        DummyChannel(0.3 * 2**16),
         DummyChannel(0.0),
     ]
 

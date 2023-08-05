@@ -54,7 +54,7 @@ def get_colortable(name, log=False):
 
 
 class InterpolatedColormap:
-    """ Continuously interpolating colormap """
+    """Continuously interpolating colormap"""
 
     def __init__(self, name=""):
         self.name = name
@@ -93,7 +93,7 @@ class InterpolatedColormap:
             self.update()
 
     def get_incremented_values(self, n=40):
-        """ has to be implemented by every subclass. Needed for plotting."""
+        """has to be implemented by every subclass. Needed for plotting."""
         mi, ma = self.proj.get_in_range()
         return num.linspace(mi, ma, n)
 
@@ -139,6 +139,7 @@ class Colormap(InterpolatedColormap):
         self.colors_rgb = []
         for v in vals:
             rgb = self._map(v)
+            rgb = (int(rgb[0]), int(rgb[1]), int(rgb[2]))
             self.colors_rgb.append(rgb)
             c = qg.QColor(*rgb)
             self.colors_QColor.append(c)
@@ -233,7 +234,7 @@ def MakeGaugeWidget(gl=False):
             self.wheel_pos = 0
 
         def set_ylim(self, ymin, ymax):
-            """ Set range of Gauge."""
+            """Set range of Gauge."""
             self.ymin = ymin
             self.ymax = ymax
             self._ymin = ymin
@@ -245,7 +246,7 @@ def MakeGaugeWidget(gl=False):
 
         @qc.pyqtSlot(qg.QPaintEvent)
         def paintEvent(self, e):
-            """ This is executed when self.repaint() is called"""
+            """This is executed when self.repaint() is called"""
             painter = qg.QPainter(self)
             self.side = min(self.width(), self.height()) / 1.05
             self.halfside = self.side / 2.0
@@ -358,7 +359,7 @@ class AutoGrid:
         painter.restore()
 
     def lines_horizontal(self, widget, painter):
-        """ setup horizontal grid lines"""
+        """setup horizontal grid lines"""
 
         # if not (widget._ymin, widget._ymax) == self.data_lims_h:
         ymin, ymax, yinc = widget.yscaler.make_scale((widget._ymin, widget._ymax))
@@ -373,7 +374,7 @@ class AutoGrid:
         return self.lines_h
 
     def lines_vertical(self, widget, painter):
-        """ setup vertical grid lines"""
+        """setup vertical grid lines"""
 
         # if not (widget._xmin, widget._xmax) == self.data_lims_v:
         xmin, xmax, xinc = widget.xscaler.make_scale((widget._xmin, widget._xmax))
@@ -394,7 +395,7 @@ class FixGrid(AutoGrid):
         AutoGrid.__init__(self, *args, **kwargs)
 
     def lines_horizontal(self, widget, painter):
-        """ setup horizontal grid lines"""
+        """setup horizontal grid lines"""
 
         # if not (widget._ymin, widget._ymax) == self.data_lims_h:
         ymin, ymax, yinc = widget.yscaler.make_scale((widget._ymin, widget._ymax))
@@ -409,7 +410,7 @@ class FixGrid(AutoGrid):
         return self.lines_h
 
     def lines_vertical(self, widget, painter):
-        """ setup vertical grid lines"""
+        """setup vertical grid lines"""
 
         # if not (widget._xmin, widget._xmax) == self.data_lims_v:
         xmin, xmax, xinc = widget.xscaler.make_scale((widget._xmin, widget._xmax))
@@ -460,7 +461,7 @@ class AxVLine(SceneItem):
 
 
 class Points(SceneItem):
-    """ Holds and draws data projected to screen dimensions."""
+    """Holds and draws data projected to screen dimensions."""
 
     def __init__(self, x, y, pen, antialiasing=True):
         SceneItem.__init__(self, x=x, y=y, pen=pen)
@@ -477,7 +478,7 @@ class Points(SceneItem):
 
 
 class Polyline(SceneItem):
-    """ Holds and draws data projected to screen dimensions."""
+    """Holds and draws data projected to screen dimensions."""
 
     def __init__(self, x, y, pen, antialiasing=True):
         SceneItem.__init__(self, x=x, y=y, pen=pen)
@@ -521,7 +522,7 @@ class PColormesh(qw.QWidget):
         buff = self.img.bits()
         nx = len(x)
         ny = len(y)
-        buff.setsize(nx * ny * 2 ** 8)
+        buff.setsize(nx * ny * 2**8)
         self.img_data = num.ndarray(shape=(nx, ny), dtype=num.uint8, buffer=buff)
         self.color_table = "viridis"
 
@@ -574,7 +575,7 @@ def MakeAxis(gl=True):
         WidgetBase = qw.QWidget
 
     class _Axis(WidgetBase, PlotBase):
-        """ a plotwidget displays data (x, y coordinates). """
+        """a plotwidget displays data (x, y coordinates)."""
 
         def __init__(self, *args, **kwargs):
             WidgetBase.__init__(self, *args, **kwargs)
@@ -633,7 +634,7 @@ def MakeAxis(gl=True):
             self.scene_items = []
 
         def setup_annotation_boxes(self):
-            """ left and top boxes containing labels, dashes, marks, etc."""
+            """left and top boxes containing labels, dashes, marks, etc."""
             w, h = self.wh
             l = self.left
             r = self.right
@@ -713,7 +714,6 @@ def MakeAxis(gl=True):
             self.scene_items.append(Text(x=x, y=y, pen=pen, text=text))
 
         def colormesh(self, x=None, y=None, z=None, **pen_args):
-
             nx, ny = z.shape
             if not y:
                 y = num.arange(ny)
@@ -739,7 +739,6 @@ def MakeAxis(gl=True):
                 logger.info(e)
 
         def update_datalims(self, xvisible, yvisible):
-
             if self.ymin is None:
                 self._ymin = num.min(yvisible)
             else:
@@ -768,7 +767,7 @@ def MakeAxis(gl=True):
             return (self._xmin, self._xmax)
 
         def set_xlim(self, xmin, xmax):
-            """ Set x data range. If unset scale to min|max of ydata range """
+            """Set x data range. If unset scale to min|max of ydata range"""
             self.xmin = xmin
             self.xmax = xmax
             self.xproj.set_in_range(self.xmin, self.xmax)
@@ -801,14 +800,14 @@ def MakeAxis(gl=True):
             painter.restore()
 
         def draw_axes(self, painter):
-            """ draw x and y axis"""
+            """draw x and y axis"""
             w, h = self.wh
             points = [
-                qc.QPoint(w * self.left, h * (self.bottom)),
-                qc.QPoint(w * self.left, h * (1.0 - self.top)),
-                qc.QPoint(w * self.right, h * (1.0 - self.top)),
+                qc.QPointF(w * self.left, h * (self.bottom)),
+                qc.QPointF(w * self.left, h * (1.0 - self.top)),
+                qc.QPointF(w * self.right, h * (1.0 - self.top)),
             ]
-            painter.drawPoints(qg.QPolygon(points))
+            painter.drawPoints(qg.QPolygonF(points))
 
         def set_xtick_increment(self, increment):
             self._xinc = increment

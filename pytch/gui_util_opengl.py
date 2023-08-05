@@ -92,7 +92,6 @@ class GLWidget(qgl.QGLWidget):
 
 
 if __name__ == "__main__":
-
     app = qw.QApplication(sys.argv)
 
     fmt = qg.QSurfaceFormat()

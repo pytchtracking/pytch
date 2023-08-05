@@ -34,7 +34,7 @@ class ChannelSelector(qw.QWidget):
 
 
 class DeviceMenu(qw.QDialog):
-    """ Pop up menu at program start devining basic settings"""
+    """Pop up menu at program start devining basic settings"""
 
     def __init__(self, set_input_callback=None, *args, **kwargs):
         qw.QDialog.__init__(self, *args, **kwargs)
@@ -107,7 +107,7 @@ class DeviceMenu(qw.QDialog):
         )
 
     def get_nfft_box(self):
-        """ Return a qw.QSlider for modifying FFT width"""
+        """Return a qw.QSlider for modifying FFT width"""
         b = qw.QComboBox()
         b.addItems([str(f * 1024) for f in [1, 2, 4, 8, 16]])
         b.setCurrentIndex(3)
@@ -131,7 +131,6 @@ class DeviceMenu(qw.QDialog):
 
 
 class ProcessingMenu(qw.QFrame):
-
     spectrum_type_selected = qc.pyqtSignal(str)
 
     """ Contains all widget of left-side panel menu"""
@@ -169,8 +168,8 @@ class ProcessingMenu(qw.QFrame):
 
         layout.addWidget(qw.QLabel("Derivative Filter"), 5, 0)
         self.derivative_filter_slider = qw.QSlider()
-        self.derivative_filter_slider.setRange(0.0, 10000.0)
-        self.derivative_filter_slider.setValue(1000.0)
+        self.derivative_filter_slider.setRange(0, 10000)
+        self.derivative_filter_slider.setValue(1000)
         self.derivative_filter_slider.setOrientation(qc.Qt.Horizontal)
         layout.addWidget(self.derivative_filter_slider, 5, 1)
         derivative_filter_label = qw.QLabel("")
@@ -288,7 +287,7 @@ class ProcessingMenu(qw.QFrame):
         self.noise_thresh_slider.valueChanged.connect(
             widget.on_confidence_threshold_changed
         )
-        self.noise_thresh_slider.setValue(widget.confidence_threshold * 10)
+        self.noise_thresh_slider.setValue(int(widget.confidence_threshold * 10))
 
     def connect_channel_views(self, channel_views):
         self.box_show_traces.stateChanged.connect(channel_views.show_trace_widgets)

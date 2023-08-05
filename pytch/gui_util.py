@@ -141,13 +141,13 @@ def nice_value(x):
 
 
 def normalized_to01(d):
-    """ normalize data vector *d* between 0 and 1"""
+    """normalize data vector *d* between 0 and 1"""
     dmin = num.min(d)
     return (d - dmin) / (num.max(d) - dmin)
 
 
 class AutoScaler:
-    """ taken from pyrocko.org"""
+    """taken from pyrocko.org"""
 
     def __init__(
         self,
@@ -160,7 +160,6 @@ class AutoScaler:
         exp_factor=3,
         no_exp_interval=(-3, 5),
     ):
-
         """
         Create new AutoScaler instance.
 
@@ -177,7 +176,6 @@ class AutoScaler:
         self.no_exp_interval = no_exp_interval
 
     def make_scale(self, data_range, override_mode=None):
-
         """
         Get nice minimum, maximum and increment for given data range.
 
@@ -378,7 +376,7 @@ def make_QPolygonF(xdata, ydata):
 
 
 def mean_decimation(d, ndecimate):
-    """ Decimate signal by factor (int) *ndecimate* using averaging."""
+    """Decimate signal by factor (int) *ndecimate* using averaging."""
     pad_size = int(math.ceil(float(d.size) / ndecimate) * ndecimate - d.size)
     d = num.append(d, num.zeros(pad_size) * num.nan)
     return num.nanmean(d.reshape(-1, ndecimate), axis=1)
@@ -429,10 +427,12 @@ class PlotBase:
         return qc.QSize(200, 200)
 
     def canvas_rect(self):
-        """ Rectangular containing the data visualization. """
+        """Rectangular containing the data visualization."""
         w, h = self.wh
-        tl = qc.QPoint(self.left * w, (1.0 - self.top) * h)
-        size = qc.QSize(w * (self.right - self.left), h * self.top - self.bottom)
+        tl = qc.QPoint(int(self.left * w), int((1.0 - self.top) * h))
+        size = qc.QSize(
+            int(w * (self.right - self.left)), int(h * self.top - self.bottom)
+        )
         rect = self.rect()
         rect.setTopLeft(tl)
         rect.setSize(size)
@@ -493,7 +493,7 @@ class PlotBase:
         self.update()
 
     def set_ylim(self, ymin, ymax):
-        """ Set range of Gauge."""
+        """Set range of Gauge."""
         self.ymin = ymin
         self.ymax = ymax
         self._ymin = ymin
@@ -502,7 +502,7 @@ class PlotBase:
 
     @qc.pyqtSlot(qg.QKeyEvent)
     def keyPressEvent(self, key_event):
-        """ react on keyboard keys when they are pressed."""
+        """react on keyboard keys when they are pressed."""
         key_text = key_event.text()
         if key_text == "+":
             self.set_ylim(
@@ -548,7 +548,7 @@ class AdjustableMainWindow(qw.QMainWindow):
 
     @qc.pyqtSlot(qg.QKeyEvent)
     def keyPressEvent(self, key_event):
-        """ react on keyboard keys when they are pressed."""
+        """react on keyboard keys when they are pressed."""
         key_text = key_event.text()
         if key_text == "q":
             self.close()

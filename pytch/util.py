@@ -44,7 +44,7 @@ relative_keys = dict(
 
 
 class DummySignal:
-    """ does nothing when emitted"""
+    """does nothing when emitted"""
 
     def __init__(self):
         pass
@@ -82,7 +82,7 @@ def consecutive(arr):
 
 
 def index_gradient_filter(x, y, max_gradient):
-    """ Get index where the abs gradient of x, y is < max_gradient."""
+    """Get index where the abs gradient of x, y is < max_gradient."""
     return num.where(num.abs(num.diff(y) / num.diff(x)) < max_gradient)[0]
 
 

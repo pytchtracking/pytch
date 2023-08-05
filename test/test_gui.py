@@ -19,7 +19,7 @@ class MainWindowQClose(QMainWindow):
         self.setMouseTracking(True)
 
     def keyPressEvent(self, key_event):
-        """ react on keyboard keys when they are pressed."""
+        """react on keyboard keys when they are pressed."""
         if key_event.text() == "q":
             self.close()
         QMainWindow.keyPressEvent(self, key_event)
@@ -116,7 +116,6 @@ class GUITestCase:
     #    sys.exit(app.exec_())
 
     def test_spectrogram(self):
-
         app = QApplication(sys.argv)
         main_window = MainWindowQClose()
         a = num.loadtxt("spectrogram_data.txt", dtype=num.float)

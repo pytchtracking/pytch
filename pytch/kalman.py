@@ -54,7 +54,6 @@ class Kalman:
 
 
 if __name__ == "__main__":
-
     import sys
     import matplotlib.pyplot as plt
 
@@ -83,7 +82,6 @@ if __name__ == "__main__":
         y_true = None
 
     except IndexError:
-
         # if data cannot be read from file, create test_data:
         n_iter = 200
         y_shift = -0.37727  # truth value (typo in example at top of p. 13 calls this z)
@@ -107,7 +105,7 @@ if __name__ == "__main__":
 
     # R small: responsive
     # R large: more smooth
-    R = 0.03 ** 2  # estimate of measurement variance, change to see effect
+    R = 0.03**2  # estimate of measurement variance, change to see effect
 
     # intial guesses
     P = 0.0

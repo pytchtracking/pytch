@@ -35,6 +35,6 @@ class Worker(qc.QObject):
 
 
 def cross_spectrum(spec1, spec2):
-    """ Returns cross spectrum and phase of *spec1* and *spec2*"""
+    """Returns cross spectrum and phase of *spec1* and *spec2*"""
     cross = spec1 * spec2.conjugate()
     return num.abs(cross), num.unwrap(num.arctan2(cross.imag, cross.real))

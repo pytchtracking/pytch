@@ -577,7 +577,7 @@ class OverView(qw.QWidget):
 
 
 class PitchWidget(OverView):
-    """ Pitches of each trace as discrete samples."""
+    """Pitches of each trace as discrete samples."""
 
     low_pitch_changed = qc.pyqtSignal(num.ndarray)
 
@@ -641,7 +641,6 @@ class PitchWidget(OverView):
 
 
 class ImageWorker(qc.QObject):
-
     processingFinished = qc.pyqtSignal()
     on_scaling_changed = qc.pyqtSignal(float)
     start = qc.pyqtSignal(str)
@@ -670,10 +669,10 @@ class ImageWorker(qc.QObject):
     @qc.pyqtSlot()
     def process(self):
         z = num.asarray(
-            self.channels[0].fft.latest_frame_data(self.ny), dtype=num.float
+            self.channels[0].fft.latest_frame_data(self.ny), dtype=num.float32
         )
         for c in self.channels:
-            z *= num.asarray(c.fft.latest_frame_data(self.ny), dtype=num.float)
+            z *= num.asarray(c.fft.latest_frame_data(self.ny), dtype=num.float32)
 
         self.x = c.xdata[-self.ny :]
         self.y = c.freqs[: self.nx]
@@ -684,10 +683,10 @@ class ImageWorker(qc.QObject):
 class ImageWorkerRotated(ImageWorker):
     def process(self):
         z = num.asarray(
-            self.channels[0].fft.latest_frame_data(self.nx), dtype=num.float
+            self.channels[0].fft.latest_frame_data(self.nx), dtype=num.float32
         )
         for c in self.channels:
-            z *= num.asarray(c.fft.latest_frame_data(self.nx), dtype=num.float)
+            z *= num.asarray(c.fft.latest_frame_data(self.nx), dtype=num.float32)
 
         self.y = c.xdata[-self.nx :]
         self.x = c.freqs[: self.ny]
@@ -696,7 +695,6 @@ class ImageWorkerRotated(ImageWorker):
 
 
 class ProductSpectrogram(SpectrogramWidget):
-
     scalingChanged = qc.pyqtSignal(float)
 
     def __init__(self, channels, *args, **kwargs):
@@ -794,17 +792,19 @@ class ProductSpectrum(SpectrumWidget):  # GLAxis):
     @qc.pyqtSlot()
     def on_draw(self):
         #        self.clear()
-        ydata = num.asarray(self.channels[0].fft.latest_frame_data(3), dtype=num.float)
+        ydata = num.asarray(
+            self.channels[0].fft.latest_frame_data(3), dtype=num.float32
+        )
 
         for c in self.channels[1:]:
-            ydata *= num.asarray(c.fft.latest_frame_data(3), dtype=num.float)
+            ydata *= num.asarray(c.fft.latest_frame_data(3), dtype=num.float32)
 
 
 #        self.plotlog(self.channels[0].freqs, num.mean(ydata, axis=0), ndecimate=2)
 
 
 class DifferentialPitchWidget(OverView):
-    """ Diffs as line"""
+    """Diffs as line"""
 
     def __init__(self, channel_views, *args, **kwargs):
         OverView.__init__(self, *args, **kwargs)
@@ -869,7 +869,7 @@ class DifferentialPitchWidget(OverView):
 
 
 class PitchLevelDifferenceViews(qw.QWidget):
-    """ The Gauge widget collection"""
+    """The Gauge widget collection"""
 
     def __init__(self, channel_views, *args, **kwargs):
         qw.QWidget.__init__(self, *args, **kwargs)
@@ -974,7 +974,7 @@ class RightTabs(qw.QTabWidget):
 
 
 class MainWidget(qw.QWidget):
-    """ top level widget (central widget in the MainWindow."""
+    """top level widget (central widget in the MainWindow."""
 
     signal_widgets_clear = qc.pyqtSignal()
     signal_widgets_draw = qc.pyqtSignal()
@@ -1036,7 +1036,7 @@ class MainWidget(qw.QWidget):
             c.pitch_algorithm = arg
 
     def cleanup(self):
-        """ clear all widgets. """
+        """clear all widgets."""
         if self.data_input:
             self.data_input.stop()
             self.data_input.terminate()
@@ -1046,7 +1046,7 @@ class MainWidget(qw.QWidget):
             item.widget().deleteLater()
 
     def set_input_dialog(self):
-        """ Query device list and set the drop down menu"""
+        """Query device list and set the drop down menu"""
         self.refresh_timer.stop()
         self.input_dialog.show()
         self.input_dialog.raise_()
@@ -1096,7 +1096,7 @@ class MainWidget(qw.QWidget):
         self.signal_widgets_draw.connect(pitch_diff_view.on_draw)
 
         t_wait_buffer = max(dinput.fftsizes) / dinput.sampling_rate * 1500.0
-        qc.QTimer().singleShot(t_wait_buffer, self.start_refresh_timer)
+        qc.QTimer().singleShot(int(t_wait_buffer), self.start_refresh_timer)
 
     def start_refresh_timer(self):
         self.refresh_timer.start(58)
@@ -1134,7 +1134,7 @@ class AdjustableMainWindow(qw.QMainWindow):
 
     @qc.pyqtSlot(qg.QKeyEvent)
     def keyPressEvent(self, key_event):
-        """ react on keyboard keys when they are pressed."""
+        """react on keyboard keys when they are pressed."""
         key_text = key_event.text()
         if key_text == "q":
             self.close()
@@ -1144,7 +1144,7 @@ class AdjustableMainWindow(qw.QMainWindow):
 
 
 class MainWindow(AdjustableMainWindow):
-    """ Top level Window. The entry point of the gui."""
+    """Top level Window. The entry point of the gui."""
 
     def __init__(self):
         super().__init__()
@@ -1174,7 +1174,7 @@ class MainWindow(AdjustableMainWindow):
 
     @qc.pyqtSlot(qg.QKeyEvent)
     def keyPressEvent(self, key_event):
-        """ react on keyboard keys when they are pressed."""
+        """react on keyboard keys when they are pressed."""
         if key_event.text() == "k":
             self.main_widget.toggle_keyboard()
 
@@ -1182,7 +1182,7 @@ class MainWindow(AdjustableMainWindow):
 
 
 def from_command_line(close_after=None, check_opengl=False, disable_opengl=False):
-    """ Start the GUI from command line"""
+    """Start the GUI from command line"""
     if check_opengl:
         try:
             from PyQt5.QtWidgets import QOpenGLWidget  # noqa

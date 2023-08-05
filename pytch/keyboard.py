@@ -18,7 +18,7 @@ _semitones = [1, 3, 6, 8, 10]
 
 
 def f2midi(f, standard_frequency=440.0):
-    """ https://en.wikipedia.org/wiki/MIDI_tuning_standard """
+    """https://en.wikipedia.org/wiki/MIDI_tuning_standard"""
     return int(69 + 12 * num.log2(f / standard_frequency))
 
 
@@ -64,7 +64,6 @@ class Synthy(qc.QObject):
 
 
 class Key(qw.QWidget):
-
     playKeyBoard = qc.pyqtSignal(float)
     stopKeyBoard = qc.pyqtSignal()
 
@@ -133,7 +132,6 @@ class Key(qw.QWidget):
 
 
 class KeyBoard(qw.QWidget):
-
     keyBoardKeyReleased = qc.pyqtSignal()
     keyBoardKeyPressed = qc.pyqtSignal(float)
     toggle_tabels = qc.pyqtSignal()
@@ -177,11 +175,11 @@ class KeyBoard(qw.QWidget):
         self.keyBoardKeyPressed.emit(0)
 
     def get_key_rects(self):
-        """ Get rectangles for tone keys"""
+        """Get rectangles for tone keys"""
         n = 14 * self.n_octaves
-        deltax = self.width() / n
+        deltax = int(self.width() / n)
         y = self.height()
-        y_semi = self.height() * 0.6
+        y_semi = int(self.height() * 0.6)
         rects = []
         semitone = 0
         for i in range(n):

@@ -4,7 +4,6 @@ from pytch.data import Buffer, RingBuffer
 
 
 def test_BufferIndex():
-
     b = Buffer(sampling_rate=10, buffer_length_seconds=10)
 
     for x in range(5):
@@ -15,7 +14,6 @@ def test_BufferIndex():
 
 
 def test_Buffer():
-
     b = Buffer(sampling_rate=1, buffer_length_seconds=10)
 
     for x in range(5):
@@ -55,14 +53,14 @@ def test_get_latest_frame():
     x, y = b.latest_frame(2)
     num.testing.assert_array_almost_equal(y, num.arange(20))
     num.testing.assert_array_almost_equal(
-        x, num.arange(2 * sampling_rate, dtype=num.float) * dt
+        x, num.arange(2 * sampling_rate, dtype=num.float32) * dt
     )
 
     b.append(num.arange(20))
     x, y = b.latest_frame(1)
     num.testing.assert_array_almost_equal(y, num.arange(10, 20))
     num.testing.assert_array_almost_equal(
-        x, num.arange(3 * sampling_rate, 4 * sampling_rate, dtype=num.float) * dt
+        x, num.arange(3 * sampling_rate, 4 * sampling_rate, dtype=num.float32) * dt
     )
 
 

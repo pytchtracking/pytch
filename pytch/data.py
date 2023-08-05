@@ -42,7 +42,7 @@ def get_input_devices():
 
 @lru_cache(maxsize=128)
 def get_sampling_rate_options(audio=None):
-    """ dictionary of supported sampling rates for all devices."""
+    """dictionary of supported sampling rates for all devices."""
 
     if not audio:
         paudio = pyaudio.PyAudio()
@@ -137,7 +137,7 @@ class Buffer:
 
     @property
     def t_filled(self):
-        """ the time to which the data buffer contains data."""
+        """the time to which the data buffer contains data."""
         return self.tmin + self.i_filled * self.delta
 
     @property
@@ -153,7 +153,7 @@ class Buffer:
         return self._x[: self.i_filled]
 
     def index_at_time(self, t):
-        """ Get the index of the sample (closest) defined by *t* """
+        """Get the index of the sample (closest) defined by *t*"""
         return int((t - self.tmin) * self.sampling_rate)
 
     def latest_indices(self, seconds):
@@ -163,16 +163,16 @@ class Buffer:
         )
 
     def latest_frame(self, seconds):
-        """ Return the latest *seconds* data from buffer as x and y data tuple."""
+        """Return the latest *seconds* data from buffer as x and y data tuple."""
         istart, istop = self.latest_indices(seconds)
         return (self._x[istart:istop], self.proxy(self.data[istart:istop]))
 
     def latest_frame_data(self, n):
-        """ Return the latest n samples data from buffer as array."""
+        """Return the latest n samples data from buffer as array."""
         return self.proxy(self.data[max(self.i_filled - n, 0) : self.i_filled])
 
     def append(self, d):
-        """ Append data frame *d* to Buffer"""
+        """Append data frame *d* to Buffer"""
         n = d.shape[0]
         self.data[self.i_filled : self.i_filled + n] = d
         self.i_filled += n
@@ -189,7 +189,7 @@ class Buffer:
 
 
 class RingBuffer(Buffer):
-    """ Based on numpy"""
+    """Based on numpy"""
 
     def __init__(self, *args, **kwargs):
         Buffer.__init__(self, *args, **kwargs)
@@ -218,7 +218,7 @@ class RingBuffer(Buffer):
         self.i_filled += 1
 
     def latest_frame_data(self, n):
-        """ Return the latest n samples data from buffer as array."""
+        """Return the latest n samples data from buffer as array."""
         return self.proxy(
             num.take(
                 self.data,
@@ -229,7 +229,7 @@ class RingBuffer(Buffer):
         )
 
     def latest_frame(self, seconds, clip_min=False):
-        """ Return the latest *seconds* data from buffer as x and y data tuple."""
+        """Return the latest *seconds* data from buffer as x and y data tuple."""
         istart, istop = self.latest_indices(seconds)
         n = int(seconds * self.sampling_rate) + 1
         x = self.i_filled / self.sampling_rate - self._x[:n][::-1]
@@ -245,7 +245,7 @@ class RingBuffer(Buffer):
 
 
 class RingBuffer2D(RingBuffer):
-    """ 2 dimensional ring buffer. E.g. used to buffer spectrogram data."""
+    """2 dimensional ring buffer. E.g. used to buffer spectrogram data."""
 
     def __init__(self, ndimension2, *args, **kwargs):
         self.ndimension2 = ndimension2
@@ -284,7 +284,6 @@ class RingBuffer2D(RingBuffer):
 
 class Channel(RingBuffer):
     def __init__(self, sampling_rate, fftsize=8192):
-
         self.buffer_length_seconds = 40
         RingBuffer.__init__(self, sampling_rate, self.buffer_length_seconds)
 
@@ -297,7 +296,7 @@ class Channel(RingBuffer):
 
         # TODO refactor to processing module
         P = 0.0
-        R = 0.01 ** 2
+        R = 0.01**2
         Q = 1e-6
         self.kalman_pitch_filter = Kalman(P, R, Q)
         self.standard_frequency = 220.0
@@ -386,7 +385,7 @@ class Channel(RingBuffer):
 
 
 class DataProvider:
-    """ Base class defining common interface for data input to Worker"""
+    """Base class defining common interface for data input to Worker"""
 
     def __init__(self):
         self.frames = []
@@ -408,7 +407,6 @@ class MicrophoneRecorder(DataProvider):
         fftsize=1024,
         selected_channels=None,
     ):
-
         DataProvider.__init__(self)
 
         selected_channels = selected_channels or []
@@ -436,7 +434,7 @@ class MicrophoneRecorder(DataProvider):
 
     @property
     def sampling_rate_options(self):
-        """ List of supported sampling rates."""
+        """List of supported sampling rates."""
         return get_sampling_rate_options(self.device_no, audio=self.paudio)
 
     def new_frame(self, data, frame_count, time_info, status):
@@ -514,7 +512,7 @@ class MicrophoneRecorder(DataProvider):
         return 1.0 / self.sampling_rate
 
     def flush(self):
-        """ read data and put it into channels' track_data"""
+        """read data and put it into channels' track_data"""
         # make this entirely numpy:
         frames = num.array(self.get_frames())
         for frame in frames:

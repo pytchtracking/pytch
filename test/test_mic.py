@@ -5,7 +5,6 @@ import pytest
 
 @pytest.mark.skip(reason="API of MicrophoneRecorder changed")
 def test_mic_init():
-
     # kill pulseaudio to check proper startup
     try:
         call(["pulseaudio", "--kill"])

@@ -1,22 +1,16 @@
-Vocal Trainer
+Pytch Vocal Trainer
 ===============
 
 ## Prerequisites
 
 Pytch requires python3, as well as the following libraries:
 
-- python headers
 - scipy
 - numpy
 - PyQt5
 - aubio
 - pyaudio
 - portaudio
-- libportaudio2
-
-```
-sudo apt-get install portaudio19-dev libportaudio2
-```
 
 Optional but recommended is the installation of PyQt5-OpenGL bindings.
 Help can be found here: http://pyqt.sourceforge.net/Docs/PyQt5/installation.html
@@ -29,25 +23,26 @@ git clone https://github.com/pytchtracking/pytch
 cd pytch
 ```
 
-### pip
-
-```pip install .```
-
-### Miniconda/Anaconda:
-
+### Linux
 ```
-conda create -n pytch python=3.6.7
-conda activate pytch
+sudo apt-get install portaudio19-dev libportaudio2
 python setup.py install
 ```
 
-###  From source
-
-Go to a directory where you keep your source codes and clone the project:
+### Apple Silicon (M1/M2):
+Install portaudio, aubio, and PyQt5 via brew:
 ```
-git clone https://github.com/pytchtracking/pytch
-cd pytch
-sudo python setup.py install
+brew install portaudio aubio pyqt5
+```
+
+If you have conda installed, make sure that it is deactivated whenever you run pytch:
+```
+while [ ! -z $CONDA_PREFIX ]; do conda deactivate; done
+```
+
+Install pytch:
+```
+python3 setup.py install
 ```
 
 # Invocation
