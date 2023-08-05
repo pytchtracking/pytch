@@ -19,7 +19,8 @@ setup(
         "numpy>=1.25.2",
         "scipy>=1.11.1",
         "PyQt5>=5.15.7",
-        "aubio>=0.4.9" "pyaudio>=0.2.13",
+        "aubio>=0.4.9",
+        "pyaudio>=0.2.13",
     ],
     python_requires=">=3.11",
 )
