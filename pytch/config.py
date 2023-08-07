@@ -39,7 +39,7 @@ def load_config():
         # create config file in home directory with default settings
         config["DEFAULT"] = {
             "show_traces": False,
-            "start_maximized": False,
+            "start_maximized": True,
             "accept": False,
             "device_index": "None",
         }

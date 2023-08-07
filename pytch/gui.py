@@ -95,20 +95,21 @@ class ChannelView(SignalDispatcherWidget):
         self.trace_widget = GLAxis()
         self.trace_widget.grids = []
         self.trace_widget.yticks = False
+        self.trace_widget.xticks = False
         self.trace_widget.set_ylim(-1000.0, 1000.0)
         self.trace_widget.left = 0.0
 
         self.spectrogram_widget = SpectrogramWidget(channel=channel)
 
-        self.spectrum_widget = SpectrumWidget(parent=self)
+        self.spectrum_widget = SpectrumWidget()
         #        self.plot_spectrum = self.spectrum_widget.plotlog
 
         self.fft_smooth_factor = 4
 
         layout = self.layout()
-        layout.addWidget(self.trace_widget)
-        layout.addWidget(self.spectrum_widget)
-        layout.addWidget(self.spectrogram_widget)
+        layout.addWidget(self.trace_widget, 1)
+        layout.addWidget(self.spectrum_widget, 3)
+        layout.addWidget(self.spectrogram_widget, 2)
 
         self.right_click_menu = QMenu("RC", self)
         self.channel_color_menu = QMenu("Channel Color", self.right_click_menu)
@@ -248,14 +249,14 @@ class ProductView(SignalDispatcherWidget):
 
         self.channels = channels
         self.trace_widget = GLAxis()
-        self.trace_widget.setContentsMargins(-10, -10, -10, -10)
+        # self.trace_widget.setContentsMargins(-10, -10, -10, -10)
         self.trace_widget.grids = []
         self.trace_widget.xticks = False
         self.trace_widget.yticks = False
         layout = self.layout()
-        layout.addWidget(self.trace_widget)
-        layout.addWidget(self.spectrum_widget)
-        layout.addWidget(self.spectrogram_widget)
+        layout.addWidget(self.trace_widget, 1)
+        layout.addWidget(self.spectrum_widget, 3)
+        layout.addWidget(self.spectrogram_widget, 2)
         self.confidence_threshold = 1
 
     def rotate_spectrogram_widget(self, rotate=True):
@@ -353,7 +354,7 @@ class ChannelViews(qw.QWidget):
 class SpectrogramWidget(Axis):
     def __init__(self, channel, *args, **kwargs):
         Axis.__init__(self, *args, **kwargs)
-        self.ny, self.nx = 100, 300
+        self.ny, self.nx = 100, 300  # width, height
         self.channel = channel
         fake = num.ones((self.nx, self.ny))
         self.image = self.colormesh(z=fake)
@@ -364,6 +365,7 @@ class SpectrogramWidget(Axis):
         self.color_choices = add_action_group(
             colormaps, self.right_click_menu, self.on_color_select
         )
+        self.setContentsMargins(-10, -10, -10, -10)
 
     @qc.pyqtSlot()
     def update_spectrogram(self):
@@ -373,7 +375,7 @@ class SpectrogramWidget(Axis):
             y = c.freqs[: self.nx]
             x = c.xdata[-self.ny :]
             d = c.fft.latest_frame_data(self.ny)
-            self.image.set_data(num.flipud(d[:, : self.nx].transpose()))
+            self.image.set_data(num.flipud(d[:, : self.nx].T))
             self.update_datalims(x, y)
         except ValueError as e:
             logger.debug(e)
@@ -396,11 +398,14 @@ class SpectrogramWidget(Axis):
     def __del__(self):
         logger.debug("Spectrogram deleted")
 
+    def sizeHint(self):
+        return qc.QSize(450, 200)
+
 
 class SpectrogramWidgetRotated(SpectrogramWidget):
     def __init__(self, channel, *args, **kwargs):
         Axis.__init__(self, *args, **kwargs)
-        self.ny, self.nx = 300, 100
+        self.ny, self.nx = 300, 100  # width, height
         self.channel = channel
         fake = num.ones((self.nx, self.ny))
         self.image = self.colormesh(z=fake)
@@ -411,6 +416,7 @@ class SpectrogramWidgetRotated(SpectrogramWidget):
         self.color_choices = add_action_group(
             colormaps, self.right_click_menu, self.on_color_select
         )
+        self.setContentsMargins(-10, -10, -10, -10)
 
     @qc.pyqtSlot()
     def update_spectrogram(self):
@@ -430,16 +436,13 @@ class SpectrogramWidgetRotated(SpectrogramWidget):
 
 
 class SpectrumWidget(QChartView):
-    def __init__(self, parent):
+    def __init__(self):
         QChartView.__init__(self)
 
         # Creating QChart
         self.chart = QChart()
-        self.chart.setAnimationOptions(QChart.NoAnimation)
+        # self.chart.setAnimationOptions(QChart.NoAnimation)
         self.chart.legend().hide()
-
-        # Adding Chart to view
-        self.setChart(self.chart)
 
         # Setting X-axis (frequency)
         self.axis_x = QValueAxis()
@@ -447,6 +450,7 @@ class SpectrumWidget(QChartView):
         self.axis_x.setTitleText("Frequency")
         self.axis_x.setMax(880)
         self.chart.addAxis(self.axis_x, qc.Qt.AlignBottom)
+        self.setContentsMargins(-10, -10, -10, -10)
 
         self.y_max = 100000
         self.setup_y_axis("log")
@@ -458,6 +462,9 @@ class SpectrumWidget(QChartView):
         self.series.attachAxis(self.axis_x)
         self.series.attachAxis(self.axis_y)
 
+        # Adding Chart to view
+        self.setChart(self.chart)
+
     def setup_y_axis(self, type):
         # Setting Y-axis (gain)
         self.current_type = type
@@ -465,10 +472,10 @@ class SpectrumWidget(QChartView):
             self.axis_y = QLogValueAxis()
         elif type == "linear":
             self.axis_y = QValueAxis()
-        self.axis_y.setTitleText("Gain")
+        # self.axis_y.setTitleText("Gain")
         self.axis_y.setLabelsVisible(False)
         self.axis_y.setMax(self.y_max)
-        self.chart.addAxis(self.axis_y, qc.Qt.AlignLeft)
+        self.chart.addAxis(self.axis_y, qc.Qt.AlignRight)
 
     def plot_spectrum(self, x_data, y_data):
         plot_points = qg.QPolygonF()
@@ -487,6 +494,9 @@ class SpectrumWidget(QChartView):
             self.chart.removeAxis(self.axis_y)
             self.setup_y_axis(type)
             self.series.attachAxis(self.axis_y)
+
+    def sizeHint(self):
+        return qc.QSize(450, 200)
 
 
 class CheckBoxSelect(qw.QWidget):
@@ -778,7 +788,7 @@ class ProductSpectrogramRotated(ProductSpectrogram):
 
 class ProductSpectrum(SpectrumWidget):  # GLAxis):
     def __init__(self, parent, channels):
-        SpectrumWidget.__init__(self, parent)
+        SpectrumWidget.__init__(self)
         self.channels = channels
         self.grids = [FixGrid(delta=100.0, horizontal=False)]
         self.xtick_formatter = "%i"
@@ -970,7 +980,7 @@ class RightTabs(qw.QTabWidget):
         self.setPalette(pal)
 
     def sizeHint(self):
-        return qc.QSize(300, 200)
+        return qc.QSize(450, 200)
 
 
 class MainWidget(qw.QWidget):

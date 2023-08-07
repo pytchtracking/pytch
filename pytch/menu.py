@@ -145,13 +145,13 @@ class ProcessingMenu(qw.QFrame):
         layout.addWidget(self.input_button, 0, 0)
 
         self.play_button = qw.QPushButton("Play")
-        layout.addWidget(self.play_button, 0, 1)
+        layout.addWidget(self.play_button, 0, 1, 1, 2)
 
         self.pause_button = qw.QPushButton("Pause")
         layout.addWidget(self.pause_button, 1, 0)
 
         self.save_as_button = qw.QPushButton("Save as")
-        layout.addWidget(self.save_as_button, 1, 1)
+        layout.addWidget(self.save_as_button, 1, 1, 1, 2)
 
         layout.addWidget(qw.QLabel("Confidence Threshold"), 4, 0)
         self.noise_thresh_slider = qw.QSlider()
@@ -161,19 +161,19 @@ class ProcessingMenu(qw.QFrame):
         self.noise_thresh_slider.valueChanged.connect(
             lambda x: self.noise_thresh_label.setText(str(x / 10.0))
         )
-        layout.addWidget(self.noise_thresh_slider, 4, 1)
+        layout.addWidget(self.noise_thresh_slider, 4, 1, 1, 2)
 
         self.noise_thresh_label = qw.QLabel("")
-        layout.addWidget(self.noise_thresh_label, 4, 2)
+        layout.addWidget(self.noise_thresh_label, 4, 3)
 
         layout.addWidget(qw.QLabel("Derivative Filter"), 5, 0)
         self.derivative_filter_slider = qw.QSlider()
         self.derivative_filter_slider.setRange(0, 10000)
         self.derivative_filter_slider.setValue(1000)
         self.derivative_filter_slider.setOrientation(qc.Qt.Horizontal)
-        layout.addWidget(self.derivative_filter_slider, 5, 1)
+        layout.addWidget(self.derivative_filter_slider, 5, 1, 1, 2)
         derivative_filter_label = qw.QLabel("")
-        layout.addWidget(derivative_filter_label, 5, 2)
+        layout.addWidget(derivative_filter_label, 5, 3)
         self.derivative_filter_slider.valueChanged.connect(
             lambda x: derivative_filter_label.setText(str(x))
         )
@@ -193,50 +193,52 @@ class ProcessingMenu(qw.QFrame):
         self.select_algorithm.addItems(algorithms)
         self.select_algorithm.setCurrentIndex(algorithms.index("yinfast"))
 
-        layout.addWidget(self.select_algorithm, 7, 1)
+        layout.addWidget(self.select_algorithm, 7, 1, 1, 2)
 
         layout.addWidget(qw.QLabel("Traces"), 8, 0)
         self.box_show_traces = qw.QCheckBox()
         self.box_show_traces.setChecked(get_config().show_traces)
-        layout.addWidget(self.box_show_traces, 8, 1)
+        layout.addWidget(self.box_show_traces, 8, 1, 1, 2)
 
         layout.addWidget(qw.QLabel("Spectra"), 9, 0)
         self.box_show_spectra = qw.QCheckBox()
         self.box_show_spectra.setChecked(True)
-        layout.addWidget(self.box_show_spectra, 9, 1)
+        layout.addWidget(self.box_show_spectra, 9, 1, 1, 2)
 
         layout.addWidget(qw.QLabel("Spectrogram"), 10, 0)
         self.box_show_spectrograms = qw.QCheckBox()
-        layout.addWidget(self.box_show_spectrograms, 10, 1)
-        layout.addWidget(qw.QLabel("rotated"), 10, 2)
+        layout.addWidget(self.box_show_spectrograms, 10, 1, 1, 2)
+        rot_label = qw.QLabel("rotated")
+        rot_label.setAlignment(qc.Qt.AlignRight)
+        layout.addWidget(rot_label, 10, 2)
         self.box_rotate_spectrograms = qw.QCheckBox()
         layout.addWidget(self.box_rotate_spectrograms, 10, 3)
 
         layout.addWidget(qw.QLabel("Products"), 11, 0)
         self.box_show_products = qw.QCheckBox()
         self.box_show_products.setChecked(True)
-        layout.addWidget(self.box_show_products, 11, 1)
+        layout.addWidget(self.box_show_products, 11, 1, 1, 2)
 
         self.f_standard_mode = qw.QComboBox()
         self.f_standard_mode.addItems(["Select", "Adaptive (High)", "Adaptive (Low)"])
         self.f_standard_mode.currentTextChanged.connect(self.on_f_standard_mode_changed)
 
         layout.addWidget(qw.QLabel("Reference Frequency Mode"), 12, 0)
-        layout.addWidget(self.f_standard_mode, 12, 1)
+        layout.addWidget(self.f_standard_mode, 12, 1, 1, 2)
 
         self.freq_box = FloatQLineEdit(parent=self, default=220)
         layout.addWidget(qw.QLabel("Reference Frequency [Hz]"), 13, 0)
-        layout.addWidget(self.freq_box, 13, 1)
+        layout.addWidget(self.freq_box, 13, 1, 1, 2)
 
         self.pitch_shift_box = FloatQLineEdit(parent=self, default="0.")
         layout.addWidget(qw.QLabel("Pitch Shift [Cent]"), 14, 0)
-        layout.addWidget(self.pitch_shift_box, 14, 1)
+        layout.addWidget(self.pitch_shift_box, 14, 1, 1, 2)
 
         layout.addWidget(qw.QLabel("Spectral type"), 15, 0)
         select_spectral_type = qw.QComboBox(self)
         select_spectral_type.addItems(["log", "linear", "pitch"])
         select_spectral_type.currentTextChanged.connect(self.on_spectrum_type_select)
-        layout.addWidget(select_spectral_type, 15, 1)
+        layout.addWidget(select_spectral_type, 15, 1, 1, 2)
 
         layout.addItem(qw.QSpacerItem(40, 20), 16, 1, qc.Qt.AlignTop)
 
