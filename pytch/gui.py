@@ -354,12 +354,13 @@ class ChannelViews(qw.QWidget):
 class SpectrogramWidget(Axis):
     def __init__(self, channel, *args, **kwargs):
         Axis.__init__(self, *args, **kwargs)
-        self.ny, self.nx = 100, 300  # width, height
+        self.nx, self.ny = 100, 300  # width, height
         self.channel = channel
         fake = num.ones((self.nx, self.ny))
-        self.image = self.colormesh(z=fake)
+        self.image = self.colormesh(z=fake.T)
         self.xticks = False
         self.ytick_formatter = "%i"
+        self.grids = []
 
         self.right_click_menu = QMenu("RC", self)
         self.color_choices = add_action_group(
@@ -372,10 +373,10 @@ class SpectrogramWidget(Axis):
         c = self.channel
 
         try:
-            y = c.freqs[: self.nx]
-            x = c.xdata[-self.ny :]
-            d = c.fft.latest_frame_data(self.ny)
-            self.image.set_data(num.flipud(d[:, : self.nx].T))
+            y = c.freqs[: self.ny]
+            x = c.xdata[-self.nx :]
+            d = c.fft.latest_frame_data(self.nx)
+            self.image.set_data(num.flipud(d[:, : self.ny].T))
             self.update_datalims(x, y)
         except ValueError as e:
             logger.debug(e)
@@ -715,6 +716,7 @@ class ProductSpectrogram(SpectrogramWidget):
 
         self.init_gain_slider()
         self.init_image_worker(False)
+        self.grids = []
 
     def init_gain_slider(self):
         slider = qw.QSlider()
@@ -736,7 +738,7 @@ class ProductSpectrogram(SpectrogramWidget):
         if rotate:
             self.image_worker = ImageWorkerRotated(self.channels, self.nx, self.ny)
         else:
-            self.image_worker = ImageWorker(self.channels, self.nx, self.ny)
+            self.image_worker = ImageWorker(self.channels, self.ny, self.nx)
         self.image_worker.moveToThread(self.thread)
         self.image_worker.processingFinished.connect(self.update_spectrogram)
         self.image_worker.start.emit("Start Thread")
