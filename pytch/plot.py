@@ -40,7 +40,7 @@ def get_colortable(name, log=False):
         if name == "bw":
             a = a[::-1]
 
-        for i in a.astype(num.int):
+        for i in a.astype(num.int16):
             ctable.append(qg.qRgb(i, i, i))
 
     elif name == "matrix":
@@ -276,7 +276,7 @@ def MakeGaugeWidget(gl=False):
             xmin, xmax = self.proj.get_in_range()
 
             ticks = num.arange(
-                xmin, xmax + self.xtick_increment, self.xtick_increment, dtype=num.int
+                xmin, xmax + self.xtick_increment, self.xtick_increment, dtype=num.int16
             )
             ticks_proj = self.proj(ticks) + 180
 
@@ -442,7 +442,7 @@ class AxHLine(SceneItem):
 
         painter.save()
         painter.setPen(self.pen)
-        painter.drawLine(xmin, y, xmax, y)
+        painter.drawLine(int(xmin), int(y), int(xmax), int(y))
         painter.restore()
 
 
@@ -456,7 +456,7 @@ class AxVLine(SceneItem):
 
         painter.save()
         painter.setPen(self.pen)
-        painter.drawLine(x, ymin, x, ymax)
+        painter.drawLine(int(x), int(ymin), int(x), int(ymax))
         painter.restore()
 
 

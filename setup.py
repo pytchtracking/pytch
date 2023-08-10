@@ -21,6 +21,7 @@ setup(
         "PyQt5>=5.15.7",
         "aubio>=0.4.9",
         "pyaudio>=0.2.13",
+        "matplotlib>=3.7.2",
     ],
     python_requires=">=3.11",
 )

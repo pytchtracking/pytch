@@ -11,6 +11,7 @@ Pytch requires python3, as well as the following libraries:
 - aubio
 - pyaudio
 - portaudio
+- matplotlib
 
 Optional but recommended is the installation of PyQt5-OpenGL bindings.
 Help can be found here: http://pyqt.sourceforge.net/Docs/PyQt5/installation.html

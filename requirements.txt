@@ -3,3 +3,4 @@ aubio
 pyaudio
 numpy
 scipy
+matplotlib

@@ -198,6 +198,7 @@ class ProcessingMenu(qw.QFrame):
         layout.addWidget(qw.QLabel("Traces"), 8, 0)
         self.box_show_traces = qw.QCheckBox()
         self.box_show_traces.setChecked(get_config().show_traces)
+        self.box_show_traces.setChecked(True)
         layout.addWidget(self.box_show_traces, 8, 1, 1, 2)
 
         layout.addWidget(qw.QLabel("Spectra"), 9, 0)
@@ -207,6 +208,7 @@ class ProcessingMenu(qw.QFrame):
 
         layout.addWidget(qw.QLabel("Spectrogram"), 10, 0)
         self.box_show_spectrograms = qw.QCheckBox()
+        self.box_show_spectrograms.setChecked(True)
         layout.addWidget(self.box_show_spectrograms, 10, 1, 1, 2)
         rot_label = qw.QLabel("rotated")
         rot_label.setAlignment(qc.Qt.AlignRight)
