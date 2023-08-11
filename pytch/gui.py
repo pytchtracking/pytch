@@ -456,15 +456,15 @@ class SpectrumWidget(FigureCanvas):
         self.figure.tight_layout(pad=0)
         self.canvas = FigureCanvas(self.figure)
         self.ax = self.figure.add_subplot(111, position=[0, 0, 1, 1])
-        self.ax.use_sticky_edges = True
+        # self.ax.use_sticky_edges = True
         self.ax.set_title(None)
         self.ax.set_xlabel(None)
         self.ax.set_ylabel("Frequency")
         self.ax.get_xaxis().set_visible(False)
-        self.ax.margins(0)
+        # self.ax.margins(0)
         self.ax.yaxis.grid(True)
         self.figure.subplots_adjust(
-            left=0, right=1, top=1, bottom=0, wspace=0, hspace=0
+            left=0.25, right=1, top=1, bottom=0, wspace=0, hspace=0
         )
         # self.figure.tight_layout(pad=0)
         self._line = None
@@ -482,8 +482,14 @@ class SpectrumWidget(FigureCanvas):
 
         self.ax.set_xscale(self.spectral_type)
         self.ax.set_ylim((0, freq_max))
-        self.ax.set_xlim((0, 10000000000))
-        self.ax.set_yticks(num.arange(0, freq_max, 100), num.arange(0, freq_max, 100))
+        self.ax.set_xlim((10, 10000000000))
+        self.ax.set_yticks(
+            num.arange(0, freq_max, 100), num.arange(0, freq_max, 100).astype(int)
+        )
+        for tick in self.ax.yaxis.get_majorticklabels():
+            tick.set_verticalalignment(
+                "bottom"
+            )  # which actually sets them on top of the tick...
         self.draw()
 
     def set_spectral_type(self, type):

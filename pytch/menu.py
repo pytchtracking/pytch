@@ -171,12 +171,14 @@ class ProcessingMenu(qw.QFrame):
         self.derivative_filter_slider.setRange(0, 10000)
         self.derivative_filter_slider.setValue(1000)
         self.derivative_filter_slider.setOrientation(qc.Qt.Horizontal)
-        layout.addWidget(self.derivative_filter_slider, 5, 1, 1, 2)
         derivative_filter_label = qw.QLabel("")
         layout.addWidget(derivative_filter_label, 5, 3)
         self.derivative_filter_slider.valueChanged.connect(
             lambda x: derivative_filter_label.setText(str(x))
         )
+        layout.addWidget(self.derivative_filter_slider, 5, 1, 1, 2)
+        placeholder = qw.QLabel("\u2001\u2001\u2001")
+        layout.addWidget(placeholder, 6, 3)
 
         layout.addWidget(qw.QLabel("Select Algorithm"), 7, 0)
         self.select_algorithm = qw.QComboBox(self)
@@ -210,11 +212,6 @@ class ProcessingMenu(qw.QFrame):
         self.box_show_spectrograms = qw.QCheckBox()
         self.box_show_spectrograms.setChecked(True)
         layout.addWidget(self.box_show_spectrograms, 10, 1, 1, 2)
-        rot_label = qw.QLabel("rotated")
-        rot_label.setAlignment(qc.Qt.AlignRight)
-        layout.addWidget(rot_label, 10, 2)
-        self.box_rotate_spectrograms = qw.QCheckBox()
-        layout.addWidget(self.box_rotate_spectrograms, 10, 3)
 
         layout.addWidget(qw.QLabel("Products"), 11, 0)
         self.box_show_products = qw.QCheckBox()
@@ -300,10 +297,6 @@ class ProcessingMenu(qw.QFrame):
 
         self.box_show_spectrograms.stateChanged.connect(
             channel_views.show_spectrogram_widgets
-        )
-
-        self.box_rotate_spectrograms.stateChanged.connect(
-            channel_views.rotate_spectrogram_widgets
         )
 
         self.box_show_products.stateChanged.connect(channel_views.show_product_widgets)
