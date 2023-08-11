@@ -107,11 +107,11 @@ class ChannelView(SignalDispatcherWidget):
         self.trace_widget.set_ylim(-1000.0, 1000.0)
         self.trace_widget.left = 0.0
         self.fft_smooth_factor = 4
-        self.f_max = 500
         self.setContentsMargins(-10, -10, -10, -10)
 
         self.spectrogram_widget = SpectrogramWidget(channel=channel, fmax=fmax)
-        self.spectrum_widget = SpectrumWidget(parent=self, f_max=self.f_max)
+        self.freq_max = self.spectrogram_widget.freq_max - 10
+        self.spectrum_widget = SpectrumWidget(parent=self, freq_max=self.freq_max)
 
         layout = self.layout()
         layout.addWidget(self.trace_widget, 1)
@@ -169,23 +169,18 @@ class ChannelView(SignalDispatcherWidget):
             *c.latest_frame(tfollow), ndecimate=25, color=self.color, line_width=1
         )
 
-        # plot spectrum
-        # self.spectrum_widget.clear()
-        # self.plot_spectrum(num.mean(d, axis=0),
-        #    c.freqs, ndecimate=2,
-        #    color=self.color, ignore_nan=True)
-        # self.spectrum_widget.set_ylim(0, 2000)
-
         # confidence = c.pitch_confidence.latest_frame_data(1)
         # if confidence > self.confidence_threshold:
         #    y = c.undo_pitch_proxy(c.get_latest_pitch())
-        #    self.spectrum_widget.axhline(y)
+        #    self.spectrum_widget.ax.axhline(y)
 
         # if self.freq_keyboard:
         #        self.spectrum_widget.axhline(
         #            self.freq_keyboard, color="aluminium4", style="dashed", line_width=4
         #        )
-        self.spectrum_widget.update_spectrum(c.freqs, num.mean(d, axis=0), self.color)
+        self.spectrum_widget.update_spectrum(
+            c.freqs, num.mean(d, axis=0), self.color, self.spectrogram_widget.freq_max
+        )
 
     @qc.pyqtSlot(int)
     def on_confidence_threshold_changed(self, threshold):
@@ -289,7 +284,7 @@ class ProductView(SignalDispatcherWidget):
 
     @qc.pyqtSlot()
     def on_draw(self):
-        self.spectrum_widget.on_draw()
+        self.spectrum_widget.on_draw(self.spectrogram_widget.freq_max)
 
     @qc.pyqtSlot(qg.QMouseEvent)
     def mousePressEvent(self, mouse_ev):
@@ -368,13 +363,14 @@ class ChannelViews(qw.QWidget):
 class SpectrogramWidget(Axis):
     def __init__(self, channel, *args, **kwargs):
         Axis.__init__(self, *args, **kwargs)
-        self.nx, self.ny = 100, 500  # width, height
+        self.nx, self.ny = 100, 600  # width, height
         self.channel = channel
         fake = num.ones((self.nx, self.ny))
         self.image = self.colormesh(z=fake.T)
         self.xticks = False
         self.ytick_formatter = "%i"
         self.grids = []
+        self.freq_max = 500
 
         self.right_click_menu = QMenu("RC", self)
         self.color_choices = add_action_group(
@@ -388,6 +384,7 @@ class SpectrogramWidget(Axis):
 
         try:
             y = c.freqs[: self.ny]
+            self.freq_max = y[-1]
             x = c.xdata[-self.nx :]
             d = c.fft.latest_frame_data(self.nx)
             self.image.set_data(num.flipud(d[:, : self.ny].T))
@@ -451,7 +448,7 @@ class SpectrogramWidgetRotated(SpectrogramWidget):
 
 
 class SpectrumWidget(FigureCanvas):
-    def __init__(self, parent=None, f_max=2000):
+    def __init__(self, parent=None, freq_max=500):
         super(SpectrumWidget, self).__init__(Figure())
         self.setParent(parent)
 
@@ -471,19 +468,26 @@ class SpectrumWidget(FigureCanvas):
         )
         # self.figure.tight_layout(pad=0)
         self._line = None
-        self.f_max = f_max
+        self.freq_max = freq_max
+        self.spectral_type = "log"
 
-    def update_spectrum(self, f_axis, data, color):
+    def update_spectrum(self, f_axis, data, color, freq_max):
+        # data /= num.max(num.abs(data))
         if self._line is None:
             (self._line,) = self.ax.plot(
                 data, f_axis, color=num.array(_colors[color]) / 256
             )
         else:
             self._line.set_data(data, f_axis)
-        self.ax.set_xlim((0, 1000000))
-        self.ax.set_ylim((0, 500))
-        self.ax.set_yticks(num.arange(0, 500, 50), num.arange(0, 500, 50))
+
+        self.ax.set_xscale(self.spectral_type)
+        self.ax.set_ylim((0, freq_max))
+        self.ax.set_xlim((0, 10000000000))
+        self.ax.set_yticks(num.arange(0, freq_max, 100), num.arange(0, freq_max, 100))
         self.draw()
+
+    def set_spectral_type(self, type):
+        self.spectral_type = type
 
 
 class CheckBoxSelect(qw.QWidget):
@@ -736,6 +740,7 @@ class ProductSpectrogram(SpectrogramWidget):
         try:
             self.update_datalims(self.image_worker.x, self.image_worker.y)
             self.image.set_data(self.image_worker.data)
+            self.freq_max = self.image_worker.y[-1]
         except ValueError as e:
             pass
 
@@ -780,13 +785,15 @@ class ProductSpectrum(SpectrumWidget):
         self.channels = channels
 
     @qc.pyqtSlot()
-    def on_draw(self):
+    def on_draw(self, freq_max):
         data = num.asarray(self.channels[0].fft.latest_frame_data(3), dtype=num.float32)
 
         for c in self.channels[1:]:
             data *= num.asarray(c.fft.latest_frame_data(3), dtype=num.float32)
 
-        self.update_spectrum(self.channels[0].freqs, num.mean(data, axis=0), "black")
+        self.update_spectrum(
+            self.channels[0].freqs, num.mean(data, axis=0), "black", freq_max
+        )
 
 
 class DifferentialPitchWidget(OverView):
