@@ -31,7 +31,6 @@ from matplotlib.backends.backend_qtagg import (
 from matplotlib.figure import Figure
 import time
 
-
 logger = logging.getLogger("pytch.gui")
 tfollow = 3.0
 fmax = 2000.0
@@ -56,7 +55,7 @@ class SignalDispatcherWidget(qw.QWidget):
         pass
 
     def show_trace_widget(self, show):
-        self.trace_widget.setVisible(show)
+        self.waveform_widget.setVisible(show)
 
     @qc.pyqtSlot()
     def on_confidence_threshold_changed(self, *args):
@@ -99,22 +98,16 @@ class ChannelView(SignalDispatcherWidget):
 
         self.confidence_threshold = 0.9
         self.freq_keyboard = 0
-
-        self.trace_widget = GLAxis()
-        self.trace_widget.grids = []
-        self.trace_widget.yticks = False
-        self.trace_widget.xticks = False
-        self.trace_widget.set_ylim(-1000.0, 1000.0)
-        self.trace_widget.left = 0.0
         self.fft_smooth_factor = 4
         self.setContentsMargins(-10, -10, -10, -10)
 
-        self.spectrogram_widget = SpectrogramWidget(channel=channel, fmax=fmax)
+        self.waveform_widget = WaveformWidget(parent=self)
+        self.spectrogram_widget = SpectrogramWidget(parent=self, channel=channel)
         self.freq_max = self.spectrogram_widget.freq_max - 10
         self.spectrum_widget = SpectrumWidget(parent=self, freq_max=self.freq_max)
 
         layout = self.layout()
-        layout.addWidget(self.trace_widget, 1)
+        layout.addWidget(self.waveform_widget, 1)
         layout.addWidget(self.spectrum_widget, 2)
         layout.addWidget(self.spectrogram_widget, 2)
 
@@ -163,11 +156,11 @@ class ChannelView(SignalDispatcherWidget):
         c = self.channel
         d = c.fft.latest_frame_data(self.fft_smooth_factor)  # get latest frame data
 
-        # draw trace
-        self.trace_widget.clear()
-        self.trace_widget.plot(
-            *c.latest_frame(tfollow), ndecimate=25, color=self.color, line_width=1
+        # draw waveform
+        audio_float = (
+            c.latest_frame(tfollow)[1].astype(num.float32, order="C") / 32768.0
         )
+        self.waveform_widget.update_waveform(audio_float, self.color)
 
         # confidence = c.pitch_confidence.latest_frame_data(1)
         # if confidence > self.confidence_threshold:
@@ -250,18 +243,14 @@ class ProductView(SignalDispatcherWidget):
     def __init__(self, channels, fmax, *args, **kwargs):
         SignalDispatcherWidget.__init__(self, *args, **kwargs)
 
+        self.waveform_widget = WaveformWidget(parent=self)
         self.spectrum_widget = ProductSpectrum(channels=channels)
-        self.spectrogram_widget = ProductSpectrogram(channels=channels, fmax=fmax)
+        self.spectrogram_widget = ProductSpectrogram(parent=self, channels=channels)
 
         self.channels = channels
-        self.trace_widget = GLAxis()
-        self.trace_widget.setContentsMargins(-10, -10, -10, -10)
-        self.trace_widget.grids = []
-        self.trace_widget.xticks = False
-        self.trace_widget.yticks = False
 
         layout = self.layout()
-        layout.addWidget(self.trace_widget, 1)
+        layout.addWidget(self.waveform_widget, 1)
         layout.addWidget(self.spectrum_widget, 2)
         layout.addWidget(self.spectrogram_widget, 2)
 
@@ -285,6 +274,7 @@ class ProductView(SignalDispatcherWidget):
     @qc.pyqtSlot()
     def on_draw(self):
         self.spectrum_widget.on_draw(self.spectrogram_widget.freq_max)
+        self.spectrogram_widget.update_spectrogram()
 
     @qc.pyqtSlot(qg.QMouseEvent)
     def mousePressEvent(self, mouse_ev):
@@ -307,7 +297,7 @@ class ChannelViews(qw.QWidget):
         channels = [cv.channel for cv in self.views]
         self.views.append(ProductView(channels=channels, fmax=fmax))
 
-        for c_view in self.views:
+        for i, c_view in enumerate(self.views):
             self.layout.addWidget(c_view)
 
         self.show_trace_widgets(True)
@@ -360,58 +350,79 @@ class ChannelViews(qw.QWidget):
         yield from self.views
 
 
-class SpectrogramWidget(Axis):
-    def __init__(self, channel, *args, **kwargs):
-        Axis.__init__(self, *args, **kwargs)
-        self.nx, self.ny = 100, 600  # width, height
-        self.channel = channel
-        fake = num.ones((self.nx, self.ny))
-        self.image = self.colormesh(z=fake.T)
-        self.xticks = False
-        self.ytick_formatter = "%i"
-        self.grids = []
-        self.freq_max = 500
+class WaveformWidget(FigureCanvas):
+    def __init__(self, parent=None):
+        super(WaveformWidget, self).__init__(Figure())
+        self.setParent(parent)
 
-        self.right_click_menu = QMenu("RC", self)
-        self.color_choices = add_action_group(
-            colormaps, self.right_click_menu, self.on_color_select
+        self.figure = Figure(tight_layout=True)
+        self.figure.tight_layout(pad=0)
+        self.canvas = FigureCanvas(self.figure)
+        self.ax = self.figure.add_subplot(111, position=[0, 0, 1, 1])
+        self.ax.set_title(None)
+        self.ax.set_xlabel(None)
+        self.ax.set_ylabel(None)
+        self.ax.get_xaxis().set_visible(False)
+        self.ax.get_yaxis().set_visible(False)
+        self.ax.set_frame_on(False)
+        self.figure.subplots_adjust(
+            left=0.25, right=1, top=1, bottom=0, wspace=0, hspace=0
         )
-        self.setContentsMargins(-10, -10, -10, -10)
+        self._line = None
 
-    @qc.pyqtSlot()
+    def update_waveform(self, data, color):
+        t = num.arange(len(data))
+        if self._line is None:
+            (self._line,) = self.ax.plot(t, data, color=num.array(_colors[color]) / 256)
+        else:
+            self._line.set_data(t, data)
+        self.ax.set_ylim((-1, 1))
+        self.draw()
+
+
+class SpectrogramWidget(FigureCanvas):
+    def __init__(self, parent, channel, freq_max=500):
+        super(SpectrogramWidget, self).__init__(Figure())
+        self.setParent(parent)
+
+        self.figure = Figure(tight_layout=True)
+        self.figure.tight_layout(pad=0)
+        self.canvas = FigureCanvas(self.figure)
+        self.ax = self.figure.add_subplot(111, position=[0, 0, 1, 1])
+        # self.ax.use_sticky_edges = True
+        self.ax.set_title(None)
+        self.ax.set_xlabel(None)
+        self.ax.get_xaxis().set_visible(False)
+        self.ax.yaxis.grid(True)
+        self.figure.subplots_adjust(
+            left=0.25, right=1, top=1, bottom=0, wspace=0, hspace=0
+        )
+        self._line = None
+        self.freq_max = freq_max
+        self.channel = channel
+        self.show_n_frames = 500
+        self.img = self.ax.imshow(
+            num.zeros((4096, self.show_n_frames)),
+            origin="lower",
+            aspect="auto",
+            cmap="viridis",
+            extent=[0, 3, 0, 4000],
+        )
+        self.ax.set_ylim((0, freq_max))
+
     def update_spectrogram(self):
         c = self.channel
 
-        try:
-            y = c.freqs[: self.ny]
-            self.freq_max = y[-1]
-            x = c.xdata[-self.nx :]
-            d = c.fft.latest_frame_data(self.nx)
-            self.image.set_data(num.flipud(d[:, : self.ny].T))
-            self.update_datalims(x, y)
-        except ValueError as e:
-            logger.debug(e)
-            return
+        data = num.log(1 + c.fft.latest_frame_data(self.show_n_frames).T)
+        self.img.set_data(data)
+        self.img.set_clim(vmin=num.min(data), vmax=num.max(data))
 
-        self.update()
+        for tick in self.ax.yaxis.get_majorticklabels():
+            tick.set_verticalalignment(
+                "bottom"
+            )  # which actually sets them on top of the tick...
 
-    @qc.pyqtSlot()
-    def on_color_select(self):
-        for c in self.color_choices:
-            if c.isChecked():
-                self.image.set_colortable(c.text())
-                break
-
-    @qc.pyqtSlot(qg.QMouseEvent)
-    def mousePressEvent(self, mouse_ev):
-        if mouse_ev.button() == qc.Qt.RightButton:
-            self.right_click_menu.exec_(qg.QCursor.pos())
-
-    def __del__(self):
-        logger.debug("Spectrogram deleted")
-
-    def sizeHint(self):
-        return qc.QSize(450, 200)
+        self.draw()
 
 
 class SpectrogramWidgetRotated(SpectrogramWidget):
@@ -702,76 +713,56 @@ class ImageWorkerRotated(ImageWorker):
 
 
 class ProductSpectrogram(SpectrogramWidget):
-    scalingChanged = qc.pyqtSignal(float)
+    def __init__(self, parent, channels, freq_max=500):
+        SpectrogramWidget.__init__(self, None, channels, freq_max=500)
+        self.setParent(parent)
 
-    def __init__(self, channels, *args, **kwargs):
-        SpectrogramWidget.__init__(self, None, *args, **kwargs)
-
+        self.figure = Figure(tight_layout=True)
+        self.figure.tight_layout(pad=0)
+        self.canvas = FigureCanvas(self.figure)
+        self.ax = self.figure.add_subplot(111, position=[0, 0, 1, 1])
+        # self.ax.use_sticky_edges = True
+        self.ax.set_title(None)
+        self.ax.set_xlabel(None)
+        self.ax.get_xaxis().set_visible(False)
+        self.ax.yaxis.grid(True)
+        self.figure.subplots_adjust(
+            left=0.25, right=1, top=1, bottom=0, wspace=0, hspace=0
+        )
+        self._line = None
+        self.freq_max = freq_max
         self.channels = channels
-        self.setContentsMargins(-10, -10, -10, -10)
+        self.show_n_frames = 500
+        self.img = self.ax.imshow(
+            num.zeros((4096, self.show_n_frames)),
+            origin="lower",
+            aspect="auto",
+            cmap="viridis",
+            extent=[0, 3, 0, 4000],
+        )
+        self.ax.set_ylim((0, freq_max))
 
-        self.init_gain_slider()
-        self.init_image_worker(False)
-        self.grids = []
-
-    def init_gain_slider(self):
-        slider = qw.QSlider()
-        slider.valueChanged.connect(self.on_scaling_changed)
-        slider.setOrientation(qc.Qt.Horizontal)
-        slider.setMinimum(25)
-        slider.setMaximum(55)
-        slider.setPageStep(1)
-        slider.setSliderPosition(40)
-        widget_slider = qw.QWidgetAction(self.right_click_menu)
-        widget_slider.setDefaultWidget(slider)
-        self.right_click_menu.addSeparator()
-        self.right_click_menu.addAction("gain:")
-        self.right_click_menu.addAction(widget_slider)
-        self.right_click_menu.addSeparator()
-
-    def init_image_worker(self, rotate=False):
-        self.thread = qc.QThread()
-        if rotate:
-            self.image_worker = ImageWorkerRotated(self.channels, self.nx, self.ny)
-        else:
-            self.image_worker = ImageWorker(self.channels, self.ny, self.nx)
-        self.image_worker.moveToThread(self.thread)
-        self.image_worker.processingFinished.connect(self.update_spectrogram)
-        self.image_worker.start.emit("Start Thread")
-        self.scalingChanged.connect(self.image_worker.on_scaling_changed)
-        self.thread.start()
-
-    @qc.pyqtSlot()
     def update_spectrogram(self):
-        try:
-            self.update_datalims(self.image_worker.x, self.image_worker.y)
-            self.image.set_data(self.image_worker.data)
-            self.freq_max = self.image_worker.y[-1]
-        except ValueError as e:
-            pass
+        data = num.asarray(
+            self.channels[0].fft.latest_frame_data(self.show_n_frames).T,
+            dtype=num.float32,
+        )
 
-        self.image.update()
-        self.update()
+        for c in self.channels[1:]:
+            data *= num.asarray(
+                c.fft.latest_frame_data(self.show_n_frames).T, dtype=num.float32
+            )
 
-    @qc.pyqtSlot(int)
-    def on_scaling_changed(self, value):
-        self.scalingChanged.emit(value / 10.0)
+        data = num.log(1 + data)
+        self.img.set_data(data)
+        self.img.set_clim(vmin=num.min(data), vmax=num.max(data))
 
-    @qc.pyqtSlot(bool)
-    def on_color_select(self, triggered):
-        for c in self.color_choices:
-            if c.isChecked():
-                self.image.set_colortable(c.text())
-                break
+        for tick in self.ax.yaxis.get_majorticklabels():
+            tick.set_verticalalignment(
+                "bottom"
+            )  # which actually sets them on top of the tick...
 
-    @qc.pyqtSlot(qg.QMouseEvent)
-    def mousePressEvent(self, mouse_ev):
-        if mouse_ev.button() == qc.Qt.RightButton:
-            self.right_click_menu.exec_(qg.QCursor.pos())
-
-    def __del__(self):
-        self.thread.quit()
-        self.thread.wait()
+        self.draw()
 
 
 class ProductSpectrogramRotated(ProductSpectrogram):
