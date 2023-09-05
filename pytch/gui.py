@@ -4,16 +4,13 @@ import numpy as num
 import os
 from abc import abstractmethod
 
-from pytch.processing import Worker
-
 from .gui_util import add_action_group
 from .gui_util import make_QPolygonF, _color_names, _colors  # noqa
-from .util import consecutive, f2cent, index_gradient_filter, relative_keys
-from .plot import GLAxis, Axis, GaugeWidget, MikadoWidget, FixGrid
-from .keyboard import KeyBoard
+from .util import consecutive, index_gradient_filter, relative_keys
+from .plot import Axis, GaugeWidget
 from .menu import DeviceMenu, ProcessingMenu
-from .channel_mixer import ChannelMixer
 from .config import get_config
+from .processing import Worker
 
 from PyQt5 import QtCore as qc
 from PyQt5 import QtGui as qg
@@ -21,15 +18,9 @@ from PyQt5 import QtWidgets as qw
 from PyQt5.QtWidgets import QVBoxLayout
 from PyQt5.QtWidgets import QAction, QPushButton, QDockWidget
 from PyQt5.QtWidgets import QMenu, QActionGroup, QFileDialog
-from PyQt5.QtChart import QChart, QChartView, QValueAxis, QLogValueAxis, QLineSeries
 
-from matplotlib.backends.qt_compat import QtWidgets
-from matplotlib.backends.backend_qtagg import (
-    FigureCanvas,
-    NavigationToolbar2QT as NavigationToolbar,
-)
+from matplotlib.backends.backend_qtagg import FigureCanvas
 from matplotlib.figure import Figure
-import time
 
 logger = logging.getLogger("pytch.gui")
 tfollow = 3.0
@@ -256,20 +247,6 @@ class ProductView(SignalDispatcherWidget):
 
         self.confidence_threshold = 1
         self.fft_smooth_factor = 4
-
-    def rotate_spectrogram_widget(self, rotate=True):
-        layout = self.layout()
-        visible = self.spectrogram_widget.isVisible()
-        self.show_spectrogram_widget(False)
-        layout.removeWidget(self.spectrogram_widget)
-        del self.spectrogram_widget
-
-        if rotate:
-            self.spectrogram_widget = ProductSpectrogramRotated(channels=self.channels)
-        else:
-            self.spectrogram_widget = ProductSpectrogram(channels=self.channels)
-        layout.addWidget(self.spectrogram_widget)
-        self.show_spectrogram_widget(visible)
 
     @qc.pyqtSlot()
     def on_draw(self):
@@ -658,60 +635,6 @@ class PitchWidget(OverView):
                 num.savetxt(fn, num.vstack((x[index], y[index])).T)
 
 
-class ImageWorker(qc.QObject):
-    processingFinished = qc.pyqtSignal()
-    on_scaling_changed = qc.pyqtSignal(float)
-    start = qc.pyqtSignal(str)
-
-    def __init__(self, channels, nx, ny):
-        super().__init__()
-        self.channels = channels
-        self.scaling = 4.0
-        self.data = None
-        self.x = None
-        self.y = None
-        self.nx = nx
-        self.ny = ny
-        self.start.connect(self.run)
-
-    @qc.pyqtSlot(float)
-    def on_scaling_changed(self, newscale):
-        self.scaling = newscale
-
-    @qc.pyqtSlot(str)
-    def run(self, message):
-        self.spectrogram_refresh_timer = qc.QTimer()
-        self.spectrogram_refresh_timer.timeout.connect(self.process)
-        self.spectrogram_refresh_timer.start(200)
-
-    @qc.pyqtSlot()
-    def process(self):
-        z = num.asarray(
-            self.channels[0].fft.latest_frame_data(self.ny), dtype=num.float32
-        )
-        for c in self.channels:
-            z *= num.asarray(c.fft.latest_frame_data(self.ny), dtype=num.float32)
-
-        self.x = c.xdata[-self.ny :]
-        self.y = c.freqs[: self.nx]
-        self.data = num.ma.log(num.flipud(z[:, : self.nx].transpose())) ** self.scaling
-        self.processingFinished.emit()
-
-
-class ImageWorkerRotated(ImageWorker):
-    def process(self):
-        z = num.asarray(
-            self.channels[0].fft.latest_frame_data(self.nx), dtype=num.float32
-        )
-        for c in self.channels:
-            z *= num.asarray(c.fft.latest_frame_data(self.nx), dtype=num.float32)
-
-        self.y = c.xdata[-self.nx :]
-        self.x = c.freqs[: self.ny]
-        self.data = num.ma.log(z[:, : self.ny]) ** self.scaling
-        self.processingFinished.emit()
-
-
 class ProductSpectrogram(SpectrogramWidget):
     def __init__(self, parent, channels, freq_max=500):
         SpectrogramWidget.__init__(self, None, channels, freq_max=500)
@@ -763,17 +686,6 @@ class ProductSpectrogram(SpectrogramWidget):
             )  # which actually sets them on top of the tick...
 
         self.draw()
-
-
-class ProductSpectrogramRotated(ProductSpectrogram):
-    def __init__(self, channels, *args, **kwargs):
-        SpectrogramWidgetRotated.__init__(self, None, *args, **kwargs)
-
-        self.channels = channels
-        self.setContentsMargins(-10, -10, -10, -10)
-
-        self.init_gain_slider()
-        self.init_image_worker(True)
 
 
 class ProductSpectrum(SpectrumWidget):
@@ -918,34 +830,6 @@ class PitchLevelDifferenceViews(qw.QWidget):
             qw.QWidget.mousePressEvent(self, mouse_ev)
 
 
-class PitchLevelMikadoViews(qw.QWidget):
-    def __init__(self, channel_views, *args, **kwargs):
-        qw.QWidget.__init__(self, *args, **kwargs)
-        self.channel_views = channel_views
-        layout = qw.QGridLayout()
-        self.setLayout(layout)
-        self.widgets = []
-
-        for i1, cv1 in enumerate(self.channel_views):
-            for i2, cv2 in enumerate(self.channel_views):
-                if i1 >= i2:
-                    continue
-                w = MikadoWidget()
-                w.set_ylim(-1500, 1500)
-                w.set_title(f"Channels: {i1} {i2}")
-                w.tfollow = 60.0
-                self.widgets.append((cv1, cv2, w))
-                layout.addWidget(w, i1, i2)
-
-    @qc.pyqtSlot()
-    def on_draw(self):
-        for cv1, cv2, w in self.widgets:
-            x1, y1 = cv1.channel.pitch.latest_frame(w.tfollow)
-            x2, y2 = cv2.channel.pitch.latest_frame(w.tfollow)
-            w.fill_between(x1, y1, x2, y2)
-            w.update()
-
-
 class RightTabs(qw.QTabWidget):
     def __init__(self, *args, **kwargs):
         qw.QTabWidget.__init__(self, *args, **kwargs)
@@ -1054,12 +938,6 @@ class MainWidget(qw.QWidget):
         self.signal_widgets_draw.connect(self.channel_views_widget.on_draw)
 
         self.top_layout.addWidget(self.channel_views_widget, 1, 0, 1, 1)
-
-        # self.top_layout.addWidget(self.channel_mixer, 1, 0, 1, 1)
-        self.keyboard = KeyBoard(self)
-        self.keyboard.setVisible(False)
-        self.keyboard.connect_channel_views(self.channel_views_widget)
-        self.top_layout.addWidget(self.keyboard, 0, 0, 1, -1)
 
         pitch_view = PitchWidget(channel_views)
         pitch_view.low_pitch_changed.connect(self.menu.on_adapt_standard_frequency)
