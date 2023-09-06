@@ -2,7 +2,6 @@ import logging
 import sys
 import numpy as num
 import os
-from abc import abstractmethod
 
 from .gui_util import add_action_group
 from .gui_util import make_QPolygonF, _color_names, _colors  # noqa
@@ -21,10 +20,12 @@ from PyQt5.QtWidgets import QMenu, QActionGroup, QFileDialog
 
 from matplotlib.backends.backend_qtagg import FigureCanvas
 from matplotlib.figure import Figure
+from matplotlib.patches import Rectangle
+import matplotlib.colors
+import matplotlib.pyplot as plt
 
 logger = logging.getLogger("pytch.gui")
 tfollow = 3.0
-fmax = 2000.0
 colormaps = ["viridis", "wb", "bw"]
 
 
@@ -88,7 +89,7 @@ class ChannelView(SignalDispatcherWidget):
         self.fft_smooth_factor = 4
         # self.setContentsMargins(-10, -10, -10, -10)
 
-        self.waveform_widget = WaveformWidget(parent=self)
+        self.waveform_widget = LevelWidget()
         self.spectrogram_widget = SpectrogramWidget(freq_max=freq_max)
         self.spectrum_widget = SpectrumWidget(freq_max=freq_max)
 
@@ -143,10 +144,8 @@ class ChannelView(SignalDispatcherWidget):
         d = c.fft.latest_frame_data(self.fft_smooth_factor)  # get latest frame data
 
         # draw waveform
-        audio_float = (
-            c.latest_frame(tfollow)[1].astype(num.float32, order="C") / 32768.0
-        )
-        self.waveform_widget.update_waveform(audio_float, self.color)
+        audio_float = c.latest_frame(1)[1].astype(num.float32, order="C") / 32768.0
+        self.waveform_widget.update_level(audio_float, self.color)
 
         # confidence = c.pitch_confidence.latest_frame_data(1)
         # if confidence > self.confidence_threshold:
@@ -213,7 +212,7 @@ class ProductView(SignalDispatcherWidget):
     def __init__(self, channels, freq_max, *args, **kwargs):
         SignalDispatcherWidget.__init__(self, *args, **kwargs)
 
-        self.waveform_widget = WaveformWidget(parent=self)
+        self.waveform_widget = LevelWidget()
         self.spectrum_widget = SpectrumWidget(freq_max=freq_max)
         self.spectrogram_widget = SpectrogramWidget(freq_max=freq_max)
         self.color = "black"
@@ -224,6 +223,7 @@ class ProductView(SignalDispatcherWidget):
         layout.addWidget(self.waveform_widget, 1)
         layout.addWidget(self.spectrum_widget, 2)
         layout.addWidget(self.spectrogram_widget, 2)
+        self.waveform_widget.figure.clf()
 
         self.confidence_threshold = 1
         self.fft_smooth_factor = 4
@@ -324,33 +324,46 @@ class ChannelViews(qw.QWidget):
         yield from self.views
 
 
-class WaveformWidget(FigureCanvas):
-    def __init__(self, parent=None):
-        super(WaveformWidget, self).__init__(Figure())
-        self.setParent(parent)
+class LevelWidget(FigureCanvas):
+    def __init__(self):
+        super(LevelWidget, self).__init__(Figure())
 
         self.figure = Figure(tight_layout=True)
         self.figure.tight_layout(pad=0)
         self.canvas = FigureCanvas(self.figure)
         self.ax = self.figure.add_subplot(111)
         self.ax.set_title(None)
-        self.ax.set_xlabel(None)
-        self.ax.set_ylabel(None)
-        self.ax.get_xaxis().set_visible(False)
-        self.ax.get_yaxis().set_visible(False)
-        self.ax.set_frame_on(False)
-        self.figure.subplots_adjust(
-            left=0.25, right=1, top=1, bottom=0, wspace=0, hspace=0
-        )
-        self._line = None
+        self.ax.tick_params(axis="x", colors="white")
+        self.ax.yaxis.grid(True, which="both")
+        self.ax.set_xlabel("Level [dBFS]  ")
 
-    def update_waveform(self, data, color):
-        t = num.arange(len(data))
-        if self._line is None:
-            (self._line,) = self.ax.plot(t, data, color=num.array(_colors[color]) / 256)
-        else:
-            self._line.set_data(t, data)
-        self.ax.set_ylim((-1, 1))
+        cvals = [0, 31, 40]
+        colors = ["green", "yellow", "red"]
+        norm = plt.Normalize(min(cvals), max(cvals))
+        tuples = list(zip(map(norm, cvals), colors))
+        cmap = matplotlib.colors.LinearSegmentedColormap.from_list("", tuples)
+        self.img = self.ax.imshow(
+            num.linspace((0, 0), (40, 40), 400),
+            cmap=cmap,
+            aspect="auto",
+            origin="lower",
+            extent=[0, 1, -40, 0],
+        )
+        self.figure.subplots_adjust(
+            left=0, right=0.8, top=1, bottom=0, wspace=0, hspace=0
+        )
+        self.ax.set_ylim((0, -40))
+        self.ax.invert_yaxis()
+        self.figure.tight_layout()
+
+    def update_level(self, data, color):
+        peak_db = 10 * num.log10(num.max(num.abs(data)))
+        plot_val = num.max((0, 40 + peak_db)).astype(int)
+        plot_mat = num.linspace((0, 0), (40, 40), 400)
+        plot_mat[plot_val * 10 :, :] = num.nan
+        self.img.set_data(plot_mat)
+
+        self.figure.tight_layout()
         self.draw()
 
 
@@ -399,14 +412,10 @@ class SpectrogramWidget(FigureCanvas):
         self.figure.tight_layout(pad=0)
         self.canvas = FigureCanvas(self.figure)
         self.ax = self.figure.add_subplot(111)
-        # self.ax.use_sticky_edges = True
         self.ax.set_title(None)
         self.ax.set_ylabel(None)
         self.ax.get_yaxis().set_visible(False)
         self.ax.xaxis.grid(True, which="both")
-        self.figure.subplots_adjust(
-            left=0.25, right=1, top=1, bottom=0, wspace=0, hspace=0
-        )
         self.freq_max = freq_max
         self.show_n_frames = 500
         self.img = self.ax.imshow(
