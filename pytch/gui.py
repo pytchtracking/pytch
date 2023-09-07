@@ -20,7 +20,6 @@ from PyQt5.QtWidgets import QMenu, QActionGroup, QFileDialog
 
 from matplotlib.backends.backend_qtagg import FigureCanvas
 from matplotlib.figure import Figure
-from matplotlib.patches import Rectangle
 import matplotlib.colors
 import matplotlib.pyplot as plt
 
@@ -34,7 +33,7 @@ class SignalDispatcherWidget(qw.QWidget):
         qw.QWidget.__init__(self, *args, **kwargs)
 
         self.setLayout(qw.QHBoxLayout())
-        # self.setContentsMargins(-10, -10, -10, -10)
+        self.setContentsMargins(-10, -10, -10, -10)
 
     def show_spectrum_widget(self, show):
         self.spectrum_widget.setVisible(show)
@@ -42,7 +41,7 @@ class SignalDispatcherWidget(qw.QWidget):
     def show_spectrogram_widget(self, show):
         self.spectrogram_widget.setVisible(show)
 
-    def show_trace_widget(self, show):
+    def show_level_widget(self, show):
         self.waveform_widget.setVisible(show)
 
     @qc.pyqtSlot()
@@ -61,6 +60,12 @@ class SignalDispatcherWidget(qw.QWidget):
     def on_standard_frequency_changed(self, *args):
         pass
 
+    def on_max_freq_changed(self, f):
+        self.freq_max = f
+
+    def on_min_freq_changed(self, f):
+        self.freq_min = f
+
     @qc.pyqtSlot(float)
     def on_pitch_shift_changed(self, f):
         pass
@@ -71,11 +76,11 @@ class SignalDispatcherWidget(qw.QWidget):
 
 
 class ChannelView(SignalDispatcherWidget):
-    def __init__(self, channel, freq_max, color="red", *args, **kwargs):
+    def __init__(self, channel, color="red", *args, **kwargs):
         """
         Visual representation of a Channel instance.
 
-        This is a per-channel container. It contains the trace-view,
+        This is a per-channel container. It contains the level-view,
         spectrogram-view and the sepctrum-view of a single channel.
 
         :param channel: pytch.data.Channel instance
@@ -87,11 +92,11 @@ class ChannelView(SignalDispatcherWidget):
         self.confidence_threshold = 0.9
         self.freq_keyboard = 0
         self.fft_smooth_factor = 4
-        # self.setContentsMargins(-10, -10, -10, -10)
+        self.setContentsMargins(-10, -10, -10, -10)
 
         self.waveform_widget = LevelWidget()
-        self.spectrogram_widget = SpectrogramWidget(freq_max=freq_max)
-        self.spectrum_widget = SpectrumWidget(freq_max=freq_max)
+        self.spectrogram_widget = SpectrogramWidget()
+        self.spectrum_widget = SpectrumWidget()
 
         layout = self.layout()
         layout.addWidget(self.waveform_widget, 1)
@@ -128,12 +133,6 @@ class ChannelView(SignalDispatcherWidget):
         plot_action_group = QActionGroup(self.spectrum_type_menu)
         plot_action_group.setExclusive(True)
 
-        # self.spectrogram_refresh_timer = qc.QTimer()
-        # self.spectrogram_refresh_timer.timeout.connect(
-        #    self.spectrogram_widget.update_spectrogram
-        # )
-        # self.spectrogram_refresh_timer.start(300)
-
     @qc.pyqtSlot(float)
     def on_keyboard_key_pressed(self, f):
         self.freq_keyboard = f
@@ -147,17 +146,13 @@ class ChannelView(SignalDispatcherWidget):
         audio_float = c.latest_frame(1)[1].astype(num.float32, order="C") / 32768.0
         self.waveform_widget.update_level(audio_float, self.color)
 
-        # confidence = c.pitch_confidence.latest_frame_data(1)
-        # if confidence > self.confidence_threshold:
-        #    y = c.undo_pitch_proxy(c.get_latest_pitch())
-        #    self.spectrum_widget.ax.axhline(y)
-
-        # if self.freq_keyboard:
-        #        self.spectrum_widget.axhline(
-        #            self.freq_keyboard, color="aluminium4", style="dashed", line_width=4
-        #        )
+        confidence = c.pitch_confidence.latest_frame_data(1)
+        if confidence > self.confidence_threshold:
+            vline = c.undo_pitch_proxy(c.get_latest_pitch())
+        else:
+            vline = None
         self.spectrum_widget.update_spectrum(
-            c.freqs, num.mean(d, axis=0), self.color, self.spectrogram_widget.freq_max
+            c.freqs, num.mean(d, axis=0), self.color, vline
         )
 
         data = num.flipud(
@@ -176,6 +171,14 @@ class ChannelView(SignalDispatcherWidget):
     @qc.pyqtSlot(float)
     def on_standard_frequency_changed(self, f):
         self.channel.standard_frequency = f
+
+    def on_min_freq_changed(self, f):
+        self.spectrogram_widget.freq_min = f
+        self.spectrum_widget.freq_min = f
+
+    def on_max_freq_changed(self, f):
+        self.spectrogram_widget.freq_max = f
+        self.spectrum_widget.freq_max = f
 
     @qc.pyqtSlot(float)
     def on_pitch_shift_changed(self, shift):
@@ -209,13 +212,14 @@ class ChannelView(SignalDispatcherWidget):
 
 
 class ProductView(SignalDispatcherWidget):
-    def __init__(self, channels, freq_max, *args, **kwargs):
+    def __init__(self, channels, *args, **kwargs):
         SignalDispatcherWidget.__init__(self, *args, **kwargs)
 
         self.waveform_widget = LevelWidget()
-        self.spectrum_widget = SpectrumWidget(freq_max=freq_max)
-        self.spectrogram_widget = SpectrogramWidget(freq_max=freq_max)
+        self.spectrum_widget = SpectrumWidget()
+        self.spectrogram_widget = SpectrogramWidget()
         self.color = "black"
+        self.setContentsMargins(-10, -10, -10, -10)
 
         self.channels = channels
 
@@ -255,6 +259,14 @@ class ProductView(SignalDispatcherWidget):
         if mouse_ev.button() == qc.Qt.RightButton:
             self.spectrum_widget.setVisible(not self.spectrum_widget.isVisible())
 
+    def on_min_freq_changed(self, f):
+        self.spectrogram_widget.freq_min = f
+        self.spectrum_widget.freq_min = f
+
+    def on_max_freq_changed(self, f):
+        self.spectrogram_widget.freq_max = f
+        self.spectrum_widget.freq_max = f
+
 
 class ChannelViews(qw.QWidget):
     """Creates and contains the channel widgets."""
@@ -263,29 +275,26 @@ class ChannelViews(qw.QWidget):
         qw.QWidget.__init__(self)
         self.views = []
         for ichannel, channel in enumerate(channels):
-            self.views.append(
-                ChannelView(
-                    channel, freq_max=freq_max, color=_color_names[3 * ichannel]
-                )
-            )
+            self.views.append(ChannelView(channel, color=_color_names[3 * ichannel]))
 
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
+        self.setContentsMargins(-10, -10, -10, -10)
 
         channels = [cv.channel for cv in self.views]
-        self.views.append(ProductView(channels=channels, freq_max=freq_max))
+        self.views.append(ProductView(channels=channels))
 
         for i, c_view in enumerate(self.views):
             self.layout.addWidget(c_view)
 
-        self.show_trace_widgets(True)
+        self.show_level_widgets(True)
         self.show_spectrum_widgets(True)
         self.show_spectrogram_widgets(True)
         self.setSizePolicy(qw.QSizePolicy.Minimum, qw.QSizePolicy.Minimum)
 
-    def show_trace_widgets(self, show):
+    def show_level_widgets(self, show):
         for view in self.views:
-            view.show_trace_widget(show)
+            view.show_level_widget(show)
 
     def show_spectrum_widgets(self, show):
         for view in self.views:
@@ -298,14 +307,18 @@ class ChannelViews(qw.QWidget):
     def show_product_widgets(self, show):
         self.views[-1].setVisible(show)
 
-    def set_in_range(self, val_range):
-        for c_view in self.views:
-            c_view.trace_widget.set_ylim(-val_range, val_range)
-
     @qc.pyqtSlot(float)
     def on_standard_frequency_changed(self, f):
         for cv in self.views:
             cv.on_standard_frequency_changed(f)
+
+    def on_min_freq_changed(self, f):
+        for cv in self.views:
+            cv.on_min_freq_changed(f)
+
+    def on_max_freq_changed(self, f):
+        for cv in self.views:
+            cv.on_max_freq_changed(f)
 
     @qc.pyqtSlot(float)
     def on_pitch_shift_changed(self, f):
@@ -337,7 +350,7 @@ class LevelWidget(FigureCanvas):
         self.ax.yaxis.grid(True, which="both")
         self.ax.set_xlabel("Level [dBFS]  ")
 
-        cvals = [0, 31, 40]
+        cvals = [0, 37, 40]
         colors = ["green", "yellow", "red"]
         norm = plt.Normalize(min(cvals), max(cvals))
         tuples = list(zip(map(norm, cvals), colors))
@@ -360,7 +373,7 @@ class LevelWidget(FigureCanvas):
         peak_db = 10 * num.log10(num.max(num.abs(data)))
         plot_val = num.max((0, 40 + peak_db)).astype(int)
         plot_mat = num.linspace((0, 0), (40, 40), 400)
-        plot_mat[plot_val * 10 :, :] = num.nan
+        plot_mat[plot_val * 10 + 10 :, :] = num.nan
         self.img.set_data(plot_mat)
 
         self.figure.tight_layout()
@@ -381,11 +394,13 @@ class SpectrumWidget(FigureCanvas):
         self.ax.get_yaxis().set_visible(False)
         self.ax.xaxis.grid(True, which="both")
         self._line = None
-        self.freq_max = freq_max
+        self._vline = None
+        self.freq_min = 20
+        self.freq_max = 1000
         self.spectral_type = "log"
         self.figure.tight_layout()
 
-    def update_spectrum(self, f_axis, data, color, freq_max):
+    def update_spectrum(self, f_axis, data, color, vline=None):
         # data /= num.max(num.abs(data))
         if self._line is None:
             (self._line,) = self.ax.plot(
@@ -394,9 +409,18 @@ class SpectrumWidget(FigureCanvas):
         else:
             self._line.set_data(f_axis, data)
 
+        if self._vline is not None:
+            try:
+                self._vline.remove()
+            except:
+                pass
+        if vline is not None:
+            self._vline = self.ax.axvline(vline, c=num.array(_colors["black"]) / 256)
+
         self.ax.set_yscale(self.spectral_type)
-        self.ax.set_xlim((0, freq_max))
-        self.ax.set_ylim((10, 10000000000))
+        self.ax.set_xlim((self.freq_min, self.freq_max))
+        self.ax.relim()
+        self.ax.autoscale(axis="y")
         self.figure.tight_layout()
         self.draw()
 
@@ -405,7 +429,7 @@ class SpectrumWidget(FigureCanvas):
 
 
 class SpectrogramWidget(FigureCanvas):
-    def __init__(self, freq_max=1000):
+    def __init__(self):
         super(SpectrogramWidget, self).__init__(Figure())
 
         self.figure = Figure(tight_layout=True)
@@ -416,7 +440,8 @@ class SpectrogramWidget(FigureCanvas):
         self.ax.set_ylabel(None)
         self.ax.get_yaxis().set_visible(False)
         self.ax.xaxis.grid(True, which="both")
-        self.freq_max = freq_max
+        self.freq_min = 20
+        self.freq_max = 1000
         self.show_n_frames = 500
         self.img = self.ax.imshow(
             num.zeros((self.show_n_frames, 4096)),
@@ -425,13 +450,14 @@ class SpectrogramWidget(FigureCanvas):
             cmap="viridis",
             extent=[0, 4000, 0, 3],
         )
-        self.ax.set_xlim((0, freq_max))
+        self.ax.set_xlim((self.freq_min, self.freq_max))
         self.ax.set_xlabel("Frequency [Hz]")
         self.figure.tight_layout()
 
     def update_spectrogram(self, data):
         self.img.set_data(data)
         self.img.set_clim(vmin=num.min(data), vmax=num.max(data))
+        self.ax.set_xlim((self.freq_min, self.freq_max))
 
         self.figure.tight_layout()
         self.draw()

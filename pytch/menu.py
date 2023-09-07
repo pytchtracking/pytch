@@ -229,17 +229,25 @@ class ProcessingMenu(qw.QFrame):
         layout.addWidget(qw.QLabel("Reference Frequency [Hz]"), 13, 0)
         layout.addWidget(self.freq_box, 13, 1, 1, 2)
 
-        self.pitch_shift_box = FloatQLineEdit(parent=self, default="0.")
-        layout.addWidget(qw.QLabel("Pitch Shift [Cent]"), 14, 0)
-        layout.addWidget(self.pitch_shift_box, 14, 1, 1, 2)
+        self.freq_min = FloatQLineEdit(parent=self, default=20)
+        layout.addWidget(qw.QLabel("Minimum Frequency [Hz]"), 14, 0)
+        layout.addWidget(self.freq_min, 14, 1, 1, 2)
 
-        layout.addWidget(qw.QLabel("Spectral type"), 15, 0)
+        self.freq_max = FloatQLineEdit(parent=self, default=1000)
+        layout.addWidget(qw.QLabel("Maximum Frequency [Hz]"), 15, 0)
+        layout.addWidget(self.freq_max, 15, 1, 1, 2)
+
+        self.pitch_shift_box = FloatQLineEdit(parent=self, default="0.")
+        layout.addWidget(qw.QLabel("Pitch Shift [Cent]"), 16, 0)
+        layout.addWidget(self.pitch_shift_box, 16, 1, 1, 2)
+
+        layout.addWidget(qw.QLabel("Spectral type"), 17, 0)
         select_spectral_type = qw.QComboBox(self)
         select_spectral_type.addItems(["log", "linear", "pitch"])
         select_spectral_type.currentTextChanged.connect(self.on_spectrum_type_select)
-        layout.addWidget(select_spectral_type, 15, 1, 1, 2)
+        layout.addWidget(select_spectral_type, 17, 1, 1, 2)
 
-        layout.addItem(qw.QSpacerItem(40, 20), 16, 1, qc.Qt.AlignTop)
+        layout.addItem(qw.QSpacerItem(40, 20), 17, 1, qc.Qt.AlignTop)
 
         self.setLineWidth(1)
         self.get_adaptive_f = num.nanmin
@@ -291,9 +299,9 @@ class ProcessingMenu(qw.QFrame):
         self.noise_thresh_slider.setValue(int(widget.confidence_threshold * 10))
 
     def connect_channel_views(self, channel_views):
-        self.box_show_traces.stateChanged.connect(channel_views.show_trace_widgets)
+        self.box_show_traces.stateChanged.connect(channel_views.show_level_widgets)
 
-        channel_views.show_trace_widgets(self.box_show_traces.isChecked())
+        channel_views.show_level_widgets(self.box_show_traces.isChecked())
 
         self.box_show_spectrograms.stateChanged.connect(
             channel_views.show_spectrogram_widgets
@@ -304,6 +312,10 @@ class ProcessingMenu(qw.QFrame):
         self.freq_box.accepted_value.connect(
             channel_views.on_standard_frequency_changed
         )
+
+        self.freq_min.accepted_value.connect(channel_views.on_min_freq_changed)
+
+        self.freq_max.accepted_value.connect(channel_views.on_max_freq_changed)
 
         self.box_show_spectra.stateChanged.connect(channel_views.show_spectrum_widgets)
 
