@@ -197,11 +197,11 @@ class ProcessingMenu(qw.QFrame):
 
         layout.addWidget(self.select_algorithm, 7, 1, 1, 2)
 
-        layout.addWidget(qw.QLabel("Traces"), 8, 0)
-        self.box_show_traces = qw.QCheckBox()
-        self.box_show_traces.setChecked(get_config().show_traces)
-        self.box_show_traces.setChecked(True)
-        layout.addWidget(self.box_show_traces, 8, 1, 1, 2)
+        layout.addWidget(qw.QLabel("Levels"), 8, 0)
+        self.box_show_levels = qw.QCheckBox()
+        self.box_show_levels.setChecked(get_config().show_traces)
+        self.box_show_levels.setChecked(True)
+        layout.addWidget(self.box_show_levels, 8, 1, 1, 2)
 
         layout.addWidget(qw.QLabel("Spectra"), 9, 0)
         self.box_show_spectra = qw.QCheckBox()
@@ -243,7 +243,7 @@ class ProcessingMenu(qw.QFrame):
 
         layout.addWidget(qw.QLabel("Spectral type"), 17, 0)
         select_spectral_type = qw.QComboBox(self)
-        select_spectral_type.addItems(["log", "linear", "pitch"])
+        select_spectral_type.addItems(["log", "linear"])
         select_spectral_type.currentTextChanged.connect(self.on_spectrum_type_select)
         layout.addWidget(select_spectral_type, 17, 1, 1, 2)
 
@@ -299,9 +299,9 @@ class ProcessingMenu(qw.QFrame):
         self.noise_thresh_slider.setValue(int(widget.confidence_threshold * 10))
 
     def connect_channel_views(self, channel_views):
-        self.box_show_traces.stateChanged.connect(channel_views.show_level_widgets)
+        self.box_show_levels.stateChanged.connect(channel_views.show_level_widgets)
 
-        channel_views.show_level_widgets(self.box_show_traces.isChecked())
+        channel_views.show_level_widgets(self.box_show_levels.isChecked())
 
         self.box_show_spectrograms.stateChanged.connect(
             channel_views.show_spectrogram_widgets

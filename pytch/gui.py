@@ -3,7 +3,6 @@ import sys
 import numpy as num
 import os
 
-from .gui_util import add_action_group
 from .gui_util import make_QPolygonF, _color_names, _colors  # noqa
 from .util import consecutive, index_gradient_filter, relative_keys
 from .plot import Axis, GaugeWidget
@@ -15,7 +14,7 @@ from PyQt5 import QtCore as qc
 from PyQt5 import QtGui as qg
 from PyQt5 import QtWidgets as qw
 from PyQt5.QtWidgets import QVBoxLayout
-from PyQt5.QtWidgets import QAction, QPushButton, QDockWidget
+from PyQt5.QtWidgets import QAction, QPushButton, QDockWidget, QFrame, QSizePolicy
 from PyQt5.QtWidgets import QMenu, QActionGroup, QFileDialog
 
 from matplotlib.backends.backend_qtagg import FigureCanvas
@@ -28,263 +27,27 @@ tfollow = 3.0
 colormaps = ["viridis", "wb", "bw"]
 
 
-class SignalDispatcherWidget(qw.QWidget):
-    def __init__(self, *args, **kwargs):
-        qw.QWidget.__init__(self, *args, **kwargs)
-
-        self.setLayout(qw.QHBoxLayout())
-        self.setContentsMargins(-10, -10, -10, -10)
-
-    def show_spectrum_widget(self, show):
-        self.spectrum_widget.setVisible(show)
-
-    def show_spectrogram_widget(self, show):
-        self.spectrogram_widget.setVisible(show)
-
-    def show_level_widget(self, show):
-        self.waveform_widget.setVisible(show)
-
-    @qc.pyqtSlot()
-    def on_confidence_threshold_changed(self, *args):
-        pass
-
-    @qc.pyqtSlot()
-    def on_keyboard_key_pressed(self, *args):
-        pass
-
-    @qc.pyqtSlot()
-    def on_spectrum_type_select(self, *args):
-        pass
-
-    @qc.pyqtSlot(float)
-    def on_standard_frequency_changed(self, *args):
-        pass
-
-    def on_max_freq_changed(self, f):
-        self.freq_max = f
-
-    def on_min_freq_changed(self, f):
-        self.freq_min = f
-
-    @qc.pyqtSlot(float)
-    def on_pitch_shift_changed(self, f):
-        pass
-
-    @qc.pyqtSlot()
-    def on_draw(self):
-        self.spectrum_widget.on_draw()
-
-
-class ChannelView(SignalDispatcherWidget):
-    def __init__(self, channel, color="red", *args, **kwargs):
-        """
-        Visual representation of a Channel instance.
-
-        This is a per-channel container. It contains the level-view,
-        spectrogram-view and the sepctrum-view of a single channel.
-
-        :param channel: pytch.data.Channel instance
-        """
-        SignalDispatcherWidget.__init__(self, *args, **kwargs)
-        self.channel = channel
-        self.color = color
-
-        self.confidence_threshold = 0.9
-        self.freq_keyboard = 0
-        self.fft_smooth_factor = 4
-        self.setContentsMargins(-10, -10, -10, -10)
-
-        self.waveform_widget = LevelWidget()
-        self.spectrogram_widget = SpectrogramWidget()
-        self.spectrum_widget = SpectrumWidget()
-
-        layout = self.layout()
-        layout.addWidget(self.waveform_widget, 1)
-        layout.addWidget(self.spectrum_widget, 2)
-        layout.addWidget(self.spectrogram_widget, 2)
-
-        self.right_click_menu = QMenu("RC", self)
-        self.channel_color_menu = QMenu("Channel Color", self.right_click_menu)
-
-        self.color_choices = add_action_group(
-            _colors, self.channel_color_menu, self.on_color_select
-        )
-
-        self.right_click_menu.addMenu(self.channel_color_menu)
-        self.fft_smooth_factor_menu = QMenu("FFT smooth factor", self.right_click_menu)
-        smooth_action_group = QActionGroup(self.fft_smooth_factor_menu)
-        smooth_action_group.setExclusive(True)
-        self.smooth_choices = []
-        for factor in range(5):
-            factor += 1
-            fft_smooth_action = QAction(str(factor), self.fft_smooth_factor_menu)
-
-            fft_smooth_action.triggered.connect(self.on_fft_smooth_select)
-            fft_smooth_action.setCheckable(True)
-            if factor == self.fft_smooth_factor:
-                fft_smooth_action.setChecked(True)
-            self.smooth_choices.append(fft_smooth_action)
-            smooth_action_group.addAction(fft_smooth_action)
-            self.fft_smooth_factor_menu.addAction(fft_smooth_action)
-
-        self.right_click_menu.addMenu(self.fft_smooth_factor_menu)
-
-        self.spectrum_type_menu = QMenu("lin/log", self.right_click_menu)
-        plot_action_group = QActionGroup(self.spectrum_type_menu)
-        plot_action_group.setExclusive(True)
-
-    @qc.pyqtSlot(float)
-    def on_keyboard_key_pressed(self, f):
-        self.freq_keyboard = f
-
-    @qc.pyqtSlot()
-    def on_draw(self):
-        c = self.channel
-        d = c.fft.latest_frame_data(self.fft_smooth_factor)  # get latest frame data
-
-        # draw waveform
-        audio_float = c.latest_frame(1)[1].astype(num.float32, order="C") / 32768.0
-        self.waveform_widget.update_level(audio_float, self.color)
-
-        confidence = c.pitch_confidence.latest_frame_data(1)
-        if confidence > self.confidence_threshold:
-            vline = c.undo_pitch_proxy(c.get_latest_pitch())
-        else:
-            vline = None
-        self.spectrum_widget.update_spectrum(
-            c.freqs, num.mean(d, axis=0), self.color, vline
-        )
-
-        data = num.flipud(
-            num.log(1 + c.fft.latest_frame_data(self.spectrogram_widget.show_n_frames))
-        )
-        self.spectrogram_widget.update_spectrogram(data)
-
-    @qc.pyqtSlot(int)
-    def on_confidence_threshold_changed(self, threshold):
-        """
-        self.channel_views_widget.
-        """
-        self.confidence_threshold = threshold / 10.0
-        logger.debug("update confidence threshold: %i" % self.confidence_threshold)
-
-    @qc.pyqtSlot(float)
-    def on_standard_frequency_changed(self, f):
-        self.channel.standard_frequency = f
-
-    def on_min_freq_changed(self, f):
-        self.spectrogram_widget.freq_min = f
-        self.spectrum_widget.freq_min = f
-
-    def on_max_freq_changed(self, f):
-        self.spectrogram_widget.freq_max = f
-        self.spectrum_widget.freq_max = f
-
-    @qc.pyqtSlot(float)
-    def on_pitch_shift_changed(self, shift):
-        self.channel.pitch_shift = shift
-
-    @qc.pyqtSlot(qg.QMouseEvent)
-    def mousePressEvent(self, mouse_ev):
-        if mouse_ev.button() == qc.Qt.RightButton:
-            self.right_click_menu.exec_(qg.QCursor.pos())
-
-    @qc.pyqtSlot(str)
-    def on_spectrum_type_select(self, arg):
-        """
-        Slot to update the spectrum type
-        """
-        self.spectrum_widget.set_spectral_type(arg)
-        # TODO: support 'pitch' type
-
-    def on_fft_smooth_select(self):
-        for c in self.smooth_choices:
-            if c.isChecked():
-                self.fft_smooth_factor = int(c.text())
-                break
-
-    @qc.pyqtSlot(bool)
-    def on_color_select(self, triggered):
-        for c in self.color_choices:
-            if c.isChecked():
-                self.color = c.text()
-                break
-
-
-class ProductView(SignalDispatcherWidget):
-    def __init__(self, channels, *args, **kwargs):
-        SignalDispatcherWidget.__init__(self, *args, **kwargs)
-
-        self.waveform_widget = LevelWidget()
-        self.spectrum_widget = SpectrumWidget()
-        self.spectrogram_widget = SpectrogramWidget()
-        self.color = "black"
-        self.setContentsMargins(-10, -10, -10, -10)
-
-        self.channels = channels
-
-        layout = self.layout()
-        layout.addWidget(self.waveform_widget, 1)
-        layout.addWidget(self.spectrum_widget, 2)
-        layout.addWidget(self.spectrogram_widget, 2)
-        self.waveform_widget.figure.clf()
-
-        self.confidence_threshold = 1
-        self.fft_smooth_factor = 4
-
-    @qc.pyqtSlot()
-    def on_draw(self):
-        data = num.mean(
-            num.asarray(self.channels[0].fft.latest_frame_data(3), dtype=num.float32),
-            axis=0,
-        )
-        for c in self.channels[1:]:
-            data *= num.mean(
-                num.asarray(c.fft.latest_frame_data(3), dtype=num.float32), axis=0
-            )
-        self.spectrum_widget.update_spectrum(
-            self.channels[0].freqs, data, self.color, self.spectrogram_widget.freq_max
-        )
-
-        data = self.channels[0].fft.latest_frame_data(
-            self.spectrogram_widget.show_n_frames
-        )
-        for c in self.channels[1:]:
-            data *= c.fft.latest_frame_data(self.spectrogram_widget.show_n_frames)
-        data = num.flipud(num.log(1 + data))
-        self.spectrogram_widget.update_spectrogram(data)
-
-    @qc.pyqtSlot(qg.QMouseEvent)
-    def mousePressEvent(self, mouse_ev):
-        if mouse_ev.button() == qc.Qt.RightButton:
-            self.spectrum_widget.setVisible(not self.spectrum_widget.isVisible())
-
-    def on_min_freq_changed(self, f):
-        self.spectrogram_widget.freq_min = f
-        self.spectrum_widget.freq_min = f
-
-    def on_max_freq_changed(self, f):
-        self.spectrogram_widget.freq_max = f
-        self.spectrum_widget.freq_max = f
-
-
 class ChannelViews(qw.QWidget):
     """Creates and contains the channel widgets."""
 
     def __init__(self, channels, freq_max):
         qw.QWidget.__init__(self)
-        self.views = []
-        for ichannel, channel in enumerate(channels):
-            self.views.append(ChannelView(channel, color=_color_names[3 * ichannel]))
-
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
         self.setContentsMargins(-10, -10, -10, -10)
 
+        self.views = []
+        for ichannel, channel in enumerate(channels):
+            self.views.append(
+                ChannelView(channel, color=_color_names[3 * ichannel], is_product=False)
+            )
+
         channels = [cv.channel for cv in self.views]
-        self.views.append(ProductView(channels=channels))
+        self.views.append(ChannelView(channels, color="black", is_product=True))
 
         for i, c_view in enumerate(self.views):
+            if i == len(self.views) - 1:
+                self.layout.addWidget(QHLine())
             self.layout.addWidget(c_view)
 
         self.show_level_widgets(True)
@@ -335,6 +98,189 @@ class ChannelViews(qw.QWidget):
 
     def __iter__(self):
         yield from self.views
+
+
+class QHLine(QFrame):
+    """
+    a horizontal separation line\n
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.setMinimumWidth(1)
+        self.setFixedHeight(20)
+        self.setFrameShape(QFrame.HLine)
+        self.setFrameShadow(QFrame.Sunken)
+        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+        return
+
+
+class SignalDispatcherWidget(qw.QWidget):
+    def __init__(self, *args, **kwargs):
+        qw.QWidget.__init__(self, *args, **kwargs)
+
+        self.setLayout(qw.QHBoxLayout())
+        self.setContentsMargins(-10, -10, -10, -10)
+
+    def show_spectrum_widget(self, show):
+        self.spectrum_widget.setVisible(show)
+
+    def show_spectrogram_widget(self, show):
+        self.spectrogram_widget.setVisible(show)
+
+    def show_level_widget(self, show):
+        self.waveform_widget.setVisible(show)
+
+    @qc.pyqtSlot()
+    def on_confidence_threshold_changed(self, *args):
+        pass
+
+    @qc.pyqtSlot()
+    def on_keyboard_key_pressed(self, *args):
+        pass
+
+    @qc.pyqtSlot()
+    def on_spectrum_type_select(self, *args):
+        pass
+
+    @qc.pyqtSlot(float)
+    def on_standard_frequency_changed(self, *args):
+        pass
+
+    def on_max_freq_changed(self, f):
+        self.freq_max = f
+
+    def on_min_freq_changed(self, f):
+        self.freq_min = f
+
+    @qc.pyqtSlot(float)
+    def on_pitch_shift_changed(self, f):
+        pass
+
+    @qc.pyqtSlot()
+    def on_draw(self):
+        self.spectrum_widget.on_draw()
+
+
+class ChannelView(SignalDispatcherWidget):
+    def __init__(self, channel, color="red", is_product=False, *args, **kwargs):
+        """
+        Visual representation of a Channel instance.
+
+        This is a per-channel container. It contains the level-view,
+        spectrogram-view and the sepctrum-view of a single channel.
+
+        :param channel: pytch.data.Channel instance
+        """
+        SignalDispatcherWidget.__init__(self, *args, **kwargs)
+        self.channel = channel
+        self.color = color
+        self.is_product = is_product
+
+        self.confidence_threshold = 0.9
+        self.t_follow = 3
+        self.setContentsMargins(-10, -10, -10, -10)
+
+        self.waveform_widget = LevelWidget()
+        self.spectrogram_widget = SpectrogramWidget()
+        self.spectrum_widget = SpectrumWidget()
+
+        layout = self.layout()
+        layout.addWidget(self.waveform_widget, 1)
+        layout.addWidget(self.spectrum_widget, 2)
+        layout.addWidget(self.spectrogram_widget, 2)
+
+        # switch off level meter in product view
+        if is_product:
+            self.waveform_widget.figure.clf()
+
+    @qc.pyqtSlot(float)
+    def on_keyboard_key_pressed(self, f):
+        self.freq_keyboard = f
+
+    @qc.pyqtSlot()
+    def on_draw(self):
+        ch = self.channel
+
+        # update level
+        if not self.is_product:
+            audio_float = ch.latest_frame(1)[1].astype(num.float32, order="C") / 32768.0
+            self.waveform_widget.update_level(audio_float, self.color)
+
+        # update spectrum
+        vline = None
+        if not self.is_product:
+            spectrum = num.mean(ch.fft.latest_frame_data(self.t_follow), axis=0)
+            freqs = ch.freqs
+            confidence = ch.pitch_confidence.latest_frame_data(1)
+            if confidence > self.confidence_threshold:
+                vline = ch.undo_pitch_proxy(ch.get_latest_pitch())
+        else:
+            spectrum = num.mean(
+                num.asarray(
+                    ch[0].fft.latest_frame_data(self.t_follow), dtype=num.float32
+                ),
+                axis=0,
+            )
+            for c in ch[1:]:
+                spectrum *= num.mean(
+                    num.asarray(
+                        c.fft.latest_frame_data(self.t_follow), dtype=num.float32
+                    ),
+                    axis=0,
+                )
+            freqs = ch[0].freqs
+
+        self.spectrum_widget.update_spectrum(freqs, spectrum, self.color, vline)
+
+        # update spectrogram
+        if not self.is_product:
+            spectrogram = ch.fft.latest_frame_data(
+                self.spectrogram_widget.show_n_frames
+            )
+        else:
+            spectrogram = ch[0].fft.latest_frame_data(
+                self.spectrogram_widget.show_n_frames
+            )
+            for c in ch[1:]:
+                spectrogram *= c.fft.latest_frame_data(
+                    self.spectrogram_widget.show_n_frames
+                )
+
+        spectrogram = num.flipud(spectrogram)  # modifies run direction
+        self.spectrogram_widget.update_spectrogram(spectrogram)
+
+    @qc.pyqtSlot(int)
+    def on_confidence_threshold_changed(self, threshold):
+        """
+        self.channel_views_widget.
+        """
+        self.confidence_threshold = threshold / 10.0
+        logger.debug("update confidence threshold: %i" % self.confidence_threshold)
+
+    @qc.pyqtSlot(float)
+    def on_standard_frequency_changed(self, f):
+        self.channel.standard_frequency = f
+
+    def on_min_freq_changed(self, f):
+        self.spectrogram_widget.freq_min = f
+        self.spectrum_widget.freq_min = f
+
+    def on_max_freq_changed(self, f):
+        self.spectrogram_widget.freq_max = f
+        self.spectrum_widget.freq_max = f
+
+    @qc.pyqtSlot(float)
+    def on_pitch_shift_changed(self, shift):
+        self.channel.pitch_shift = shift
+
+    @qc.pyqtSlot(str)
+    def on_spectrum_type_select(self, arg):
+        """
+        Slot to update the spectrum type
+        """
+        self.spectrum_widget.set_spectral_type(arg)
+        self.spectrogram_widget.set_spectral_type(arg)
 
 
 class LevelWidget(FigureCanvas):
@@ -439,10 +385,9 @@ class SpectrogramWidget(FigureCanvas):
         self.ax.set_title(None)
         self.ax.set_ylabel(None)
         self.ax.get_yaxis().set_visible(False)
-        self.ax.xaxis.grid(True, which="both")
         self.freq_min = 20
         self.freq_max = 1000
-        self.show_n_frames = 500
+        self.show_n_frames = 300
         self.img = self.ax.imshow(
             num.zeros((self.show_n_frames, 4096)),
             origin="lower",
@@ -452,15 +397,23 @@ class SpectrogramWidget(FigureCanvas):
         )
         self.ax.set_xlim((self.freq_min, self.freq_max))
         self.ax.set_xlabel("Frequency [Hz]")
+        self.ax.xaxis.grid(True, which="both")
         self.figure.tight_layout()
+        self.spectral_type = "log"
 
     def update_spectrogram(self, data):
+        if self.spectral_type == "log":
+            data = num.log(1 + data)
+
         self.img.set_data(data)
         self.img.set_clim(vmin=num.min(data), vmax=num.max(data))
         self.ax.set_xlim((self.freq_min, self.freq_max))
 
         self.figure.tight_layout()
         self.draw()
+
+    def set_spectral_type(self, type):
+        self.spectral_type = type
 
 
 class CheckBoxSelect(qw.QWidget):
