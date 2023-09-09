@@ -21,6 +21,9 @@ from matplotlib.backends.backend_qtagg import FigureCanvas
 from matplotlib.figure import Figure
 import matplotlib.colors
 import matplotlib.pyplot as plt
+import matplotlib
+
+matplotlib.rcParams.update({"font.size": 10})
 
 logger = logging.getLogger("pytch.gui")
 tfollow = 3.0
@@ -34,21 +37,25 @@ class ChannelViews(qw.QWidget):
         qw.QWidget.__init__(self)
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
-        self.setContentsMargins(-10, -10, -10, -10)
 
         self.views = []
-        for ichannel, channel in enumerate(channels):
+        for id, channel in enumerate(channels):
             self.views.append(
-                ChannelView(channel, color=_color_names[3 * ichannel], is_product=False)
+                ChannelView(
+                    channel, channel_id=id, color=_color_names[3 * id], is_product=False
+                )
             )
 
         channels = [cv.channel for cv in self.views]
-        self.views.append(ChannelView(channels, color="black", is_product=True))
+        self.views.append(
+            ChannelView(channels, channel_id=None, color="black", is_product=True)
+        )
 
         for i, c_view in enumerate(self.views):
             if i == len(self.views) - 1:
                 self.layout.addWidget(QHLine())
             self.layout.addWidget(c_view)
+        self.layout.setContentsMargins(-5, -5, -5, -5)
 
         self.show_level_widgets(True)
         self.show_spectrum_widgets(True)
@@ -120,7 +127,6 @@ class SignalDispatcherWidget(qw.QWidget):
         qw.QWidget.__init__(self, *args, **kwargs)
 
         self.setLayout(qw.QHBoxLayout())
-        self.setContentsMargins(-10, -10, -10, -10)
 
     def show_spectrum_widget(self, show):
         self.spectrum_widget.setVisible(show)
@@ -163,7 +169,9 @@ class SignalDispatcherWidget(qw.QWidget):
 
 
 class ChannelView(SignalDispatcherWidget):
-    def __init__(self, channel, color="red", is_product=False, *args, **kwargs):
+    def __init__(
+        self, channel, channel_id, color="red", is_product=False, *args, **kwargs
+    ):
         """
         Visual representation of a Channel instance.
 
@@ -179,16 +187,16 @@ class ChannelView(SignalDispatcherWidget):
 
         self.confidence_threshold = 0.9
         self.t_follow = 3
-        self.setContentsMargins(-10, -10, -10, -10)
 
-        self.waveform_widget = LevelWidget()
+        self.waveform_widget = LevelWidget(channel_id=channel_id)
         self.spectrogram_widget = SpectrogramWidget()
         self.spectrum_widget = SpectrumWidget()
 
         layout = self.layout()
-        layout.addWidget(self.waveform_widget, 1)
-        layout.addWidget(self.spectrum_widget, 2)
-        layout.addWidget(self.spectrogram_widget, 2)
+        layout.addWidget(self.waveform_widget, 4)
+        layout.addWidget(self.spectrum_widget, 7)
+        layout.addWidget(self.spectrogram_widget, 7)
+        layout.setContentsMargins(0, 0, 0, 0)
 
         # switch off level meter in product view
         if is_product:
@@ -284,7 +292,7 @@ class ChannelView(SignalDispatcherWidget):
 
 
 class LevelWidget(FigureCanvas):
-    def __init__(self):
+    def __init__(self, channel_id):
         super(LevelWidget, self).__init__(Figure())
 
         self.figure = Figure(tight_layout=True)
@@ -295,6 +303,7 @@ class LevelWidget(FigureCanvas):
         self.ax.tick_params(axis="x", colors="white")
         self.ax.yaxis.grid(True, which="both")
         self.ax.set_xlabel("Level [dBFS]  ")
+        self.ax.set_ylabel(f"Channel {channel_id}", fontweight="bold")
 
         cvals = [0, 37, 40]
         colors = ["green", "yellow", "red"]
@@ -519,7 +528,6 @@ class PitchWidget(OverView):
         self.right_click_menu.addAction(save_as_action)
         self.track_start = None
         self.tfollow = 3.0
-        self.setContentsMargins(-10, -10, -10, -10)
 
     @qc.pyqtSlot()
     def on_draw(self):
@@ -572,7 +580,6 @@ class DifferentialPitchWidget(OverView):
 
     def __init__(self, channel_views, *args, **kwargs):
         OverView.__init__(self, *args, **kwargs)
-        self.setContentsMargins(-10, -10, -10, -10)
         self.channel_views = channel_views
         self.derivative_filter = 2000  # pitch/seconds
 

@@ -4,7 +4,6 @@ from PyQt5 import QtGui as qg
 
 import numpy as num
 import logging
-import os
 
 from .gui_util import FloatQLineEdit, LineEditWithLabel, _colors
 from .util import cent2f
@@ -145,42 +144,65 @@ class ProcessingMenu(qw.QFrame):
         layout.addWidget(self.input_button, 0, 0)
 
         self.play_button = qw.QPushButton("Play")
-        layout.addWidget(self.play_button, 0, 1, 1, 2)
+        layout.addWidget(self.play_button, 0, 1)
 
         self.pause_button = qw.QPushButton("Pause")
-        layout.addWidget(self.pause_button, 1, 0)
+        layout.addWidget(self.pause_button, 1, 1)
 
         self.save_as_button = qw.QPushButton("Save as")
-        layout.addWidget(self.save_as_button, 1, 1, 1, 2)
+        layout.addWidget(self.save_as_button, 1, 0)
 
-        layout.addWidget(qw.QLabel("Confidence Threshold"), 4, 0)
-        self.noise_thresh_slider = qw.QSlider()
-        self.noise_thresh_slider.setRange(0, 15)
-        self.noise_thresh_slider.setTickPosition(qw.QSlider.TicksBelow)
-        self.noise_thresh_slider.setOrientation(qc.Qt.Horizontal)
-        self.noise_thresh_slider.valueChanged.connect(
-            lambda x: self.noise_thresh_label.setText(str(x / 10.0))
-        )
-        layout.addWidget(self.noise_thresh_slider, 4, 1, 1, 2)
+        layout.addItem(qw.QSpacerItem(40, 20), 2, 0, qc.Qt.AlignTop)
 
-        self.noise_thresh_label = qw.QLabel("")
-        layout.addWidget(self.noise_thresh_label, 4, 3)
+        ###################
+        channel_view = qw.QGroupBox("Channel View (Center)")
+        cv_layout = qw.QGridLayout()
+        cv_layout.addWidget(qw.QLabel("Levels"), 0, 0)
+        self.box_show_levels = qw.QCheckBox()
+        self.box_show_levels.setChecked(get_config().show_traces)
+        self.box_show_levels.setChecked(True)
+        cv_layout.addWidget(self.box_show_levels, 0, 1, 1, 1)
 
-        layout.addWidget(qw.QLabel("Derivative Filter"), 5, 0)
-        self.derivative_filter_slider = qw.QSlider()
-        self.derivative_filter_slider.setRange(0, 10000)
-        self.derivative_filter_slider.setValue(1000)
-        self.derivative_filter_slider.setOrientation(qc.Qt.Horizontal)
-        derivative_filter_label = qw.QLabel("")
-        layout.addWidget(derivative_filter_label, 5, 3)
-        self.derivative_filter_slider.valueChanged.connect(
-            lambda x: derivative_filter_label.setText(str(x))
-        )
-        layout.addWidget(self.derivative_filter_slider, 5, 1, 1, 2)
-        placeholder = qw.QLabel("\u2001\u2001\u2001")
-        layout.addWidget(placeholder, 6, 3)
+        cv_layout.addWidget(qw.QLabel("Spectra"), 1, 0)
+        self.box_show_spectra = qw.QCheckBox()
+        self.box_show_spectra.setChecked(True)
+        cv_layout.addWidget(self.box_show_spectra, 1, 1, 1, 1)
 
-        layout.addWidget(qw.QLabel("Select Algorithm"), 7, 0)
+        cv_layout.addWidget(qw.QLabel("Spectrograms"), 2, 0)
+        self.box_show_spectrograms = qw.QCheckBox()
+        self.box_show_spectrograms.setChecked(True)
+        cv_layout.addWidget(self.box_show_spectrograms, 2, 1, 1, 1)
+
+        cv_layout.addWidget(qw.QLabel("Products"), 3, 0)
+        self.box_show_products = qw.QCheckBox()
+        self.box_show_products.setChecked(True)
+        cv_layout.addWidget(self.box_show_products, 3, 1, 1, 1)
+
+        self.freq_min = FloatQLineEdit(parent=self, default=20)
+        cv_layout.addWidget(qw.QLabel("Minimum Frequency"), 4, 0)
+        cv_layout.addWidget(self.freq_min, 4, 1, 1, 1)
+        cv_layout.addWidget(qw.QLabel("Hz"), 4, 2)
+
+        self.freq_max = FloatQLineEdit(parent=self, default=1000)
+        cv_layout.addWidget(qw.QLabel("Maximum Frequency"), 5, 0)
+        cv_layout.addWidget(self.freq_max, 5, 1, 1, 1)
+        cv_layout.addWidget(qw.QLabel("Hz"), 5, 2)
+
+        cv_layout.addWidget(qw.QLabel("Magnitude Scale"), 6, 0)
+        select_spectral_type = qw.QComboBox(self)
+        select_spectral_type.addItems(["log", "linear"])
+        select_spectral_type.currentTextChanged.connect(self.on_spectrum_type_select)
+        cv_layout.addWidget(select_spectral_type, 6, 1, 1, 1)
+
+        channel_view.setLayout(cv_layout)
+        layout.addWidget(channel_view, 3, 0, 1, 2)
+        layout.addItem(qw.QSpacerItem(40, 20), 4, 0, qc.Qt.AlignTop)
+
+        ###################
+        pitch_view = qw.QGroupBox("Trajectory View (Right)")
+        pv_layout = qw.QGridLayout()
+
+        pv_layout.addWidget(qw.QLabel("Select Algorithm"), 0, 0)
         self.select_algorithm = qw.QComboBox(self)
         algorithms = [
             "default",
@@ -194,60 +216,54 @@ class ProcessingMenu(qw.QFrame):
         ]
         self.select_algorithm.addItems(algorithms)
         self.select_algorithm.setCurrentIndex(algorithms.index("yinfast"))
+        pv_layout.addWidget(self.select_algorithm, 0, 1, 1, 1)
 
-        layout.addWidget(self.select_algorithm, 7, 1, 1, 2)
+        pv_layout.addWidget(qw.QLabel("Confidence Threshold"), 1, 0)
+        self.noise_thresh_slider = qw.QSlider()
+        self.noise_thresh_slider.setRange(0, 15)
+        self.noise_thresh_slider.setTickPosition(qw.QSlider.TicksBelow)
+        self.noise_thresh_slider.setOrientation(qc.Qt.Horizontal)
+        self.noise_thresh_slider.valueChanged.connect(
+            lambda x: self.noise_thresh_label.setText(str(x / 10.0))
+        )
+        pv_layout.addWidget(self.noise_thresh_slider, 1, 1, 1, 1)
 
-        layout.addWidget(qw.QLabel("Levels"), 8, 0)
-        self.box_show_levels = qw.QCheckBox()
-        self.box_show_levels.setChecked(get_config().show_traces)
-        self.box_show_levels.setChecked(True)
-        layout.addWidget(self.box_show_levels, 8, 1, 1, 2)
+        self.noise_thresh_label = qw.QLabel("")
+        pv_layout.addWidget(self.noise_thresh_label, 1, 2)
 
-        layout.addWidget(qw.QLabel("Spectra"), 9, 0)
-        self.box_show_spectra = qw.QCheckBox()
-        self.box_show_spectra.setChecked(True)
-        layout.addWidget(self.box_show_spectra, 9, 1, 1, 2)
-
-        layout.addWidget(qw.QLabel("Spectrogram"), 10, 0)
-        self.box_show_spectrograms = qw.QCheckBox()
-        self.box_show_spectrograms.setChecked(True)
-        layout.addWidget(self.box_show_spectrograms, 10, 1, 1, 2)
-
-        layout.addWidget(qw.QLabel("Products"), 11, 0)
-        self.box_show_products = qw.QCheckBox()
-        self.box_show_products.setChecked(True)
-        layout.addWidget(self.box_show_products, 11, 1, 1, 2)
+        pv_layout.addWidget(qw.QLabel("Derivative Filter"), 2, 0)
+        self.derivative_filter_slider = qw.QSlider()
+        self.derivative_filter_slider.setRange(0, 9999)
+        self.derivative_filter_slider.setValue(1000)
+        self.derivative_filter_slider.setOrientation(qc.Qt.Horizontal)
+        derivative_filter_label = qw.QLabel(f"{self.derivative_filter_slider.value()}")
+        pv_layout.addWidget(derivative_filter_label, 2, 2)
+        self.derivative_filter_slider.valueChanged.connect(
+            lambda x: derivative_filter_label.setText(str(x))
+        )
+        pv_layout.addWidget(self.derivative_filter_slider, 2, 1, 1, 1)
 
         self.f_standard_mode = qw.QComboBox()
-        self.f_standard_mode.addItems(["Select", "Adaptive (High)", "Adaptive (Low)"])
+        self.f_standard_mode.addItems(["Select", "Highest", "Lowest"])
         self.f_standard_mode.currentTextChanged.connect(self.on_f_standard_mode_changed)
 
-        layout.addWidget(qw.QLabel("Reference Frequency Mode"), 12, 0)
-        layout.addWidget(self.f_standard_mode, 12, 1, 1, 2)
+        pv_layout.addWidget(qw.QLabel("Reference Voice"), 3, 0)
+        pv_layout.addWidget(self.f_standard_mode, 3, 1, 1, 1)
 
         self.freq_box = FloatQLineEdit(parent=self, default=220)
-        layout.addWidget(qw.QLabel("Reference Frequency [Hz]"), 13, 0)
-        layout.addWidget(self.freq_box, 13, 1, 1, 2)
-
-        self.freq_min = FloatQLineEdit(parent=self, default=20)
-        layout.addWidget(qw.QLabel("Minimum Frequency [Hz]"), 14, 0)
-        layout.addWidget(self.freq_min, 14, 1, 1, 2)
-
-        self.freq_max = FloatQLineEdit(parent=self, default=1000)
-        layout.addWidget(qw.QLabel("Maximum Frequency [Hz]"), 15, 0)
-        layout.addWidget(self.freq_max, 15, 1, 1, 2)
+        pv_layout.addWidget(qw.QLabel("Reference Frequency"), 4, 0)
+        pv_layout.addWidget(self.freq_box, 4, 1, 1, 1)
+        pv_layout.addWidget(qw.QLabel("Hz"), 4, 2)
 
         self.pitch_shift_box = FloatQLineEdit(parent=self, default="0.")
-        layout.addWidget(qw.QLabel("Pitch Shift [Cent]"), 16, 0)
-        layout.addWidget(self.pitch_shift_box, 16, 1, 1, 2)
+        pv_layout.addWidget(qw.QLabel("Pitch Shift"), 5, 0)
+        pv_layout.addWidget(self.pitch_shift_box, 5, 1, 1, 1)
+        pv_layout.addWidget(qw.QLabel("Cents"), 5, 2)
 
-        layout.addWidget(qw.QLabel("Spectral type"), 17, 0)
-        select_spectral_type = qw.QComboBox(self)
-        select_spectral_type.addItems(["log", "linear"])
-        select_spectral_type.currentTextChanged.connect(self.on_spectrum_type_select)
-        layout.addWidget(select_spectral_type, 17, 1, 1, 2)
+        pitch_view.setLayout(pv_layout)
+        layout.addWidget(pitch_view, 5, 0, 1, 2)
 
-        layout.addItem(qw.QSpacerItem(40, 20), 17, 1, qc.Qt.AlignTop)
+        layout.addItem(qw.QSpacerItem(40, 20), 6, 0, qc.Qt.AlignTop)
 
         self.setLineWidth(1)
         self.get_adaptive_f = num.nanmin
@@ -264,13 +280,13 @@ class ProcessingMenu(qw.QFrame):
 
     @qc.pyqtSlot(str)
     def on_f_standard_mode_changed(self, text):
-        if text == "Adaptive (High)":
+        if text == "Highest":
             self.freq_box.setReadOnly(True)
             self.get_adaptive_f = num.nanmin
-        elif text == "Adaptive (Low)":
+        elif text == "Lowest":
             self.freq_box.setReadOnly(True)
             self.get_adaptive_f = num.nanmax
-        elif "Adaptive (Channel" in text:
+        elif "Channel" in text:
             self.freq_box.setReadOnly(True)
             ichannel = int(text[-2]) - 1
             self.get_adaptive_f = lambda x: x[ichannel]
@@ -327,7 +343,7 @@ class ProcessingMenu(qw.QFrame):
             self.spectrum_type_selected.connect(cv.on_spectrum_type_select)
 
         for i, cv in enumerate(channel_views.views[:-1]):
-            self.f_standard_mode.addItem("Adaptive (Channel %s)" % (i + 1))
+            self.f_standard_mode.addItem("Channel %s" % (i + 1))
 
     def sizeHint(self):
         return qc.QSize(200, 200)
