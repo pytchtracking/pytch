@@ -42,13 +42,18 @@ class ChannelViews(qw.QWidget):
         for id, channel in enumerate(channels):
             self.views.append(
                 ChannelView(
-                    channel, channel_id=id, color=_color_names[3 * id], is_product=False
+                    channel,
+                    channel_label=f"Channel {id}",
+                    color=_color_names[3 * id],
+                    is_product=False,
                 )
             )
 
         channels = [cv.channel for cv in self.views]
         self.views.append(
-            ChannelView(channels, channel_id=None, color="black", is_product=True)
+            ChannelView(
+                channels, channel_label="Product", color="black", is_product=True
+            )
         )
 
         for i, c_view in enumerate(self.views):
@@ -170,7 +175,7 @@ class SignalDispatcherWidget(qw.QWidget):
 
 class ChannelView(SignalDispatcherWidget):
     def __init__(
-        self, channel, channel_id, color="red", is_product=False, *args, **kwargs
+        self, channel, channel_label, color="red", is_product=False, *args, **kwargs
     ):
         """
         Visual representation of a Channel instance.
@@ -188,7 +193,7 @@ class ChannelView(SignalDispatcherWidget):
         self.confidence_threshold = 0.9
         self.t_follow = 3
 
-        self.waveform_widget = LevelWidget(channel_id=channel_id)
+        self.waveform_widget = LevelWidget(channel_label=channel_label)
         self.spectrogram_widget = SpectrogramWidget()
         self.spectrum_widget = SpectrumWidget()
 
@@ -198,9 +203,12 @@ class ChannelView(SignalDispatcherWidget):
         layout.addWidget(self.spectrogram_widget, 7)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        # switch off level meter in product view
         if is_product:
-            self.waveform_widget.figure.clf()
+            self.waveform_widget.ax.xaxis.set_visible(False)
+            plt.setp(self.waveform_widget.ax.spines.values(), visible=False)
+            self.waveform_widget.ax.tick_params(left=False, labelleft=False)
+            self.waveform_widget.ax.patch.set_visible(False)
+            self.waveform_widget.ax.yaxis.grid(False, which="both")
 
     @qc.pyqtSlot(float)
     def on_keyboard_key_pressed(self, f):
@@ -211,9 +219,11 @@ class ChannelView(SignalDispatcherWidget):
         ch = self.channel
 
         # update level
-        if not self.is_product:
+        if self.is_product:
+            self.waveform_widget.update_level(num.nan)
+        else:
             audio_float = ch.latest_frame(1)[1].astype(num.float32, order="C") / 32768.0
-            self.waveform_widget.update_level(audio_float, self.color)
+            self.waveform_widget.update_level(audio_float)
 
         # update spectrum
         vline = None
@@ -292,7 +302,7 @@ class ChannelView(SignalDispatcherWidget):
 
 
 class LevelWidget(FigureCanvas):
-    def __init__(self, channel_id):
+    def __init__(self, channel_label):
         super(LevelWidget, self).__init__(Figure())
 
         self.figure = Figure(tight_layout=True)
@@ -303,7 +313,7 @@ class LevelWidget(FigureCanvas):
         self.ax.tick_params(axis="x", colors="white")
         self.ax.yaxis.grid(True, which="both")
         self.ax.set_xlabel("Level [dBFS]  ")
-        self.ax.set_ylabel(f"Channel {channel_id}", fontweight="bold")
+        self.ax.set_ylabel(f"{channel_label}", fontweight="bold")
 
         cvals = [0, 37, 40]
         colors = ["green", "yellow", "red"]
@@ -324,11 +334,14 @@ class LevelWidget(FigureCanvas):
         self.ax.invert_yaxis()
         self.figure.tight_layout()
 
-    def update_level(self, data, color):
-        peak_db = 10 * num.log10(num.max(num.abs(data)))
-        plot_val = num.max((0, 40 + peak_db)).astype(int)
-        plot_mat = num.linspace((0, 0), (40, 40), 400)
-        plot_mat[plot_val * 10 + 10 :, :] = num.nan
+    def update_level(self, data):
+        if num.any(num.isnan(data)):
+            plot_mat = num.full((2, 2), fill_value=num.nan)
+        else:
+            peak_db = 10 * num.log10(num.max(num.abs(data)))
+            plot_val = num.max((0, 40 + peak_db)).astype(int)
+            plot_mat = num.linspace((0, 0), (40, 40), 400)
+            plot_mat[plot_val * 10 + 10 :, :] = num.nan
         self.img.set_data(plot_mat)
 
         self.figure.tight_layout()
