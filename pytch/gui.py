@@ -37,13 +37,14 @@ class ChannelViews(qw.QWidget):
         qw.QWidget.__init__(self)
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
+        self.widget_ready_to_show = False
 
         self.views = []
         for id, channel in enumerate(channels):
             self.views.append(
                 ChannelView(
                     channel,
-                    channel_label=f"Channel {id}",
+                    channel_label=f"Channel {id+1}",
                     color=_color_names[3 * id],
                     is_product=False,
                 )
@@ -62,10 +63,10 @@ class ChannelViews(qw.QWidget):
             self.layout.addWidget(c_view)
         self.layout.setContentsMargins(-5, -5, -5, -5)
 
-        self.show_level_widgets(True)
-        self.show_spectrum_widgets(True)
-        self.show_spectrogram_widgets(True)
         self.setSizePolicy(qw.QSizePolicy.Minimum, qw.QSizePolicy.Minimum)
+        self.show_level_widgets(False)
+        self.show_spectrum_widgets(False)
+        self.show_spectrogram_widgets(False)
 
     def show_level_widgets(self, show):
         for view in self.views:
@@ -102,6 +103,13 @@ class ChannelViews(qw.QWidget):
 
     @qc.pyqtSlot()
     def on_draw(self):
+        if not self.widget_ready_to_show:
+            self.widget_ready_to_show = True
+            self.show_level_widgets(True)
+            self.show_spectrum_widgets(True)
+            self.show_spectrogram_widgets(True)
+            self.show_product_widgets(True)
+
         for view in self.views:
             view.on_draw()
 
@@ -127,53 +135,7 @@ class QHLine(QFrame):
         return
 
 
-class SignalDispatcherWidget(qw.QWidget):
-    def __init__(self, *args, **kwargs):
-        qw.QWidget.__init__(self, *args, **kwargs)
-
-        self.setLayout(qw.QHBoxLayout())
-
-    def show_spectrum_widget(self, show):
-        self.spectrum_widget.setVisible(show)
-
-    def show_spectrogram_widget(self, show):
-        self.spectrogram_widget.setVisible(show)
-
-    def show_level_widget(self, show):
-        self.waveform_widget.setVisible(show)
-
-    @qc.pyqtSlot()
-    def on_confidence_threshold_changed(self, *args):
-        pass
-
-    @qc.pyqtSlot()
-    def on_keyboard_key_pressed(self, *args):
-        pass
-
-    @qc.pyqtSlot()
-    def on_spectrum_type_select(self, *args):
-        pass
-
-    @qc.pyqtSlot(float)
-    def on_standard_frequency_changed(self, *args):
-        pass
-
-    def on_max_freq_changed(self, f):
-        self.freq_max = f
-
-    def on_min_freq_changed(self, f):
-        self.freq_min = f
-
-    @qc.pyqtSlot(float)
-    def on_pitch_shift_changed(self, f):
-        pass
-
-    @qc.pyqtSlot()
-    def on_draw(self):
-        self.spectrum_widget.on_draw()
-
-
-class ChannelView(SignalDispatcherWidget):
+class ChannelView(qw.QWidget):
     def __init__(
         self, channel, channel_label, color="red", is_product=False, *args, **kwargs
     ):
@@ -185,7 +147,8 @@ class ChannelView(SignalDispatcherWidget):
 
         :param channel: pytch.data.Channel instance
         """
-        SignalDispatcherWidget.__init__(self, *args, **kwargs)
+        qw.QWidget.__init__(self, *args, **kwargs)
+        self.setLayout(qw.QHBoxLayout())
         self.channel = channel
         self.color = color
         self.is_product = is_product
@@ -193,26 +156,22 @@ class ChannelView(SignalDispatcherWidget):
         self.confidence_threshold = 0.9
         self.t_follow = 3
 
-        self.waveform_widget = LevelWidget(channel_label=channel_label)
+        self.level_widget = LevelWidget(channel_label=channel_label)
         self.spectrogram_widget = SpectrogramWidget()
         self.spectrum_widget = SpectrumWidget()
 
         layout = self.layout()
-        layout.addWidget(self.waveform_widget, 4)
+        layout.addWidget(self.level_widget, 2)
         layout.addWidget(self.spectrum_widget, 7)
         layout.addWidget(self.spectrogram_widget, 7)
         layout.setContentsMargins(0, 0, 0, 0)
 
         if is_product:
-            self.waveform_widget.ax.xaxis.set_visible(False)
-            plt.setp(self.waveform_widget.ax.spines.values(), visible=False)
-            self.waveform_widget.ax.tick_params(left=False, labelleft=False)
-            self.waveform_widget.ax.patch.set_visible(False)
-            self.waveform_widget.ax.yaxis.grid(False, which="both")
-
-    @qc.pyqtSlot(float)
-    def on_keyboard_key_pressed(self, f):
-        self.freq_keyboard = f
+            self.level_widget.ax.xaxis.set_visible(False)
+            plt.setp(self.level_widget.ax.spines.values(), visible=False)
+            self.level_widget.ax.tick_params(left=False, labelleft=False)
+            self.level_widget.ax.patch.set_visible(False)
+            self.level_widget.ax.yaxis.grid(False, which="both")
 
     @qc.pyqtSlot()
     def on_draw(self):
@@ -220,10 +179,10 @@ class ChannelView(SignalDispatcherWidget):
 
         # update level
         if self.is_product:
-            self.waveform_widget.update_level(num.nan)
+            self.level_widget.update_level(num.nan)
         else:
             audio_float = ch.latest_frame(1)[1].astype(num.float32, order="C") / 32768.0
-            self.waveform_widget.update_level(audio_float)
+            self.level_widget.update_level(audio_float)
 
         # update spectrum
         vline = None
@@ -267,6 +226,15 @@ class ChannelView(SignalDispatcherWidget):
 
         spectrogram = num.flipud(spectrogram)  # modifies run direction
         self.spectrogram_widget.update_spectrogram(spectrogram)
+
+    def show_spectrum_widget(self, show):
+        self.spectrum_widget.setVisible(show)
+
+    def show_spectrogram_widget(self, show):
+        self.spectrogram_widget.setVisible(show)
+
+    def show_level_widget(self, show):
+        self.level_widget.setVisible(show)
 
     @qc.pyqtSlot(int)
     def on_confidence_threshold_changed(self, threshold):
@@ -312,10 +280,10 @@ class LevelWidget(FigureCanvas):
         self.ax.set_title(None)
         self.ax.tick_params(axis="x", colors="white")
         self.ax.yaxis.grid(True, which="both")
-        self.ax.set_xlabel("Level [dBFS]  ")
+        self.ax.set_xlabel("Level")
         self.ax.set_ylabel(f"{channel_label}", fontweight="bold")
 
-        cvals = [0, 37, 40]
+        cvals = [0, 38, 40]
         colors = ["green", "yellow", "red"]
         norm = plt.Normalize(min(cvals), max(cvals))
         tuples = list(zip(map(norm, cvals), colors))
@@ -331,6 +299,7 @@ class LevelWidget(FigureCanvas):
             left=0, right=0.8, top=1, bottom=0, wspace=0, hspace=0
         )
         self.ax.set_ylim((0, -40))
+        self.ax.set_yticks([])
         self.ax.invert_yaxis()
         self.figure.tight_layout()
 
@@ -924,14 +893,6 @@ class MainWindow(AdjustableMainWindow):
             self.showMaximized()
 
         self.show()
-
-    @qc.pyqtSlot(qg.QKeyEvent)
-    def keyPressEvent(self, key_event):
-        """react on keyboard keys when they are pressed."""
-        if key_event.text() == "k":
-            self.main_widget.toggle_keyboard()
-
-        super().keyPressEvent(key_event)
 
 
 def from_command_line(close_after=None, check_opengl=False, disable_opengl=False):

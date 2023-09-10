@@ -159,7 +159,7 @@ class ProcessingMenu(qw.QFrame):
         cv_layout = qw.QGridLayout()
         cv_layout.addWidget(qw.QLabel("Levels"), 0, 0)
         self.box_show_levels = qw.QCheckBox()
-        self.box_show_levels.setChecked(get_config().show_traces)
+        self.box_show_levels.setChecked(True)
         self.box_show_levels.setChecked(True)
         cv_layout.addWidget(self.box_show_levels, 0, 1, 1, 1)
 
@@ -221,14 +221,16 @@ class ProcessingMenu(qw.QFrame):
         pv_layout.addWidget(qw.QLabel("Confidence Threshold"), 1, 0)
         self.noise_thresh_slider = qw.QSlider()
         self.noise_thresh_slider.setRange(0, 15)
-        self.noise_thresh_slider.setTickPosition(qw.QSlider.TicksBelow)
+        # self.noise_thresh_slider.setTickPosition(qw.QSlider.TicksBelow)
         self.noise_thresh_slider.setOrientation(qc.Qt.Horizontal)
         self.noise_thresh_slider.valueChanged.connect(
             lambda x: self.noise_thresh_label.setText(str(x / 10.0))
         )
         pv_layout.addWidget(self.noise_thresh_slider, 1, 1, 1, 1)
 
-        self.noise_thresh_label = qw.QLabel("")
+        self.noise_thresh_label = qw.QLabel(
+            f"{self.noise_thresh_slider.value() / 10.0}"
+        )
         pv_layout.addWidget(self.noise_thresh_label, 1, 2)
 
         pv_layout.addWidget(qw.QLabel("Derivative Filter"), 2, 0)
@@ -316,8 +318,6 @@ class ProcessingMenu(qw.QFrame):
 
     def connect_channel_views(self, channel_views):
         self.box_show_levels.stateChanged.connect(channel_views.show_level_widgets)
-
-        channel_views.show_level_widgets(self.box_show_levels.isChecked())
 
         self.box_show_spectrograms.stateChanged.connect(
             channel_views.show_spectrogram_widgets
