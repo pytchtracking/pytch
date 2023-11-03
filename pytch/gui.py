@@ -122,7 +122,7 @@ class ChannelViews(qw.QWidget):
 
 class QHLine(QFrame):
     """
-    a horizontal separation line\n
+    a horizontal separation line
     """
 
     def __init__(self):
@@ -136,17 +136,16 @@ class QHLine(QFrame):
 
 
 class ChannelView(qw.QWidget):
+    """
+    Visual representation of a Channel instance.
+
+    This is a per-channel container. It contains the level-view,
+    spectrogram-view and the sepctrum-view of a single channel.
+    """
+
     def __init__(
         self, channel, channel_label, color="red", is_product=False, *args, **kwargs
     ):
-        """
-        Visual representation of a Channel instance.
-
-        This is a per-channel container. It contains the level-view,
-        spectrogram-view and the sepctrum-view of a single channel.
-
-        :param channel: pytch.data.Channel instance
-        """
         qw.QWidget.__init__(self, *args, **kwargs)
         self.setLayout(qw.QHBoxLayout())
         self.channel = channel
@@ -318,7 +317,11 @@ class LevelWidget(FigureCanvas):
 
 
 class SpectrumWidget(FigureCanvas):
-    def __init__(self, freq_max=1000):
+    """
+    Spectrum widget
+    """
+
+    def __init__(self):
         super(SpectrumWidget, self).__init__(Figure())
 
         self.figure = Figure(tight_layout=True)
@@ -366,6 +369,10 @@ class SpectrumWidget(FigureCanvas):
 
 
 class SpectrogramWidget(FigureCanvas):
+    """
+    Spectrogram widget
+    """
+
     def __init__(self):
         super(SpectrogramWidget, self).__init__(Figure())
 
@@ -408,6 +415,10 @@ class SpectrogramWidget(FigureCanvas):
 
 
 class CheckBoxSelect(qw.QWidget):
+    """
+    Checkbox widget for switching between pitch modes
+    """
+
     check_box_toggled = qc.pyqtSignal(int)
 
     def __init__(self, value, parent):
@@ -436,6 +447,10 @@ def set_tick_choices(menu, default=20):
 
 
 class OverView(qw.QWidget):
+    """
+    Pitch trajectory view parent class
+    """
+
     highlighted_pitches = []
 
     def __init__(self, *args, **kwargs):
@@ -457,7 +472,7 @@ class OverView(qw.QWidget):
         action.setCheckable(True)
         action.setChecked(True)
         self.right_click_menu.addAction(action)
-        self.attach_highlight_pitch_menu()
+        # self.attach_highlight_pitch_menu()
 
     def draw_highlighted(self, x):
         for high_pitch, label in self.highlighted_pitches:
@@ -494,26 +509,38 @@ class OverView(qw.QWidget):
             self.highlighted_pitches.append((-1 * value, label))
 
 
-class PitchWidget(OverView):
+class PitchWidget(FigureCanvas):
     """Pitches of each trace as discrete samples."""
 
     low_pitch_changed = qc.pyqtSignal(num.ndarray)
 
     def __init__(self, channel_views, *args, **kwargs):
-        OverView.__init__(self, *args, **kwargs)
+        super(PitchWidget, self).__init__(Figure())
         self.channel_views = channel_views
-
-        save_as_action = QAction("Save pitches", self.right_click_menu)
-        save_as_action.triggered.connect(self.on_save_as)
         self.current_low_pitch = num.zeros(len(channel_views))
         self.current_low_pitch[:] = num.nan
-        self.right_click_menu.addAction(save_as_action)
         self.track_start = None
         self.tfollow = 3.0
 
+        self.figure = Figure(tight_layout=True)
+        self.figure.tight_layout(pad=0)
+        self.canvas = FigureCanvas(self.figure)
+        self.ax = self.figure.add_subplot(111, position=[0, 0, 0, 0])
+        self.ax.set_title(None)
+        self.ax.set_ylabel("Frequency [Cents]")
+        self.ax.set_xlabel(None)
+        self.ax.yaxis.grid(True, which="both")
+        self.ax.xaxis.grid(True, which="major")
+        self.ax.set_ylim((-1500, 1500))
+        self.ax.set_yticks(num.arange(-1500, 1550, 50), minor=True)
+        self.ax.set_yticks(num.arange(-1500, 1600, 100))
+        self.ax.set_xticklabels([])
+        self._line = None
+        self._vline = None
+        self.figure.tight_layout()
+
     @qc.pyqtSlot()
     def on_draw(self):
-        self.ax.clear()
         for i, cv in enumerate(self.channel_views):
             x, y = cv.channel.pitch.latest_frame(self.tfollow, clip_min=True)
             index = num.where(
@@ -521,40 +548,28 @@ class PitchWidget(OverView):
                 >= cv.confidence_threshold
             )[0]
 
-            # TODO: attach filter 2000 to slider
-            index_grad = index_gradient_filter(x, y, 2000)
+            index_grad = index_gradient_filter(x, y, 1000)
             index = num.intersect1d(index, index_grad)
             indices_grouped = consecutive(index)
             for group in indices_grouped:
                 if len(group) == 0:
                     continue
-                self.ax.plot(x[group], y[group], color=cv.color, line_width=4)
+                if self._line is None:
+                    (self._line,) = self.ax.plot(
+                        x[group],
+                        y[group],
+                        color=num.array(_colors[cv.color]) / 256,
+                        linewidth="4",
+                    )
+                else:
+                    if len(x[group]) != 0:
+                        self._line.set_data(x[group], y[group])
 
             xstart = num.min(x)
+            self.ax.set_xticks(num.arange(0, xstart + self.tfollow, 1))
             self.ax.set_xlim(xstart, xstart + self.tfollow)
-        try:
-            self.current_low_pitch[i] = y[indices_grouped[-1][-1]]
-        except IndexError as e:
-            pass
-
-        self.low_pitch_changed.emit(self.current_low_pitch)
-        self.draw_highlighted(xstart + self.tfollow)
-        self.ax.update()
-
-    @qc.pyqtSlot()
-    def on_save_as(self):
-        _fn = QFileDialog().getSaveFileName(self, "Save as text file", ".", "")[0]
-        if _fn:
-            if not os.path.exists(_fn):
-                os.makedirs(_fn)
-            for i, cv in enumerate(self.channel_views):
-                fn = os.path.join(_fn, "channel%s.txt" % i)
-                x, y = cv.channel.pitch.xdata, cv.channel.pitch.ydata
-                index = num.where(
-                    cv.channel.pitch_confidence.latest_frame_data(len(x))
-                    >= cv.confidence_threshold
-                )
-                num.savetxt(fn, num.vstack((x[index], y[index])).T)
+            self.figure.tight_layout()
+            self.draw()
 
 
 class DifferentialPitchWidget(OverView):
@@ -642,7 +657,7 @@ class PitchLevelDifferenceViews(qw.QWidget):
             for i2, cv2 in enumerate(self.channel_views):
                 if i1 >= i2:
                     continue
-                w = GaugeWidget(gl=True)
+                w = GaugeWidget(gl=False)
                 w.set_ylim(*ylim)
                 w.set_title("Channels: {} | {}".format(i1 + 1, i2 + 1))
                 self.widgets.append((cv1, cv2, w))
@@ -682,13 +697,15 @@ class PitchLevelDifferenceViews(qw.QWidget):
 
 
 class RightTabs(qw.QTabWidget):
+    """Widget for right tabs"""
+
     def __init__(self, *args, **kwargs):
         qw.QTabWidget.__init__(self, *args, **kwargs)
-        self.setSizePolicy(
-            qw.QSizePolicy.MinimumExpanding, qw.QSizePolicy.MinimumExpanding
-        )
+        # self.setSizePolicy(
+        #    qw.QSizePolicy.MinimumExpanding, qw.QSizePolicy.MinimumExpanding
+        # )
 
-        self.setAutoFillBackground(True)
+        # self.setAutoFillBackground(True)
 
         pal = self.palette()
         pal.setColor(qg.QPalette.Background, qg.QColor(*_colors["white"]))
@@ -699,7 +716,7 @@ class RightTabs(qw.QTabWidget):
 
 
 class MainWidget(qw.QWidget):
-    """top level widget (central widget in the MainWindow."""
+    """top level widget in the MainWindow."""
 
     signal_widgets_clear = qc.pyqtSignal()
     signal_widgets_draw = qc.pyqtSignal()
@@ -725,8 +742,6 @@ class MainWidget(qw.QWidget):
         self.input_dialog.set_input_callback = self.set_input
         self.data_input = None
         self.freq_max = 1000
-
-        # self.channel_mixer = ChannelMixer()
 
         qc.QTimer().singleShot(0, self.set_input_dialog)
 
@@ -802,10 +817,9 @@ class MainWidget(qw.QWidget):
 
         # remove old tabs from pitch view
         self.tabbed_pitch_widget.clear()
-
         self.tabbed_pitch_widget.addTab(pitch_view, "Pitches")
         self.tabbed_pitch_widget.addTab(pitch_view_all_diff, "Differential")
-        self.tabbed_pitch_widget.addTab(pitch_diff_view, "Current")
+        # self.tabbed_pitch_widget.addTab(pitch_diff_view, "Current")
         # self.tabbed_pitch_widget.addTab(self.pitch_diff_view_colorized, 'Mikado')
 
         self.menu.derivative_filter_slider.valueChanged.connect(
