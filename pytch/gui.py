@@ -245,7 +245,11 @@ class ChannelView(qw.QWidget):
 
     @qc.pyqtSlot(float)
     def on_standard_frequency_changed(self, f):
-        self.channel.standard_frequency = f
+        if isinstance(self.channel, list):
+            for ch in self.channel:
+                ch.standard_frequency = f
+        else:
+            self.channel.standard_frequency = f
 
     def on_min_freq_changed(self, f):
         self.spectrogram_widget.freq_min = f
@@ -524,7 +528,6 @@ class PitchWidget(FigureCanvas):
 
         self.figure = Figure(tight_layout=True)
         self.figure.tight_layout(pad=0)
-        self.canvas = FigureCanvas(self.figure)
         self.ax = self.figure.add_subplot(111, position=[0, 0, 0, 0])
         self.ax.set_title(None)
         self.ax.set_ylabel("Frequency [Cents]")
@@ -535,9 +538,14 @@ class PitchWidget(FigureCanvas):
         self.ax.set_yticks(num.arange(-1500, 1550, 50), minor=True)
         self.ax.set_yticks(num.arange(-1500, 1600, 100))
         self.ax.set_xticklabels([])
-        self._line = None
-        self._vline = None
+        self._line = [None] * len(channel_views)
         self.figure.tight_layout()
+
+        self.derivative_filter = 2000  # pitch/seconds
+
+    @qc.pyqtSlot(int)
+    def on_derivative_filter_changed(self, max_derivative):
+        self.derivative_filter = max_derivative
 
     @qc.pyqtSlot()
     def on_draw(self):
@@ -548,14 +556,14 @@ class PitchWidget(FigureCanvas):
                 >= cv.confidence_threshold
             )[0]
 
-            index_grad = index_gradient_filter(x, y, 1000)
+            index_grad = index_gradient_filter(x, y, self.derivative_filter)
             index = num.intersect1d(index, index_grad)
             indices_grouped = consecutive(index)
             for group in indices_grouped:
                 if len(group) == 0:
                     continue
-                if self._line is None:
-                    (self._line,) = self.ax.plot(
+                if self._line[i] is None:
+                    (self._line[i],) = self.ax.plot(
                         x[group],
                         y[group],
                         color=num.array(_colors[cv.color]) / 256,
@@ -563,21 +571,46 @@ class PitchWidget(FigureCanvas):
                     )
                 else:
                     if len(x[group]) != 0:
-                        self._line.set_data(x[group], y[group])
+                        self._line[i].set_data(x[group], y[group])
 
-            xstart = num.min(x)
-            self.ax.set_xticks(num.arange(0, xstart + self.tfollow, 1))
-            self.ax.set_xlim(xstart, xstart + self.tfollow)
-            self.figure.tight_layout()
-            self.draw()
+            try:
+                self.current_low_pitch[i] = y[indices_grouped[-1][-1]]
+            except IndexError as e:
+                pass
+
+            self.low_pitch_changed.emit(self.current_low_pitch)
+
+        xstart = num.min(x)
+        self.ax.set_xticks(num.arange(0, xstart + self.tfollow, 1))
+        self.ax.set_xlim(xstart, xstart + self.tfollow)
+        self.figure.tight_layout()
+        self.draw()
 
 
-class DifferentialPitchWidget(OverView):
+class DifferentialPitchWidget(FigureCanvas):
     """Diffs as line"""
 
     def __init__(self, channel_views, *args, **kwargs):
-        OverView.__init__(self, *args, **kwargs)
+        super(DifferentialPitchWidget, self).__init__(Figure())
         self.channel_views = channel_views
+        self.track_start = None
+        self.tfollow = 3.0
+
+        self.figure = Figure(tight_layout=True)
+        self.figure.tight_layout(pad=0)
+        self.ax = self.figure.add_subplot(111, position=[0, 0, 0, 0])
+        self.ax.set_title(None)
+        self.ax.set_ylabel("Difference [Cents]")
+        self.ax.set_xlabel(None)
+        self.ax.yaxis.grid(True, which="both")
+        self.ax.xaxis.grid(True, which="major")
+        self.ax.set_ylim((-1500, 1500))
+        self.ax.set_yticks(num.arange(-1500, 1550, 50), minor=True)
+        self.ax.set_yticks(num.arange(-1500, 1600, 100))
+        self.ax.set_xticklabels([])
+        self._line = [[[None, None]] * len(channel_views)] * len(channel_views)
+        self.figure.tight_layout()
+
         self.derivative_filter = 2000  # pitch/seconds
 
     @qc.pyqtSlot(int)
@@ -586,7 +619,6 @@ class DifferentialPitchWidget(OverView):
 
     @qc.pyqtSlot()
     def on_draw(self):
-        self.ax.clear()
         for i1, cv1 in enumerate(self.channel_views):
             x1, y1 = cv1.channel.pitch.latest_frame(tfollow, clip_min=True)
             xstart = num.min(x1)
@@ -613,27 +645,36 @@ class DifferentialPitchWidget(OverView):
                         continue
 
                     y = y1[group] - y2[group]
-                    x = x1[group]
-                    self.ax.plot(
-                        x,
-                        y,
-                        style="solid",
-                        line_width=4,
-                        color=cv1.color,
-                        antialiasing=False,
-                    )
-                    self.ax.plot(
-                        x,
-                        y,
-                        style=":",
-                        line_width=4,
-                        color=cv2.color,
-                        antialiasing=False,
-                    )
 
-        self.ax.set_xlim(xstart, xstart + tfollow)
-        self.draw_highlighted(xstart)
-        self.ax.update()
+                    x = x1[group]
+                    if self._line[i1][i2][0] is None:
+                        (self._line[i1][i2][0],) = self.ax.plot(
+                            x,
+                            y,
+                            color=num.array(_colors[cv1.color]) / 256,
+                            linewidth="4",
+                            linestyle="-",
+                        )
+                    else:
+                        if len(x) != 0:
+                            self._line[i1][i1][0].set_data(x, y)
+
+                    if self._line[i1][i2][1] is None:
+                        (self._line[i1][i2][1],) = self.ax.plot(
+                            x,
+                            y,
+                            color=num.array(_colors[cv2.color]) / 256,
+                            linewidth="4",
+                            linestyle="--",
+                        )
+                    else:
+                        if len(x) != 0:
+                            self._line[i1][i1][1].set_data(x, y)
+
+        self.ax.set_xticks(num.arange(0, xstart + self.tfollow, 1))
+        self.ax.set_xlim(xstart, xstart + self.tfollow)
+        self.figure.tight_layout()
+        self.draw()
 
 
 class PitchLevelDifferenceViews(qw.QWidget):
@@ -706,6 +747,10 @@ class RightTabs(qw.QTabWidget):
         # )
 
         # self.setAutoFillBackground(True)
+
+        # self.layout = qw.QVBoxLayout()
+        # self.layout.addWidget(self.canvas)
+        # self.setLayout(self.layout)
 
         pal = self.palette()
         pal.setColor(qg.QPalette.Background, qg.QColor(*_colors["white"]))
@@ -795,9 +840,7 @@ class MainWidget(qw.QWidget):
 
     def reset(self):
         dinput = self.data_input
-
         self.worker = Worker(dinput.channels)
-
         self.channel_views_widget = ChannelViews(
             dinput.channels, freq_max=self.freq_max
         )
@@ -812,7 +855,7 @@ class MainWidget(qw.QWidget):
         pitch_view.low_pitch_changed.connect(self.menu.on_adapt_standard_frequency)
 
         pitch_view_all_diff = DifferentialPitchWidget(channel_views)
-        pitch_diff_view = PitchLevelDifferenceViews(channel_views)
+        # pitch_diff_view = PitchLevelDifferenceViews(channel_views)
         # self.pitch_diff_view_colorized = PitchLevelMikadoViews(channel_views)
 
         # remove old tabs from pitch view
@@ -823,13 +866,16 @@ class MainWidget(qw.QWidget):
         # self.tabbed_pitch_widget.addTab(self.pitch_diff_view_colorized, 'Mikado')
 
         self.menu.derivative_filter_slider.valueChanged.connect(
+            pitch_view.on_derivative_filter_changed
+        )
+        self.menu.derivative_filter_slider.valueChanged.connect(
             pitch_view_all_diff.on_derivative_filter_changed
         )
         self.menu.connect_channel_views(self.channel_views_widget)
 
         self.signal_widgets_draw.connect(pitch_view.on_draw)
         self.signal_widgets_draw.connect(pitch_view_all_diff.on_draw)
-        self.signal_widgets_draw.connect(pitch_diff_view.on_draw)
+        # self.signal_widgets_draw.connect(pitch_diff_view.on_draw)
 
         t_wait_buffer = max(dinput.fftsizes) / dinput.sampling_rate * 1500.0
         qc.QTimer().singleShot(int(t_wait_buffer), self.start_refresh_timer)

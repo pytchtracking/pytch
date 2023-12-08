@@ -246,7 +246,7 @@ class ProcessingMenu(qw.QFrame):
         pv_layout.addWidget(self.derivative_filter_slider, 2, 1, 1, 1)
 
         self.f_standard_mode = qw.QComboBox()
-        self.f_standard_mode.addItems(["Select", "Highest", "Lowest"])
+        self.f_standard_mode.addItems(["Fixed Freq.", "Highest", "Lowest"])
         self.f_standard_mode.currentTextChanged.connect(self.on_f_standard_mode_changed)
 
         pv_layout.addWidget(qw.QLabel("Reference Voice"), 3, 0)
@@ -257,10 +257,10 @@ class ProcessingMenu(qw.QFrame):
         pv_layout.addWidget(self.freq_box, 4, 1, 1, 1)
         pv_layout.addWidget(qw.QLabel("Hz"), 4, 2)
 
-        self.pitch_shift_box = FloatQLineEdit(parent=self, default="0.")
-        pv_layout.addWidget(qw.QLabel("Pitch Shift"), 5, 0)
-        pv_layout.addWidget(self.pitch_shift_box, 5, 1, 1, 1)
-        pv_layout.addWidget(qw.QLabel("Cents"), 5, 2)
+        # self.pitch_shift_box = FloatQLineEdit(parent=self, default="0.")
+        # pv_layout.addWidget(qw.QLabel("Pitch Shift"), 5, 0)
+        # pv_layout.addWidget(self.pitch_shift_box, 5, 1, 1, 1)
+        # pv_layout.addWidget(qw.QLabel("Cents"), 5, 2)
 
         pitch_view.setLayout(pv_layout)
         layout.addWidget(pitch_view, 5, 0, 1, 2)
@@ -284,17 +284,19 @@ class ProcessingMenu(qw.QFrame):
     def on_f_standard_mode_changed(self, text):
         if text == "Highest":
             self.freq_box.setReadOnly(True)
-            self.get_adaptive_f = num.nanmin
+            self.get_adaptive_f = num.nanmax
         elif text == "Lowest":
             self.freq_box.setReadOnly(True)
-            self.get_adaptive_f = num.nanmax
+            self.get_adaptive_f = num.nanmin
         elif "Channel" in text:
             self.freq_box.setReadOnly(True)
-            ichannel = int(text[-2]) - 1
+            ichannel = int(text[-2:]) - 1
             self.get_adaptive_f = lambda x: x[ichannel]
         else:
+            self.get_adaptive_f = lambda x: x
+            self.freq_box.setText("220")
+            self.freq_box.do_check()
             self.freq_box.setReadOnly(False)
-            self.get_adaptive_f = num.nanmax
 
     @qc.pyqtSlot(num.ndarray)
     def on_adapt_standard_frequency(self, fs):
@@ -335,9 +337,9 @@ class ProcessingMenu(qw.QFrame):
 
         self.box_show_spectra.stateChanged.connect(channel_views.show_spectrum_widgets)
 
-        self.pitch_shift_box.accepted_value.connect(
-            channel_views.on_pitch_shift_changed
-        )
+        # self.pitch_shift_box.accepted_value.connect(
+        #     channel_views.on_pitch_shift_changed
+        # )
 
         for i, cv in enumerate(channel_views.views):
             self.spectrum_type_selected.connect(cv.on_spectrum_type_select)
