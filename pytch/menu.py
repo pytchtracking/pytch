@@ -257,15 +257,25 @@ class ProcessingMenu(qw.QFrame):
         pv_layout.addWidget(self.freq_box, 4, 1, 1, 1)
         pv_layout.addWidget(qw.QLabel("Hz"), 4, 2)
 
+        self.pitch_min = FloatQLineEdit(parent=self, default=-1500)
+        pv_layout.addWidget(qw.QLabel("Minimum Pitch"), 5, 0)
+        pv_layout.addWidget(self.pitch_min, 5, 1, 1, 1)
+        pv_layout.addWidget(qw.QLabel("Cents"), 5, 2)
+
+        self.pitch_max = FloatQLineEdit(parent=self, default=1500)
+        pv_layout.addWidget(qw.QLabel("Maximum Pitch"), 6, 0)
+        pv_layout.addWidget(self.pitch_max, 6, 1, 1, 1)
+        pv_layout.addWidget(qw.QLabel("Cents"), 6, 2)
+
         # self.pitch_shift_box = FloatQLineEdit(parent=self, default="0.")
         # pv_layout.addWidget(qw.QLabel("Pitch Shift"), 5, 0)
         # pv_layout.addWidget(self.pitch_shift_box, 5, 1, 1, 1)
         # pv_layout.addWidget(qw.QLabel("Cents"), 5, 2)
 
         pitch_view.setLayout(pv_layout)
-        layout.addWidget(pitch_view, 5, 0, 1, 2)
+        layout.addWidget(pitch_view, 7, 0, 4, 2)
 
-        layout.addItem(qw.QSpacerItem(40, 20), 6, 0, qc.Qt.AlignTop)
+        # layout.addItem(qw.QSpacerItem(40, 20), 7, 0, qc.Qt.AlignTop)
 
         self.setLineWidth(1)
         self.get_adaptive_f = num.nanmin
@@ -332,7 +342,6 @@ class ProcessingMenu(qw.QFrame):
         )
 
         self.freq_min.accepted_value.connect(channel_views.on_min_freq_changed)
-
         self.freq_max.accepted_value.connect(channel_views.on_max_freq_changed)
 
         self.box_show_spectra.stateChanged.connect(channel_views.show_spectrum_widgets)

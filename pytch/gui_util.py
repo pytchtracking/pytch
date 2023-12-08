@@ -407,8 +407,7 @@ class FloatQLineEdit(qw.QLineEdit):
     def do_check(self):
         text = self.text()
         val = float(text)
-        if val >= 0.0:
-            self.accepted_value.emit(val)
+        self.accepted_value.emit(val)
 
 
 class PlotBase:

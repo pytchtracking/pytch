@@ -518,8 +518,9 @@ class PitchWidget(FigureCanvas):
 
     low_pitch_changed = qc.pyqtSignal(num.ndarray)
 
-    def __init__(self, channel_views, *args, **kwargs):
+    def __init__(self, parent, channel_views, *args, **kwargs):
         super(PitchWidget, self).__init__(Figure())
+        self.parent = parent
         self.channel_views = channel_views
         self.current_low_pitch = num.zeros(len(channel_views))
         self.current_low_pitch[:] = num.nan
@@ -530,13 +531,15 @@ class PitchWidget(FigureCanvas):
         self.figure.tight_layout(pad=0)
         self.ax = self.figure.add_subplot(111, position=[0, 0, 0, 0])
         self.ax.set_title(None)
-        self.ax.set_ylabel("Frequency [Cents]")
+        self.ax.set_ylabel("Relative Pitch [Cents]")
         self.ax.set_xlabel(None)
         self.ax.yaxis.grid(True, which="both")
         self.ax.xaxis.grid(True, which="major")
-        self.ax.set_ylim((-1500, 1500))
-        self.ax.set_yticks(num.arange(-1500, 1550, 50), minor=True)
-        self.ax.set_yticks(num.arange(-1500, 1600, 100))
+        self.ax.set_ylim((parent.pitch_min, parent.pitch_max))
+        self.ax.set_yticks(
+            num.arange(parent.pitch_min, parent.pitch_max + 50, 50), minor=True
+        )
+        self.ax.set_yticks(num.arange(parent.pitch_min, parent.pitch_max + 100, 100))
         self.ax.set_xticklabels([])
         self._line = [None] * len(channel_views)
         self.figure.tight_layout()
@@ -546,6 +549,17 @@ class PitchWidget(FigureCanvas):
     @qc.pyqtSlot(int)
     def on_derivative_filter_changed(self, max_derivative):
         self.derivative_filter = max_derivative
+
+    def update_pitchlims(self):
+        self.ax.set_ylim((self.parent.pitch_min, self.parent.pitch_max))
+        self.ax.set_yticks(
+            num.arange(self.parent.pitch_min, self.parent.pitch_max + 50, 50),
+            minor=True,
+        )
+        self.ax.set_yticks(
+            num.arange(self.parent.pitch_min, self.parent.pitch_max + 100, 100)
+        )
+        self.draw()
 
     @qc.pyqtSlot()
     def on_draw(self):
@@ -590,8 +604,9 @@ class PitchWidget(FigureCanvas):
 class DifferentialPitchWidget(FigureCanvas):
     """Diffs as line"""
 
-    def __init__(self, channel_views, *args, **kwargs):
+    def __init__(self, parent, channel_views, *args, **kwargs):
         super(DifferentialPitchWidget, self).__init__(Figure())
+        self.parent = parent
         self.channel_views = channel_views
         self.track_start = None
         self.tfollow = 3.0
@@ -604,9 +619,11 @@ class DifferentialPitchWidget(FigureCanvas):
         self.ax.set_xlabel(None)
         self.ax.yaxis.grid(True, which="both")
         self.ax.xaxis.grid(True, which="major")
-        self.ax.set_ylim((-1500, 1500))
-        self.ax.set_yticks(num.arange(-1500, 1550, 50), minor=True)
-        self.ax.set_yticks(num.arange(-1500, 1600, 100))
+        self.ax.set_ylim((parent.pitch_min, parent.pitch_max))
+        self.ax.set_yticks(
+            num.arange(parent.pitch_min, parent.pitch_max + 50, 50), minor=True
+        )
+        self.ax.set_yticks(num.arange(parent.pitch_min, parent.pitch_max + 100, 100))
         self.ax.set_xticklabels([])
         self._line = [[[None, None]] * len(channel_views)] * len(channel_views)
         self.figure.tight_layout()
@@ -616,6 +633,17 @@ class DifferentialPitchWidget(FigureCanvas):
     @qc.pyqtSlot(int)
     def on_derivative_filter_changed(self, max_derivative):
         self.derivative_filter = max_derivative
+
+    def update_pitchlims(self):
+        self.ax.set_ylim((self.parent.pitch_min, self.parent.pitch_max))
+        self.ax.set_yticks(
+            num.arange(self.parent.pitch_min, self.parent.pitch_max + 50, 50),
+            minor=True,
+        )
+        self.ax.set_yticks(
+            num.arange(self.parent.pitch_min, self.parent.pitch_max + 100, 100)
+        )
+        self.draw()
 
     @qc.pyqtSlot()
     def on_draw(self):
@@ -787,6 +815,8 @@ class MainWidget(qw.QWidget):
         self.input_dialog.set_input_callback = self.set_input
         self.data_input = None
         self.freq_max = 1000
+        self.pitch_min = -1500
+        self.pitch_max = 1500
 
         qc.QTimer().singleShot(0, self.set_input_dialog)
 
@@ -804,6 +834,9 @@ class MainWidget(qw.QWidget):
 
         menu.select_algorithm.currentTextChanged.connect(self.on_algorithm_select)
 
+        menu.pitch_max.accepted_value.connect(self.on_pitch_max_changed)
+        menu.pitch_min.accepted_value.connect(self.on_pitch_min_changed)
+
     @qc.pyqtSlot()
     def on_save_as(self):
         """Write traces to wav files"""
@@ -820,6 +853,16 @@ class MainWidget(qw.QWidget):
         """change pitch algorithm"""
         for c in self.data_input.channels:
             c.pitch_algorithm = arg
+
+    def on_pitch_min_changed(self, p):
+        self.pitch_min = p
+        self.pitch_view.update_pitchlims()
+        self.pitch_view_all_diff.update_pitchlims()
+
+    def on_pitch_max_changed(self, p):
+        self.pitch_max = p
+        self.pitch_view.update_pitchlims()
+        self.pitch_view_all_diff.update_pitchlims()
 
     def cleanup(self):
         """clear all widgets."""
@@ -851,30 +894,30 @@ class MainWidget(qw.QWidget):
 
         self.top_layout.addWidget(self.channel_views_widget, 1, 0, 1, 1)
 
-        pitch_view = PitchWidget(channel_views)
-        pitch_view.low_pitch_changed.connect(self.menu.on_adapt_standard_frequency)
+        self.pitch_view = PitchWidget(self, channel_views)
+        self.pitch_view.low_pitch_changed.connect(self.menu.on_adapt_standard_frequency)
 
-        pitch_view_all_diff = DifferentialPitchWidget(channel_views)
+        self.pitch_view_all_diff = DifferentialPitchWidget(self, channel_views)
         # pitch_diff_view = PitchLevelDifferenceViews(channel_views)
         # self.pitch_diff_view_colorized = PitchLevelMikadoViews(channel_views)
 
         # remove old tabs from pitch view
         self.tabbed_pitch_widget.clear()
-        self.tabbed_pitch_widget.addTab(pitch_view, "Pitches")
-        self.tabbed_pitch_widget.addTab(pitch_view_all_diff, "Differential")
+        self.tabbed_pitch_widget.addTab(self.pitch_view, "Pitches")
+        self.tabbed_pitch_widget.addTab(self.pitch_view_all_diff, "Differential")
         # self.tabbed_pitch_widget.addTab(pitch_diff_view, "Current")
         # self.tabbed_pitch_widget.addTab(self.pitch_diff_view_colorized, 'Mikado')
 
         self.menu.derivative_filter_slider.valueChanged.connect(
-            pitch_view.on_derivative_filter_changed
+            self.pitch_view.on_derivative_filter_changed
         )
         self.menu.derivative_filter_slider.valueChanged.connect(
-            pitch_view_all_diff.on_derivative_filter_changed
+            self.pitch_view_all_diff.on_derivative_filter_changed
         )
         self.menu.connect_channel_views(self.channel_views_widget)
 
-        self.signal_widgets_draw.connect(pitch_view.on_draw)
-        self.signal_widgets_draw.connect(pitch_view_all_diff.on_draw)
+        self.signal_widgets_draw.connect(self.pitch_view.on_draw)
+        self.signal_widgets_draw.connect(self.pitch_view_all_diff.on_draw)
         # self.signal_widgets_draw.connect(pitch_diff_view.on_draw)
 
         t_wait_buffer = max(dinput.fftsizes) / dinput.sampling_rate * 1500.0
