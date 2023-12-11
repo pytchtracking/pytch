@@ -23,7 +23,7 @@ import matplotlib.colors
 import matplotlib.pyplot as plt
 import matplotlib
 
-matplotlib.rcParams.update({"font.size": 10})
+matplotlib.rcParams.update({"font.size": 9})
 
 logger = logging.getLogger("pytch.gui")
 tfollow = 3.0
@@ -540,6 +540,16 @@ class PitchWidget(FigureCanvas):
             num.arange(parent.pitch_min, parent.pitch_max + 50, 50), minor=True
         )
         self.ax.set_yticks(num.arange(parent.pitch_min, parent.pitch_max + 100, 100))
+        self.ax.tick_params(
+            labelbottom=True,
+            labeltop=False,
+            labelleft=True,
+            labelright=True,
+            bottom=True,
+            top=False,
+            left=True,
+            right=True,
+        )
         self.ax.set_xticklabels([])
         self._line = [None] * len(channel_views)
         self.figure.tight_layout()
@@ -624,6 +634,16 @@ class DifferentialPitchWidget(FigureCanvas):
             num.arange(parent.pitch_min, parent.pitch_max + 50, 50), minor=True
         )
         self.ax.set_yticks(num.arange(parent.pitch_min, parent.pitch_max + 100, 100))
+        self.ax.tick_params(
+            labelbottom=True,
+            labeltop=False,
+            labelleft=True,
+            labelright=True,
+            bottom=True,
+            top=False,
+            left=True,
+            right=True,
+        )
         self.ax.set_xticklabels([])
         self._line = [[[None, None]] * len(channel_views)] * len(channel_views)
         self.figure.tight_layout()
