@@ -6,7 +6,7 @@ from pytch.gui import from_command_line
 import logging
 
 
-if __name__=='__main__':
+if __name__ == '__main__':
     parser = argparse.ArgumentParser('pytch')
     parser.add_argument(
         '--debug', required=False, default=False,
@@ -40,7 +40,6 @@ if __name__=='__main__':
         logger.setLevel(logging.DEBUG)
     else:
         logger.setLevel(logging.INFO)
-    logger.info('starting pytch')
 
     from_command_line(args.close_after,
                       args.check_opengl,

@@ -1,9 +1,3 @@
-import sys
-
-import os
-import time
-import shutil
-
 from setuptools import setup
 
 

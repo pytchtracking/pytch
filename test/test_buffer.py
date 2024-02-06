@@ -1,6 +1,6 @@
 import numpy as num
 import pytest
-from pytch.data import Buffer, RingBuffer
+from pytch.audio import Buffer, RingBuffer
 
 
 def test_BufferIndex():

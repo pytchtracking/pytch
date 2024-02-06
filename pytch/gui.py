@@ -3,12 +3,10 @@ import sys
 import numpy as num
 import os
 
-from .gui_util import make_QPolygonF, _color_names, _colors  # noqa
-from .util import consecutive, index_gradient_filter, relative_keys
-from .plot import Axis, GaugeWidget
+from .util import consecutive, index_gradient_filter
 from .menu import DeviceMenu, ProcessingMenu
-from .config import get_config
-from .processing import Worker
+from .config import get_config, _color_names, _colors
+from .audio import Worker
 
 from PyQt5 import QtCore as qc
 from PyQt5 import QtGui as qg
@@ -304,7 +302,7 @@ class LevelWidget(FigureCanvas):
         self.ax.set_ylim((0, -40))
         self.ax.set_yticks([])
         self.ax.invert_yaxis()
-        self.figure.tight_layout()
+        self.figure.set_tight_layout(True)
 
     def update_level(self, data):
         if num.any(num.isnan(data)):
@@ -315,8 +313,6 @@ class LevelWidget(FigureCanvas):
             plot_mat = num.linspace((0, 0), (40, 40), 400)
             plot_mat[plot_val * 10 + 10 :, :] = num.nan
         self.img.set_data(plot_mat)
-
-        self.figure.tight_layout()
         self.draw()
 
 
@@ -329,7 +325,6 @@ class SpectrumWidget(FigureCanvas):
         super(SpectrumWidget, self).__init__(Figure())
 
         self.figure = Figure(tight_layout=True)
-        self.figure.tight_layout(pad=0)
         self.canvas = FigureCanvas(self.figure)
         self.ax = self.figure.add_subplot(111, position=[0, 0, 0, 0])
         self.ax.set_title(None)
@@ -365,7 +360,7 @@ class SpectrumWidget(FigureCanvas):
         self.ax.set_xlim((self.freq_min, self.freq_max))
         self.ax.relim()
         self.ax.autoscale(axis="y")
-        self.figure.tight_layout()
+        self.figure.set_tight_layout(True)
         self.draw()
 
     def set_spectral_type(self, type):
@@ -381,7 +376,6 @@ class SpectrogramWidget(FigureCanvas):
         super(SpectrogramWidget, self).__init__(Figure())
 
         self.figure = Figure(tight_layout=True)
-        self.figure.tight_layout(pad=0)
         self.canvas = FigureCanvas(self.figure)
         self.ax = self.figure.add_subplot(111)
         self.ax.set_title(None)
@@ -411,7 +405,7 @@ class SpectrogramWidget(FigureCanvas):
         self.img.set_clim(vmin=num.min(data), vmax=num.max(data))
         self.ax.set_xlim((self.freq_min, self.freq_max))
 
-        self.figure.tight_layout()
+        self.figure.set_tight_layout(True)
         self.draw()
 
     def set_spectral_type(self, type):
@@ -450,69 +444,6 @@ def set_tick_choices(menu, default=20):
         menu.addAction(action)
 
 
-class OverView(qw.QWidget):
-    """
-    Pitch trajectory view parent class
-    """
-
-    highlighted_pitches = []
-
-    def __init__(self, *args, **kwargs):
-        qw.QWidget.__init__(self, *args, **kwargs)
-
-        layout = qw.QGridLayout()
-        self.setLayout(layout)
-        self.ax = Axis()
-        self.ax.ytick_formatter = "%i"
-        self.ax.xlabels = False
-        self.ax.set_ylim(-1500.0, 1500)
-        self.ax.set_grids(100.0)
-        layout.addWidget(self.ax)
-
-        self.right_click_menu = QMenu("Tick Settings", self)
-        self.right_click_menu.triggered.connect(self.ax.on_tick_increment_select)
-        set_tick_choices(self.right_click_menu, default=100)
-        action = QAction("Minor ticks", self.right_click_menu)
-        action.setCheckable(True)
-        action.setChecked(True)
-        self.right_click_menu.addAction(action)
-        # self.attach_highlight_pitch_menu()
-
-    def draw_highlighted(self, x):
-        for high_pitch, label in self.highlighted_pitches:
-            self.ax.axhline(high_pitch, line_width=2)
-            self.ax.text(x=x, y=high_pitch, text=label)
-
-    def attach_highlight_pitch_menu(self):
-        pmenu = QMenu("Highlight pitches", self)
-        pmenu.addSeparator()
-        pmenu.addAction(qw.QWidgetAction(pmenu))
-        for k in sorted(list(relative_keys.keys())):
-            action = qw.QWidgetAction(pmenu)
-            check_box_widget = CheckBoxSelect(k, pmenu)
-            check_box_widget.check_box_toggled.connect(self.on_check_box_widget_toggled)
-            pmenu.addAction(check_box_widget.action)
-
-        self.right_click_menu.addMenu(pmenu)
-
-    @qc.pyqtSlot(qg.QMouseEvent)
-    def mousePressEvent(self, mouse_ev):
-        if mouse_ev.button() == qc.Qt.RightButton:
-            self.right_click_menu.exec_(qg.QCursor.pos())
-        else:
-            qw.QWidget.mousePressEvent(self, mouse_ev)
-
-    @qc.pyqtSlot(int)
-    def on_check_box_widget_toggled(self, value):
-        label = relative_keys[value]
-        if (value, label) in self.highlighted_pitches:
-            self.highlighted_pitches.remove((value, label))
-            self.highlighted_pitches.remove((-1 * value, label))
-        else:
-            self.highlighted_pitches.append((value, label))
-            self.highlighted_pitches.append((-1 * value, label))
-
-
 class PitchWidget(FigureCanvas):
     """Pitches of each trace as discrete samples."""
 
@@ -528,7 +459,6 @@ class PitchWidget(FigureCanvas):
         self.tfollow = 3.0
 
         self.figure = Figure(tight_layout=True)
-        self.figure.tight_layout(pad=0)
         self.ax = self.figure.add_subplot(111, position=[0, 0, 0, 0])
         self.ax.set_title(None)
         self.ax.set_ylabel("Relative Pitch [Cents]")
@@ -607,7 +537,7 @@ class PitchWidget(FigureCanvas):
         xstart = num.min(x)
         self.ax.set_xticks(num.arange(0, xstart + self.tfollow, 1))
         self.ax.set_xlim(xstart, xstart + self.tfollow)
-        self.figure.tight_layout()
+        self.figure.set_tight_layout(True)
         self.draw()
 
 
@@ -622,7 +552,6 @@ class DifferentialPitchWidget(FigureCanvas):
         self.tfollow = 3.0
 
         self.figure = Figure(tight_layout=True)
-        self.figure.tight_layout(pad=0)
         self.ax = self.figure.add_subplot(111, position=[0, 0, 0, 0])
         self.ax.set_title(None)
         self.ax.set_ylabel("Difference [Cents]")
@@ -721,68 +650,8 @@ class DifferentialPitchWidget(FigureCanvas):
 
         self.ax.set_xticks(num.arange(0, xstart + self.tfollow, 1))
         self.ax.set_xlim(xstart, xstart + self.tfollow)
-        self.figure.tight_layout()
+        self.figure.set_tight_layout(True)
         self.draw()
-
-
-class PitchLevelDifferenceViews(qw.QWidget):
-    """The Gauge widget collection"""
-
-    def __init__(self, channel_views, *args, **kwargs):
-        qw.QWidget.__init__(self, *args, **kwargs)
-        self.channel_views = channel_views
-        layout = qw.QGridLayout()
-        self.setLayout(layout)
-        self.widgets = []
-        self.right_click_menu = QMenu("Tick Settings", self)
-        self.right_click_menu.triggered.connect(self.on_tick_increment_select)
-
-        set_tick_choices(self.right_click_menu)
-
-        # TODO add slider
-        self.naverage = 7
-        ylim = (-1500, 1500.0)
-        for i1, cv1 in enumerate(self.channel_views):
-            for i2, cv2 in enumerate(self.channel_views):
-                if i1 >= i2:
-                    continue
-                w = GaugeWidget(gl=False)
-                w.set_ylim(*ylim)
-                w.set_title("Channels: {} | {}".format(i1 + 1, i2 + 1))
-                self.widgets.append((cv1, cv2, w))
-                layout.addWidget(w, i1, i2)
-
-    @qc.pyqtSlot(QAction)
-    def on_tick_increment_select(self, action):
-        for cv1, cv2, widget in self.widgets:
-            widget.xtick_increment = int(action.text())
-
-    @qc.pyqtSlot()
-    def on_draw(self):
-        for cv1, cv2, w in self.widgets:
-            confidence1 = num.where(
-                cv1.channel.pitch_confidence.latest_frame_data(self.naverage)
-                > cv1.confidence_threshold
-            )
-            confidence2 = num.where(
-                cv2.channel.pitch_confidence.latest_frame_data(self.naverage)
-                > cv2.confidence_threshold
-            )
-            confidence = num.intersect1d(confidence1, confidence2)
-            if len(confidence) > 1:
-                d1 = cv1.channel.pitch.latest_frame_data(self.naverage)[confidence]
-                d2 = cv2.channel.pitch.latest_frame_data(self.naverage)[confidence]
-                w.set_data(num.median(d1 - d2))
-            else:
-                w.set_data(None)
-            w.update()
-
-    @qc.pyqtSlot(qg.QMouseEvent)
-    def mousePressEvent(self, mouse_ev):
-        if mouse_ev.button() == qc.Qt.RightButton:
-            self.right_click_menu.exec_(qg.QCursor.pos())
-        else:
-            qw.QWidget.mousePressEvent(self, mouse_ev)
 
 
 class RightTabs(qw.QTabWidget):
