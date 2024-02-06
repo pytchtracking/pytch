@@ -1,6 +1,10 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""GUI Functions"""
+
 import logging
 import sys
-import numpy as num
+import numpy as np
 import os
 
 from .util import consecutive, index_gradient_filter
@@ -15,17 +19,16 @@ from PyQt5.QtWidgets import QVBoxLayout
 from PyQt5.QtWidgets import QAction, QPushButton, QDockWidget, QFrame, QSizePolicy
 from PyQt5.QtWidgets import QMenu, QActionGroup, QFileDialog
 
+import matplotlib
 from matplotlib.backends.backend_qtagg import FigureCanvas
 from matplotlib.figure import Figure
 import matplotlib.colors
 import matplotlib.pyplot as plt
-import matplotlib
 
 matplotlib.rcParams.update({"font.size": 9})
-
+colormaps = ["viridis", "wb", "bw"]
 logger = logging.getLogger("pytch.gui")
 tfollow = 3.0
-colormaps = ["viridis", "wb", "bw"]
 
 
 class ChannelViews(qw.QWidget):
@@ -176,30 +179,30 @@ class ChannelView(qw.QWidget):
 
         # update level
         if self.is_product:
-            self.level_widget.update_level(num.nan)
+            self.level_widget.update_level(np.nan)
         else:
-            audio_float = ch.latest_frame(1)[1].astype(num.float32, order="C") / 32768.0
+            audio_float = ch.latest_frame(1)[1].astype(np.float32, order="C") / 32768.0
             self.level_widget.update_level(audio_float)
 
         # update spectrum
         vline = None
         if not self.is_product:
-            spectrum = num.mean(ch.fft.latest_frame_data(self.t_follow), axis=0)
+            spectrum = np.mean(ch.fft.latest_frame_data(self.t_follow), axis=0)
             freqs = ch.freqs
             confidence = ch.pitch_confidence.latest_frame_data(1)
             if confidence > self.confidence_threshold:
                 vline = ch.undo_pitch_proxy(ch.get_latest_pitch())
         else:
-            spectrum = num.mean(
-                num.asarray(
-                    ch[0].fft.latest_frame_data(self.t_follow), dtype=num.float32
+            spectrum = np.mean(
+                np.asarray(
+                    ch[0].fft.latest_frame_data(self.t_follow), dtype=np.float32
                 ),
                 axis=0,
             )
             for c in ch[1:]:
-                spectrum *= num.mean(
-                    num.asarray(
-                        c.fft.latest_frame_data(self.t_follow), dtype=num.float32
+                spectrum *= np.mean(
+                    np.asarray(
+                        c.fft.latest_frame_data(self.t_follow), dtype=np.float32
                     ),
                     axis=0,
                 )
@@ -221,7 +224,7 @@ class ChannelView(qw.QWidget):
                     self.spectrogram_widget.show_n_frames
                 )
 
-        spectrogram = num.flipud(spectrogram)  # modifies run direction
+        spectrogram = np.flipud(spectrogram)  # modifies run direction
         self.spectrogram_widget.update_spectrogram(spectrogram)
 
     def show_spectrum_widget(self, show):
@@ -290,7 +293,7 @@ class LevelWidget(FigureCanvas):
         tuples = list(zip(map(norm, cvals), colors))
         cmap = matplotlib.colors.LinearSegmentedColormap.from_list("", tuples)
         self.img = self.ax.imshow(
-            num.linspace((0, 0), (40, 40), 400),
+            np.linspace((0, 0), (40, 40), 400),
             cmap=cmap,
             aspect="auto",
             origin="lower",
@@ -305,13 +308,13 @@ class LevelWidget(FigureCanvas):
         self.figure.set_tight_layout(True)
 
     def update_level(self, data):
-        if num.any(num.isnan(data)):
-            plot_mat = num.full((2, 2), fill_value=num.nan)
+        if np.any(np.isnan(data)):
+            plot_mat = np.full((2, 2), fill_value=np.nan)
         else:
-            peak_db = 10 * num.log10(num.max(num.abs(data)))
-            plot_val = num.max((0, 40 + peak_db)).astype(int)
-            plot_mat = num.linspace((0, 0), (40, 40), 400)
-            plot_mat[plot_val * 10 + 10 :, :] = num.nan
+            peak_db = 10 * np.log10(np.max(np.abs(data)))
+            plot_val = np.max((0, 40 + peak_db)).astype(int)
+            plot_mat = np.linspace((0, 0), (40, 40), 400)
+            plot_mat[plot_val * 10 + 10 :, :] = np.nan
         self.img.set_data(plot_mat)
         self.draw()
 
@@ -343,7 +346,7 @@ class SpectrumWidget(FigureCanvas):
         # data /= num.max(num.abs(data))
         if self._line is None:
             (self._line,) = self.ax.plot(
-                f_axis, data, color=num.array(_colors[color]) / 256
+                f_axis, data, color=np.array(_colors[color]) / 256
             )
         else:
             self._line.set_data(f_axis, data)
@@ -354,7 +357,7 @@ class SpectrumWidget(FigureCanvas):
             except:
                 pass
         if vline is not None:
-            self._vline = self.ax.axvline(vline, c=num.array(_colors["black"]) / 256)
+            self._vline = self.ax.axvline(vline, c=np.array(_colors["black"]) / 256)
 
         self.ax.set_yscale(self.spectral_type)
         self.ax.set_xlim((self.freq_min, self.freq_max))
@@ -385,7 +388,7 @@ class SpectrogramWidget(FigureCanvas):
         self.freq_max = 1000
         self.show_n_frames = 300
         self.img = self.ax.imshow(
-            num.zeros((self.show_n_frames, 4096)),
+            np.zeros((self.show_n_frames, 4096)),
             origin="lower",
             aspect="auto",
             cmap="viridis",
@@ -399,10 +402,10 @@ class SpectrogramWidget(FigureCanvas):
 
     def update_spectrogram(self, data):
         if self.spectral_type == "log":
-            data = num.log(1 + data)
+            data = np.log(1 + data)
 
         self.img.set_data(data)
-        self.img.set_clim(vmin=num.min(data), vmax=num.max(data))
+        self.img.set_clim(vmin=np.min(data), vmax=np.max(data))
         self.ax.set_xlim((self.freq_min, self.freq_max))
 
         self.figure.set_tight_layout(True)
@@ -447,14 +450,14 @@ def set_tick_choices(menu, default=20):
 class PitchWidget(FigureCanvas):
     """Pitches of each trace as discrete samples."""
 
-    low_pitch_changed = qc.pyqtSignal(num.ndarray)
+    low_pitch_changed = qc.pyqtSignal(np.ndarray)
 
     def __init__(self, parent, channel_views, *args, **kwargs):
         super(PitchWidget, self).__init__(Figure())
         self.parent = parent
         self.channel_views = channel_views
-        self.current_low_pitch = num.zeros(len(channel_views))
-        self.current_low_pitch[:] = num.nan
+        self.current_low_pitch = np.zeros(len(channel_views))
+        self.current_low_pitch[:] = np.nan
         self.track_start = None
         self.tfollow = 3.0
 
@@ -467,9 +470,9 @@ class PitchWidget(FigureCanvas):
         self.ax.xaxis.grid(True, which="major")
         self.ax.set_ylim((parent.pitch_min, parent.pitch_max))
         self.ax.set_yticks(
-            num.arange(parent.pitch_min, parent.pitch_max + 50, 50), minor=True
+            np.arange(parent.pitch_min, parent.pitch_max + 50, 50), minor=True
         )
-        self.ax.set_yticks(num.arange(parent.pitch_min, parent.pitch_max + 100, 100))
+        self.ax.set_yticks(np.arange(parent.pitch_min, parent.pitch_max + 100, 100))
         self.ax.tick_params(
             labelbottom=True,
             labeltop=False,
@@ -493,11 +496,11 @@ class PitchWidget(FigureCanvas):
     def update_pitchlims(self):
         self.ax.set_ylim((self.parent.pitch_min, self.parent.pitch_max))
         self.ax.set_yticks(
-            num.arange(self.parent.pitch_min, self.parent.pitch_max + 50, 50),
+            np.arange(self.parent.pitch_min, self.parent.pitch_max + 50, 50),
             minor=True,
         )
         self.ax.set_yticks(
-            num.arange(self.parent.pitch_min, self.parent.pitch_max + 100, 100)
+            np.arange(self.parent.pitch_min, self.parent.pitch_max + 100, 100)
         )
         self.draw()
 
@@ -505,13 +508,13 @@ class PitchWidget(FigureCanvas):
     def on_draw(self):
         for i, cv in enumerate(self.channel_views):
             x, y = cv.channel.pitch.latest_frame(self.tfollow, clip_min=True)
-            index = num.where(
+            index = np.where(
                 cv.channel.pitch_confidence.latest_frame_data(len(x))
                 >= cv.confidence_threshold
             )[0]
 
             index_grad = index_gradient_filter(x, y, self.derivative_filter)
-            index = num.intersect1d(index, index_grad)
+            index = np.intersect1d(index, index_grad)
             indices_grouped = consecutive(index)
             for group in indices_grouped:
                 if len(group) == 0:
@@ -520,7 +523,7 @@ class PitchWidget(FigureCanvas):
                     (self._line[i],) = self.ax.plot(
                         x[group],
                         y[group],
-                        color=num.array(_colors[cv.color]) / 256,
+                        color=np.array(_colors[cv.color]) / 256,
                         linewidth="4",
                     )
                 else:
@@ -534,8 +537,8 @@ class PitchWidget(FigureCanvas):
 
             self.low_pitch_changed.emit(self.current_low_pitch)
 
-        xstart = num.min(x)
-        self.ax.set_xticks(num.arange(0, xstart + self.tfollow, 1))
+        xstart = np.min(x)
+        self.ax.set_xticks(np.arange(0, xstart + self.tfollow, 1))
         self.ax.set_xlim(xstart, xstart + self.tfollow)
         self.figure.set_tight_layout(True)
         self.draw()
@@ -560,9 +563,9 @@ class DifferentialPitchWidget(FigureCanvas):
         self.ax.xaxis.grid(True, which="major")
         self.ax.set_ylim((parent.pitch_min, parent.pitch_max))
         self.ax.set_yticks(
-            num.arange(parent.pitch_min, parent.pitch_max + 50, 50), minor=True
+            np.arange(parent.pitch_min, parent.pitch_max + 50, 50), minor=True
         )
-        self.ax.set_yticks(num.arange(parent.pitch_min, parent.pitch_max + 100, 100))
+        self.ax.set_yticks(np.arange(parent.pitch_min, parent.pitch_max + 100, 100))
         self.ax.tick_params(
             labelbottom=True,
             labeltop=False,
@@ -586,11 +589,11 @@ class DifferentialPitchWidget(FigureCanvas):
     def update_pitchlims(self):
         self.ax.set_ylim((self.parent.pitch_min, self.parent.pitch_max))
         self.ax.set_yticks(
-            num.arange(self.parent.pitch_min, self.parent.pitch_max + 50, 50),
+            np.arange(self.parent.pitch_min, self.parent.pitch_max + 50, 50),
             minor=True,
         )
         self.ax.set_yticks(
-            num.arange(self.parent.pitch_min, self.parent.pitch_max + 100, 100)
+            np.arange(self.parent.pitch_min, self.parent.pitch_max + 100, 100)
         )
         self.draw()
 
@@ -598,12 +601,12 @@ class DifferentialPitchWidget(FigureCanvas):
     def on_draw(self):
         for i1, cv1 in enumerate(self.channel_views):
             x1, y1 = cv1.channel.pitch.latest_frame(tfollow, clip_min=True)
-            xstart = num.min(x1)
+            xstart = np.min(x1)
             index1 = cv1.channel.latest_confident_indices(
                 len(x1), cv1.confidence_threshold
             )
             index1_grad = index_gradient_filter(x1, y1, self.derivative_filter)
-            index1 = num.intersect1d(index1, index1_grad)
+            index1 = np.intersect1d(index1, index1_grad)
             for i2, cv2 in enumerate(self.channel_views):
                 if i1 >= i2:
                     continue
@@ -613,8 +616,8 @@ class DifferentialPitchWidget(FigureCanvas):
                     len(x2), cv2.confidence_threshold
                 )
 
-                index2 = num.intersect1d(index2, index2_grad)
-                indices = num.intersect1d(index1, index2)
+                index2 = np.intersect1d(index2, index2_grad)
+                indices = np.intersect1d(index1, index2)
                 indices_grouped = consecutive(indices)
 
                 for group in indices_grouped:
@@ -628,7 +631,7 @@ class DifferentialPitchWidget(FigureCanvas):
                         (self._line[i1][i2][0],) = self.ax.plot(
                             x,
                             y,
-                            color=num.array(_colors[cv1.color]) / 256,
+                            color=np.array(_colors[cv1.color]) / 256,
                             linewidth="4",
                             linestyle="-",
                         )
@@ -640,7 +643,7 @@ class DifferentialPitchWidget(FigureCanvas):
                         (self._line[i1][i2][1],) = self.ax.plot(
                             x,
                             y,
-                            color=num.array(_colors[cv2.color]) / 256,
+                            color=np.array(_colors[cv2.color]) / 256,
                             linewidth="4",
                             linestyle="--",
                         )
@@ -648,7 +651,7 @@ class DifferentialPitchWidget(FigureCanvas):
                         if len(x) != 0:
                             self._line[i1][i1][1].set_data(x, y)
 
-        self.ax.set_xticks(num.arange(0, xstart + self.tfollow, 1))
+        self.ax.set_xticks(np.arange(0, xstart + self.tfollow, 1))
         self.ax.set_xlim(xstart, xstart + self.tfollow)
         self.figure.set_tight_layout(True)
         self.draw()
@@ -842,73 +845,38 @@ class MainWidget(qw.QWidget):
         self.keyboard.setVisible(not self.keyboard.isVisible())
 
 
-class AdjustableMainWindow(qw.QMainWindow):
-    def sizeHint(self):
-        return qc.QSize(1200, 500)
-
-    @qc.pyqtSlot(qg.QKeyEvent)
-    def keyPressEvent(self, key_event):
-        """react on keyboard keys when they are pressed."""
-        key_text = key_event.text()
-        if key_text == "q":
-            self.close()
-        elif key_text == "f":
-            self.showMaximized()
-        super().keyPressEvent(key_event)
-
-
-class MainWindow(AdjustableMainWindow):
-    """Top level Window. The entry point of the gui."""
+class MainWindow(qw.QMainWindow):
+    """Main window that includes widgets for the menu and all visualizations."""
 
     def __init__(self):
         super().__init__()
+
+        # main widget inside window
         self.main_widget = MainWidget()
         self.main_widget.setFocusPolicy(qc.Qt.StrongFocus)
-
         self.setCentralWidget(self.main_widget)
 
-        controls_dock_widget = QDockWidget()
-        controls_dock_widget.setWidget(self.main_widget.menu)
+        # add dock widget for menu on left side
+        menu_dock_widget = QDockWidget()
+        menu_dock_widget.setWidget(self.main_widget.menu)
+        self.addDockWidget(qc.Qt.LeftDockWidgetArea, menu_dock_widget)
 
+        # add dock widget for trajectory views on right side
         views_dock_widget = QDockWidget()
         views_dock_widget.setWidget(self.main_widget.tabbed_pitch_widget)
-
-        # channel_mixer_dock_widget = QDockWidget()
-        # channel_mixer_dock_widget.setWidget(self.main_widget.channel_mixer)
-
-        self.addDockWidget(qc.Qt.LeftDockWidgetArea, controls_dock_widget)
         self.addDockWidget(qc.Qt.RightDockWidgetArea, views_dock_widget)
-        # self.addDockWidget(qc.Qt.BottomDockWidgetArea, channel_mixer_dock_widget)
 
-        config = get_config()
-        if config.start_maximized:
-            self.showMaximized()
-
+        self.showMaximized()  # maximize window always
         self.show()
 
 
-def from_command_line(close_after=None, check_opengl=False, disable_opengl=False):
-    """Start the GUI from command line"""
-    if check_opengl:
-        try:
-            from PyQt5.QtWidgets import QOpenGLWidget  # noqa
-
-            logger.info("opengl supported")
-        except ImportError as e:
-            logger.warning(str(e) + " - opengl not supported")
-        finally:
-            sys.exit()
-
+def start_gui():
+    """Starts the GUI"""
     app = qw.QApplication(sys.argv)
-
-    win = MainWindow()
-    if close_after:
-        close_timer = qc.QTimer()
-        close_timer.timeout.connect(app.quit)
-        close_timer.start(close_after * 1000.0)
-
+    _ = MainWindow()
     app.exec_()
 
 
+# start GUI by executing this file
 if __name__ == "__main__":
-    from_command_line()
+    start_gui()

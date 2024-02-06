@@ -1,37 +1,20 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""Python App"""
 
 import argparse
-
-from pytch.gui import from_command_line
 import logging
 
+from pytch.gui import start_gui
 
+
+# commandline argument parser
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('pytch')
     parser.add_argument(
         '--debug', required=False, default=False,
         action='store_true',
         help='Set logging level.')
-
-    parser.add_argument('--check-opengl', required=False,
-                        dest='check_opengl',
-                        default=False,
-                        action='store_true',
-                        help='Test if opengl is supported.')
-
-    parser.add_argument('--no-opengl', required=False,
-                        dest='use_opengl',
-                        default=False,
-                        action='store_false',
-                        help='Do not use opengl')
-
-    parser.add_argument('--close-after', required=False,
-                        dest='close_after',
-                        metavar='N',
-                        default=None,
-                        type=int,
-                        help='Close after N seconds. Utility option for\
-                        performance tests.')
 
     args = parser.parse_args()
 
@@ -41,6 +24,6 @@ if __name__ == '__main__':
     else:
         logger.setLevel(logging.INFO)
 
-    from_command_line(args.close_after,
-                      args.check_opengl,
-                      args.use_opengl)
+    logger.debug("starting app...")
+
+    start_gui()
