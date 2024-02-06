@@ -5,14 +5,33 @@ from PyQt5 import QtGui as qg
 import numpy as num
 import logging
 
-from .gui_util import FloatQLineEdit, LineEditWithLabel, _colors
 from .util import cent2f
-from .data import get_input_devices, MicrophoneRecorder, is_input_device
-from .data import get_sampling_rate_options
-from .config import get_config
+from .audio import get_input_devices, MicrophoneRecorder, is_input_device
+from .audio import get_sampling_rate_options
+from .config import get_config, _colors
 
 
 logger = logging.getLogger("pytch.menu")
+
+
+class FloatQLineEdit(qw.QLineEdit):
+    accepted_value = qc.pyqtSignal(float)
+
+    def __init__(self, default=None, *args, **kwargs):
+        qw.QLineEdit.__init__(self, *args, **kwargs)
+        self.setValidator(qg.QDoubleValidator())
+        self.setFocusPolicy(qc.Qt.ClickFocus | qc.Qt.TabFocus)
+        self.returnPressed.connect(self.do_check)
+        p = self.parent()
+        if p:
+            self.returnPressed.connect(p.setFocus)
+        if default:
+            self.setText(str(default))
+
+    def do_check(self):
+        text = self.text()
+        val = float(text)
+        self.accepted_value.emit(val)
 
 
 class ChannelSelector(qw.QWidget):
@@ -310,8 +329,11 @@ class ProcessingMenu(qw.QFrame):
 
     @qc.pyqtSlot(num.ndarray)
     def on_adapt_standard_frequency(self, fs):
-        f = self.get_adaptive_f(fs)
-        if self.freq_box.isReadOnly() and f != num.nan:
+        if num.isnan(fs):
+            f = num.nan
+        else:
+            f = self.get_adaptive_f(fs)
+        if self.freq_box.isReadOnly() and not num.isnan(f):
             fref = num.clip(float(self.freq_box.text()), -3000.0, 3000.0)
             txt = str(num.round((cent2f(f, fref) + fref) / 2.0, 2))
             if txt != "nan":

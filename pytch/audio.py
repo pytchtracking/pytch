@@ -4,12 +4,12 @@ import atexit
 import numpy as num
 import logging
 import pyaudio
+import PyQt5.QtCore as qc
 
 from collections import defaultdict
 from functools import lru_cache
 from scipy.io import wavfile
 from aubio import pitch
-from pytch.kalman import Kalman
 from pytch.util import f2cent, cent2f
 
 
@@ -519,3 +519,82 @@ class MicrophoneRecorder(DataProvider):
             r = num.reshape(frame, (self.chunksize, self.nchannels)).T
             for channel, i in zip(self.channels, self.selected_channels):
                 channel.append(r[i])
+
+
+class Worker(qc.QObject):
+    def __init__(self, channels):
+        """
+        The Worker does the signal processing in its' `process` method.
+
+        :param channels: list of `pytch.data.Channel` instances"""
+
+        super().__init__()
+        self.channels = channels
+
+    def process(self):
+        """Process the channels' data and update the channel instances."""
+        logger.debug("processing data")
+
+        for ic, channel in enumerate(self.channels):
+            frame_work = channel.latest_frame_data(channel.fftsize)
+            win = num.hanning(channel.fftsize)
+            # slight pre-emphasis
+            # frame_work[1:] -=  0.1 * frame_work[:-1]
+            # frame_work[0] = frame_work[1]
+
+            amp_spec = num.abs(num.fft.rfft(frame_work * win)) ** 2 / channel.fftsize
+            channel.fft.append(num.asarray(amp_spec, dtype=num.uint32))
+
+            channel.pitch_confidence.append_value(channel.pitch_o.get_confidence())
+
+            channel.pitch.append_value(channel.pitch_o(frame_work)[0])
+
+
+def cross_spectrum(spec1, spec2):
+    """Returns cross spectrum and phase of *spec1* and *spec2*"""
+    cross = spec1 * spec2.conjugate()
+    return num.abs(cross), num.unwrap(num.arctan2(cross.imag, cross.real))
+
+
+class Kalman:
+    """A simple Kalman filter which can be applied recusively to continuous
+    data.
+
+    A Python implementation of the example given in pages 11-15 of "An
+    Introduction to the Kalman Filter" by Greg Welch and Gary Bishop,
+    University of North Carolina at Chapel Hill, Department of Computer
+    Science, TR 95-041,
+    http://www.cs.unc.edu/~welch/kalman/kalmanIntro.html
+
+    by Andrew D. Straw
+    """
+
+    def __init__(self, P, R, Q):
+        self.P = P
+        self.R = R
+        self.Q = Q
+
+    def evaluate(self, new_sample, previous_estimate, weight=1.0, dt=None):
+        """Calculate the next estimate, based on the
+        *new_sample* and the *previous_sample*"""
+
+        # time update
+        xhatminus = previous_estimate
+        Pminus = self.P + self.Q * dt * 100.0
+
+        # measurement update
+        K = Pminus / (Pminus + self.R) * weight
+        self.P = (1 - K) * Pminus
+        return xhatminus + K * (new_sample - xhatminus)
+
+    def evaluate_array(self, array):
+        xhat = num.zeros(array.shape)
+        for k in range(1, len(array)):
+            new_sample = array[k]  # grab a new sample from the data set
+
+            # get a filtered new estimate:
+            xhat[k] = self.evaluate(
+                new_sample=new_sample, previous_estimate=xhat[k - 1]
+            )
+
+        return xhat

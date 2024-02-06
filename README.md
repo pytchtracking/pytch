@@ -46,6 +46,11 @@ Install pytch:
 python3 setup.py install
 ```
 
+For development purposes, install pytch with:
+```
+pip3 install -e .
+```
+
 # Invocation
 Open a terminal, type
 ```

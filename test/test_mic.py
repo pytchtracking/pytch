@@ -1,5 +1,5 @@
 from subprocess import call
-from pytch.data import MicrophoneRecorder
+from pytch.audio import MicrophoneRecorder
 import pytest
 
 
