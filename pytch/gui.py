@@ -9,7 +9,7 @@ import os
 
 from .util import consecutive, index_gradient_filter
 from .menu import DeviceMenu, ProcessingMenu
-from .config import get_config, _color_names, _colors
+from .config import _color_names, _colors
 from .audio import Worker
 
 from PyQt5 import QtCore as qc
@@ -415,38 +415,6 @@ class SpectrogramWidget(FigureCanvas):
         self.spectral_type = type
 
 
-class CheckBoxSelect(qw.QWidget):
-    """
-    Checkbox widget for switching between pitch modes
-    """
-
-    check_box_toggled = qc.pyqtSignal(int)
-
-    def __init__(self, value, parent):
-        qw.QWidget.__init__(self, parent=parent)
-        self.value = value
-        self.check_box = QPushButton(str(self.value), parent=self)
-        self.action = qw.QWidgetAction(self)
-        self.action.setDefaultWidget(self.check_box)
-        self.check_box.clicked.connect(self.on_state_changed)
-
-    @qc.pyqtSlot()
-    def on_state_changed(self):
-        self.check_box_toggled.emit(self.value)
-
-
-def set_tick_choices(menu, default=20):
-    group = QActionGroup(menu)
-    group.setExclusive(True)
-    for tick_increment in [10, 20, 50, 100]:
-        action = QAction(str(tick_increment), menu)
-        action.setCheckable(True)
-        if tick_increment == default:
-            action.setChecked(True)
-        group.addAction(action)
-        menu.addAction(action)
-
-
 class PitchWidget(FigureCanvas):
     """Pitches of each trace as discrete samples."""
 
@@ -658,30 +626,26 @@ class DifferentialPitchWidget(FigureCanvas):
 
 
 class RightTabs(qw.QTabWidget):
-    """Widget for right tabs"""
+    """Widget for right tabs."""
 
     def __init__(self, *args, **kwargs):
         qw.QTabWidget.__init__(self, *args, **kwargs)
-        # self.setSizePolicy(
-        #    qw.QSizePolicy.MinimumExpanding, qw.QSizePolicy.MinimumExpanding
-        # )
-
-        # self.setAutoFillBackground(True)
-
-        # self.layout = qw.QVBoxLayout()
-        # self.layout.addWidget(self.canvas)
-        # self.setLayout(self.layout)
+        self.setSizePolicy(
+            qw.QSizePolicy.MinimumExpanding, qw.QSizePolicy.MinimumExpanding
+        )
+        self.setAutoFillBackground(True)
 
         pal = self.palette()
         pal.setColor(qg.QPalette.Background, qg.QColor(*_colors["white"]))
         self.setPalette(pal)
 
     def sizeHint(self):
-        return qc.QSize(450, 200)
+        """Makes sure the widget is show with the right aspect."""
+        return qc.QSize(500, 200)
 
 
 class MainWidget(qw.QWidget):
-    """top level widget in the MainWindow."""
+    """Main widget that contains the menu and the visualization widgets."""
 
     signal_widgets_clear = qc.pyqtSignal()
     signal_widgets_draw = qc.pyqtSignal()
@@ -710,9 +674,11 @@ class MainWidget(qw.QWidget):
         self.pitch_min = -1500
         self.pitch_max = 1500
 
-        qc.QTimer().singleShot(0, self.set_input_dialog)
+        # TODO: Show before opening the GUI and initialise audio accordingly
+        qc.QTimer().singleShot(0, self.set_input_dialog)  # show input dialog
 
     def make_connections(self):
+        """Connect menu elements with backend."""
         menu = self.menu
         menu.input_button.clicked.connect(self.set_input_dialog)
 
@@ -732,32 +698,35 @@ class MainWidget(qw.QWidget):
     @qc.pyqtSlot()
     def on_save_as(self):
         """Write traces to wav files"""
-        _fn = QFileDialog().getSaveFileName(self, "Save as", ".", "")[0]
-        if _fn:
-            for i, tr in enumerate(self.channel_views_widget.views):
-                if not os.path.exists(_fn):
-                    os.makedirs(_fn)
-                fn = os.path.join(_fn, "channel%s" % i)
-                tr.channel.save_as(fn, fmt="wav")
+        # TODO: fix save fucntion
+        # _fn = QFileDialog().getSaveFileName(self, "Save as", ".", "")[0]
+        # if _fn:
+        #     for i, tr in enumerate(self.channel_views_widget.views):
+        #         if not os.path.exists(_fn):
+        #             os.makedirs(_fn)
+        #         fn = os.path.join(_fn, "channel%s" % i)
+        #         tr.channel.save_as(fn, fmt="wav")
 
     @qc.pyqtSlot(str)
     def on_algorithm_select(self, arg):
-        """change pitch algorithm"""
+        """Change pitch algorithm."""
         for c in self.data_input.channels:
             c.pitch_algorithm = arg
 
     def on_pitch_min_changed(self, p):
+        """Update axis min limit."""
         self.pitch_min = p
         self.pitch_view.update_pitchlims()
         self.pitch_view_all_diff.update_pitchlims()
 
     def on_pitch_max_changed(self, p):
+        """Update axis max limit."""
         self.pitch_max = p
         self.pitch_view.update_pitchlims()
         self.pitch_view_all_diff.update_pitchlims()
 
     def cleanup(self):
-        """clear all widgets."""
+        """Clear all widgets."""
         if self.data_input:
             self.data_input.stop()
             self.data_input.terminate()
@@ -774,6 +743,8 @@ class MainWidget(qw.QWidget):
         self.input_dialog.activateWindow()
 
     def reset(self):
+        """Initializes widgets and makes connections."""
+        # TODO: Don't initialise widgets here for the first time!
         dinput = self.data_input
         self.worker = Worker(dinput.channels)
         self.channel_views_widget = ChannelViews(
@@ -788,17 +759,12 @@ class MainWidget(qw.QWidget):
 
         self.pitch_view = PitchWidget(self, channel_views)
         self.pitch_view.low_pitch_changed.connect(self.menu.on_adapt_standard_frequency)
-
         self.pitch_view_all_diff = DifferentialPitchWidget(self, channel_views)
-        # pitch_diff_view = PitchLevelDifferenceViews(channel_views)
-        # self.pitch_diff_view_colorized = PitchLevelMikadoViews(channel_views)
 
         # remove old tabs from pitch view
         self.tabbed_pitch_widget.clear()
         self.tabbed_pitch_widget.addTab(self.pitch_view, "Pitches")
         self.tabbed_pitch_widget.addTab(self.pitch_view_all_diff, "Differential")
-        # self.tabbed_pitch_widget.addTab(pitch_diff_view, "Current")
-        # self.tabbed_pitch_widget.addTab(self.pitch_diff_view_colorized, 'Mikado')
 
         self.menu.derivative_filter_slider.valueChanged.connect(
             self.pitch_view.on_derivative_filter_changed
@@ -810,18 +776,18 @@ class MainWidget(qw.QWidget):
 
         self.signal_widgets_draw.connect(self.pitch_view.on_draw)
         self.signal_widgets_draw.connect(self.pitch_view_all_diff.on_draw)
-        # self.signal_widgets_draw.connect(pitch_diff_view.on_draw)
 
-        t_wait_buffer = max(dinput.fftsizes) / dinput.sampling_rate * 1500.0
-        qc.QTimer().singleShot(int(t_wait_buffer), self.start_refresh_timer)
+        # timer for GUI updates
+        t_wait_buffer = int(max(dinput.fftsizes) / dinput.sampling_rate * 1500.0)
+        qc.QTimer().singleShot(t_wait_buffer, self.start_refresh_timer)
 
     def start_refresh_timer(self):
-        self.refresh_timer.start(58)
+        self.refresh_timer.start()
 
     def set_input(self, input):
+        """Set audio input."""
         self.cleanup()
         self.data_input = input
-        # self.channel_mixer.set_channels(self.data_input.channels)
         self.data_input.start_new_stream()
         self.make_connections()
 
@@ -841,12 +807,9 @@ class MainWidget(qw.QWidget):
         self.cleanup()
         qw.QWidget.closeEvent(self, ev)
 
-    def toggle_keyboard(self):
-        self.keyboard.setVisible(not self.keyboard.isVisible())
-
 
 class MainWindow(qw.QMainWindow):
-    """Main window that includes widgets for the menu and all visualizations."""
+    """Main window that includes the main widget for the menu and all visualizations."""
 
     def __init__(self):
         super().__init__()

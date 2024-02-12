@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""Audio Functions"""
 import os
 import threading
 import atexit
@@ -14,12 +17,47 @@ from pytch.util import f2cent, cent2f
 
 
 _lock = threading.Lock()
-
-# This module contains buffering and input devices
-# class taken from the scipy 2015 vispy talk opening example
-# see https://github.com/vispy/vispy/pull/928
-
 logger = logging.getLogger("pytch.data")
+
+
+# TODO: Should be sufficient to have two classes only here
+class AudioBuffer:
+    """Main class for audio buffer for all channels."""
+
+    def __init__(self):
+        # collect info about available devices here
+        pass
+
+    def initialize_audio_stream(self):
+        pass
+
+    def initialize_buffers(self):
+        pass
+
+    def start_audio_stream(self):
+        pass
+
+    def stop_audio_stream(self):
+        pass
+
+    def reset_buffers(self):
+        pass
+
+    def audio_callback(self):
+        pass
+
+
+class ChannelBuffer:
+    """Ring buffer for a single channel."""
+
+    def __init__(self):
+        pass
+
+    def update(self):
+        pass
+
+    def flush(self):
+        pass
 
 
 def is_input_device(device):
@@ -548,12 +586,6 @@ class Worker(qc.QObject):
             channel.pitch_confidence.append_value(channel.pitch_o.get_confidence())
 
             channel.pitch.append_value(channel.pitch_o(frame_work)[0])
-
-
-def cross_spectrum(spec1, spec2):
-    """Returns cross spectrum and phase of *spec1* and *spec2*"""
-    cross = spec1 * spec2.conjugate()
-    return num.abs(cross), num.unwrap(num.arctan2(cross.imag, cross.real))
 
 
 class Kalman:
