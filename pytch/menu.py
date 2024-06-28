@@ -122,7 +122,7 @@ class DeviceMenu(qw.QDialog):
         """Return a qw.QSlider for modifying FFT width"""
         b = qw.QComboBox()
         b.addItems([str(f * 1024) for f in [1, 2, 4, 8, 16]])
-        b.setCurrentIndex(3)
+        b.setCurrentIndex(1)
         return b
 
     @qc.pyqtSlot()
