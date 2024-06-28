@@ -297,7 +297,7 @@ class RingBuffer2D(RingBuffer):
 
 
 class Channel(RingBuffer):
-    def __init__(self, sampling_rate, fftsize=8192):
+    def __init__(self, sampling_rate, fftsize=2048):
         self.buffer_length_seconds = 40
         RingBuffer.__init__(self, sampling_rate, self.buffer_length_seconds)
 
@@ -333,7 +333,7 @@ class Channel(RingBuffer):
             # sampling_rate=self.sampling_rate/self.fftsize,   # Hop size
             sampling_rate=sr,
             buffer_length_seconds=self.buffer_length_seconds,
-            dtype=num.uint32,
+            dtype=num.float32,
         )
         self.fft_power = RingBuffer(
             sampling_rate=sr, buffer_length_seconds=self.buffer_length_seconds
@@ -467,7 +467,7 @@ class MicrophoneRecorder(DataProvider):
         available data."""
 
         with _lock:
-            self.frames.append(data)
+            self.frames.append(data.astype(num.float32, order="C") / 32768.0)
             if self._stop:
                 return None
 
@@ -506,7 +506,7 @@ class MicrophoneRecorder(DataProvider):
             blocksize=self.chunksize,
             device=self.device_no,
             channels=self.nchannels,
-            dtype=num.float32,
+            dtype=num.int16,
             latency=None,
             extra_settings=None,
             callback=self.new_frame,
@@ -566,12 +566,8 @@ class Worker(qc.QObject):
         for ic, channel in enumerate(self.channels):
             frame_work = channel.latest_frame_data(channel.fftsize)
             win = num.hanning(channel.fftsize)
-            # slight pre-emphasis
-            # frame_work[1:] -=  0.1 * frame_work[:-1]
-            # frame_work[0] = frame_work[1]
-
             amp_spec = num.abs(num.fft.rfft(frame_work * win)) ** 2 / channel.fftsize
-            channel.fft.append(num.asarray(amp_spec, dtype=num.uint32))
+            channel.fft.append(num.asarray(amp_spec, dtype=num.float32))
 
             f0, t, conf = channel.compute_pitch(frame_work)
             channel.pitch_confidence.append_value(num.mean(conf))

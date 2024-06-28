@@ -181,7 +181,7 @@ class ChannelView(qw.QWidget):
         if self.is_product:
             self.level_widget.update_level(np.nan)
         else:
-            audio_float = ch.latest_frame(1)[1].astype(np.float32, order="C") / 32768.0
+            audio_float = ch.latest_frame(1)[1]
             self.level_widget.update_level(audio_float)
 
         # update spectrum
@@ -330,7 +330,7 @@ class SpectrumWidget(FigureCanvas):
         self.figure = Figure(tight_layout=True)
         self.canvas = FigureCanvas(self.figure)
         self.ax = self.figure.add_subplot(111, position=[0, 0, 0, 0])
-        self.ax.set_title(None)
+        self.ax.set_title("")
         self.ax.set_ylabel(None)
         self.ax.set_xlabel("Frequency [Hz]")
         self.ax.get_yaxis().set_visible(False)
@@ -381,7 +381,7 @@ class SpectrogramWidget(FigureCanvas):
         self.figure = Figure(tight_layout=True)
         self.canvas = FigureCanvas(self.figure)
         self.ax = self.figure.add_subplot(111)
-        self.ax.set_title(None)
+        self.ax.set_title("")
         self.ax.set_ylabel(None)
         self.ax.get_yaxis().set_visible(False)
         self.freq_min = 20
@@ -402,7 +402,7 @@ class SpectrogramWidget(FigureCanvas):
 
     def update_spectrogram(self, data):
         if self.spectral_type == "log":
-            data = np.log(1 + data)
+            data = np.log(1 + 1000 * data)
 
         self.img.set_data(data)
         self.img.set_clim(vmin=np.min(data), vmax=np.max(data))
