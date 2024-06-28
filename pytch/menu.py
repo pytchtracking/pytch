@@ -6,7 +6,7 @@ import numpy as num
 import logging
 
 from .util import cent2f
-from .audio import get_input_devices, MicrophoneRecorder, is_input_device
+from .audio import get_input_devices, MicrophoneRecorder
 from .audio import get_sampling_rate_options
 from .config import get_config, _colors
 
@@ -71,14 +71,7 @@ class DeviceMenu(qw.QDialog):
 
         default_device = (0, self.devices[0])
         for idevice, device in enumerate(self.devices):
-            if is_input_device(device):
-                extra = ""
-                if not default_device[0]:
-                    default_device = (idevice, device)
-            else:
-                extra = "(No Input)"
-
-            self.select_input.addItem("{} {}{}".format(idevice, device["name"], extra))
+            self.select_input.addItem("{} {}".format(idevice, device["name"]))
 
         # select sampling rate
         layout.addWidget(qw.QLabel("Sampling Rate"))
@@ -111,7 +104,7 @@ class DeviceMenu(qw.QDialog):
     @qc.pyqtSlot(int)
     def update_channel_info(self, index):
         device = self.devices[index]
-        nmax_channels = device["maxInputChannels"]
+        nmax_channels = device["max_input_channels"]
 
         sampling_rate_options = get_sampling_rate_options()
         self.channel_selector = ChannelSelector(

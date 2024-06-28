@@ -6,7 +6,7 @@ import threading
 import atexit
 import numpy as num
 import logging
-import pyaudio
+import sounddevice
 import PyQt5.QtCore as qc
 
 from collections import defaultdict
@@ -60,64 +60,40 @@ class ChannelBuffer:
         pass
 
 
-def is_input_device(device):
-    return device["maxInputChannels"] != 0
-
-
 def get_input_devices():
-    """returns a dict of device descriptions.
-    If the device's `maxInputChannels` is 0 the device is skipped
-    """
-    p = pyaudio.PyAudio()
-    devices = []
-    for i in range(p.get_device_count()):
-        device = p.get_device_info_by_index(i)
-        devices.append(device)
-
-    p.terminate()
-    return devices
+    """returns a list of devices."""
+    return sounddevice.query_devices()
 
 
 @lru_cache(maxsize=128)
 def get_sampling_rate_options(audio=None):
     """dictionary of supported sampling rates for all devices."""
 
-    if not audio:
-        paudio = pyaudio.PyAudio()
-    else:
-        paudio = audio
-
     candidates = [8000.0, 11025.0, 16000.0, 22050.0, 32000.0, 37800.0, 44100.0, 48000.0]
     supported_sampling_rates = defaultdict(list)
-    for device_no in range(paudio.get_device_count()):
+    for device_no in range(len(sounddevice.query_devices())):
         for c in candidates:
-            if check_sampling_rate(device_no, int(c), audio=paudio):
+            if check_sampling_rate(device_no, int(c)):
                 supported_sampling_rates[device_no].append(c)
-
-    if not audio:
-        paudio.terminate()
 
     return supported_sampling_rates
 
 
 def check_sampling_rate(device_index, sampling_rate, audio=None):
-    p = audio or pyaudio.PyAudio()
-    devinfo = p.get_device_info_by_index(device_index)
     valid = True
     try:
-        p.is_format_supported(
-            sampling_rate,
-            input_device=devinfo["index"],
-            input_channels=devinfo["maxinputchannels"],
-            input_format=pyaudio.paint16,
+        sounddevice.check_input_settings(
+            device=device_index,
+            channels=None,
+            dtype=None,
+            extra_settings=None,
+            samplerate=sampling_rate,
         )
     except ValueError as e:
         logger.debug(e)
         valid = False
 
     finally:
-        if not audio:
-            p.terminate()
         return valid
 
 
@@ -435,7 +411,7 @@ class DataProvider:
 
 
 class MicrophoneRecorder(DataProvider):
-    """Interfacing PyAudio to record data from sound"""
+    """Interfacing Sounddevice to record data from sound"""
 
     def __init__(
         self,
@@ -449,7 +425,6 @@ class MicrophoneRecorder(DataProvider):
 
         selected_channels = selected_channels or []
         self.stream = None
-        self.paudio = pyaudio.PyAudio()
         self.nchannels = max(selected_channels) + 1
 
         self.device_no = device_no
@@ -473,21 +448,20 @@ class MicrophoneRecorder(DataProvider):
     @property
     def sampling_rate_options(self):
         """List of supported sampling rates."""
-        return get_sampling_rate_options(self.device_no, audio=self.paudio)
+        return get_sampling_rate_options(self.device_no)
 
-    def new_frame(self, data, frame_count, time_info, status):
-        """Callback function called as soon as pyaudio anounces new
+    def new_frame(self, data, frames, time, status):
+        """Callback function called as soon as we have audio data available
         available data."""
-        data = num.asarray(num.fromstring(data, "int16"), num.float32)
 
         with _lock:
             self.frames.append(data)
             if self._stop:
-                return None, pyaudio.paComplete
+                return None
 
         self.flush()
 
-        return None, pyaudio.paContinue
+        return None
 
     def get_frames(self):
         """Read frames and empty pre-buffer."""
@@ -500,7 +474,7 @@ class MicrophoneRecorder(DataProvider):
         if self.stream is None:
             self.start_new_stream()
 
-        self.stream.start_stream()
+        self.stream.start()
         self._stop = False
 
     @property
@@ -509,31 +483,36 @@ class MicrophoneRecorder(DataProvider):
 
     @sampling_rate.setter
     def sampling_rate(self, rate):
-        check_sampling_rate(self.device_no, rate, audio=self.paudio)
+        check_sampling_rate(self.device_no, rate)
         self.__sampling_rate = rate
 
     def start_new_stream(self):
         """Start audio stream."""
         self.frames = []
-        self.stream = self.paudio.open(
-            format=pyaudio.paInt16,
+        self.stream = sounddevice.InputStream(
+            samplerate=self.sampling_rate,
+            blocksize=self.chunksize,
+            device=self.device_no,
             channels=self.nchannels,
-            rate=self.sampling_rate,
-            input=True,
-            output=False,
-            frames_per_buffer=self.chunksize,
-            input_device_index=self.device_no,
-            stream_callback=self.new_frame,
+            dtype=num.float32,
+            latency=None,
+            extra_settings=None,
+            callback=self.new_frame,
+            finished_callback=None,
+            clip_off=None,
+            dither_off=None,
+            never_drop_input=None,
+            prime_output_buffers_using_stream_callback=None,
         )
         self._stop = False
         logger.debug("starting new stream: %s" % self.stream)
-        self.stream.start_stream()
+        self.stream.start()
 
     def stop(self):
         with _lock:
             self._stop = True
         if self.stream is not None:
-            self.stream.stop_stream()
+            self.stream.stop()
 
     def close(self):
         self.stop()
@@ -542,7 +521,6 @@ class MicrophoneRecorder(DataProvider):
     def terminate(self):
         if self.stream:
             self.close()
-        self.paudio.terminate()
         logger.debug("terminated stream")
 
     @property
