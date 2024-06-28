@@ -301,7 +301,7 @@ class Channel(RingBuffer):
         self.buffer_length_seconds = 40
         RingBuffer.__init__(self, sampling_rate, self.buffer_length_seconds)
 
-        self.__algorithm = "yinfast"
+        self.__algorithm = "YIN"
         self.name = ""
         self.fftsize = fftsize
         self.setup_buffers()

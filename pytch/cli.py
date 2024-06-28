@@ -8,17 +8,19 @@ import logging
 from pytch.gui import start_gui
 
 
-# commandline argument parser
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser('pytch')
+def main():
+    parser = argparse.ArgumentParser("pytch")
     parser.add_argument(
-        '--debug', required=False, default=False,
-        action='store_true',
-        help='Set logging level.')
+        "--debug",
+        required=False,
+        default=False,
+        action="store_true",
+        help="Set logging level.",
+    )
 
     args = parser.parse_args()
 
-    logger = logging.getLogger('pytch')
+    logger = logging.getLogger("pytch")
     if args.debug:
         logger.setLevel(logging.DEBUG)
     else:
@@ -27,3 +29,8 @@ if __name__ == '__main__':
     logger.debug("starting app...")
 
     start_gui()
+
+
+# commandline argument parser
+if __name__ == "__main__":
+    main()
