@@ -1,6 +1,6 @@
-from PyQt5 import QtWidgets as qw
-from PyQt5 import QtCore as qc
-from PyQt5 import QtGui as qg
+from PyQt6 import QtWidgets as qw
+from PyQt6 import QtCore as qc
+from PyQt6 import QtGui as qg
 
 import numpy as num
 import logging
@@ -20,7 +20,7 @@ class FloatQLineEdit(qw.QLineEdit):
     def __init__(self, default=None, *args, **kwargs):
         qw.QLineEdit.__init__(self, *args, **kwargs)
         self.setValidator(qg.QDoubleValidator())
-        self.setFocusPolicy(qc.Qt.ClickFocus | qc.Qt.TabFocus)
+        self.setFocusPolicy(qc.Qt.FocusPolicy.ClickFocus | qc.Qt.FocusPolicy.TabFocus)
         self.returnPressed.connect(self.do_check)
         p = self.parent()
         if p:
@@ -88,7 +88,8 @@ class DeviceMenu(qw.QDialog):
         layout.addWidget(self.channel_selector_scroll, 1, 2, 6, 1)
 
         buttons = qw.QDialogButtonBox(
-            qw.QDialogButtonBox.Ok | qw.QDialogButtonBox.Cancel
+            qw.QDialogButtonBox.StandardButton.Ok
+            | qw.QDialogButtonBox.StandardButton.Cancel
         )
 
         self.select_input.currentIndexChanged.connect(self.update_channel_info)
@@ -164,7 +165,7 @@ class ProcessingMenu(qw.QFrame):
         self.save_as_button = qw.QPushButton("Save as")
         layout.addWidget(self.save_as_button, 1, 0)
 
-        layout.addItem(qw.QSpacerItem(40, 20), 2, 0, qc.Qt.AlignTop)
+        layout.addItem(qw.QSpacerItem(40, 20), 2, 0, qc.Qt.AlignmentFlag.AlignTop)
 
         ###################
         channel_view = qw.QGroupBox("Channel View (Center)")
@@ -208,7 +209,7 @@ class ProcessingMenu(qw.QFrame):
 
         channel_view.setLayout(cv_layout)
         layout.addWidget(channel_view, 3, 0, 1, 2)
-        layout.addItem(qw.QSpacerItem(40, 20), 4, 0, qc.Qt.AlignTop)
+        layout.addItem(qw.QSpacerItem(40, 20), 4, 0, qc.Qt.AlignmentFlag.AlignTop)
 
         ###################
         pitch_view = qw.QGroupBox("Trajectory View (Right)")
@@ -217,24 +218,18 @@ class ProcessingMenu(qw.QFrame):
         pv_layout.addWidget(qw.QLabel("Select Algorithm"), 0, 0)
         self.select_algorithm = qw.QComboBox(self)
         algorithms = [
-            "default",
-            "schmitt",
-            "fcomb",
-            "mcomb",
-            "specacf",
-            "yin",
-            "yinfft",
-            "yinfast",
+            "YIN",
+            "SWIPE",
         ]
         self.select_algorithm.addItems(algorithms)
-        self.select_algorithm.setCurrentIndex(algorithms.index("yinfast"))
+        self.select_algorithm.setCurrentIndex(algorithms.index("YIN"))
         pv_layout.addWidget(self.select_algorithm, 0, 1, 1, 1)
 
         pv_layout.addWidget(qw.QLabel("Confidence Threshold"), 1, 0)
         self.noise_thresh_slider = qw.QSlider()
         self.noise_thresh_slider.setRange(0, 15)
         # self.noise_thresh_slider.setTickPosition(qw.QSlider.TicksBelow)
-        self.noise_thresh_slider.setOrientation(qc.Qt.Horizontal)
+        self.noise_thresh_slider.setOrientation(qc.Qt.Orientation.Horizontal)
         self.noise_thresh_slider.valueChanged.connect(
             lambda x: self.noise_thresh_label.setText(str(x / 10.0))
         )
@@ -249,7 +244,7 @@ class ProcessingMenu(qw.QFrame):
         self.derivative_filter_slider = qw.QSlider()
         self.derivative_filter_slider.setRange(0, 9999)
         self.derivative_filter_slider.setValue(1000)
-        self.derivative_filter_slider.setOrientation(qc.Qt.Horizontal)
+        self.derivative_filter_slider.setOrientation(qc.Qt.Orientation.Horizontal)
         derivative_filter_label = qw.QLabel(f"{self.derivative_filter_slider.value()}")
         pv_layout.addWidget(derivative_filter_label, 2, 2)
         self.derivative_filter_slider.valueChanged.connect(
@@ -291,14 +286,14 @@ class ProcessingMenu(qw.QFrame):
 
         self.setLineWidth(1)
         self.get_adaptive_f = num.nanmin
-        self.setFrameStyle(qw.QFrame.Sunken)
-        self.setFrameShape(qw.QFrame.Box)
-        self.setSizePolicy(qw.QSizePolicy.Minimum, qw.QSizePolicy.Minimum)
+        self.setFrameStyle(qw.QFrame.Shadow.Sunken)
+        self.setFrameShape(qw.QFrame.Shape.Box)
+        self.setSizePolicy(qw.QSizePolicy.Policy.Minimum, qw.QSizePolicy.Policy.Minimum)
         self.setup_palette()
 
     def setup_palette(self):
         pal = self.palette()
-        pal.setColor(qg.QPalette.Background, qg.QColor(*_colors["aluminium1"]))
+        pal.setColor(qg.QPalette.ColorRole.Window, qg.QColor(*_colors["aluminium1"]))
         self.setPalette(pal)
         self.setAutoFillBackground(True)
 

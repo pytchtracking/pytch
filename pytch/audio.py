@@ -7,12 +7,12 @@ import atexit
 import numpy as num
 import logging
 import sounddevice
-import PyQt5.QtCore as qc
+import libf0
+import PyQt6.QtCore as qc
 
 from collections import defaultdict
 from functools import lru_cache
 from scipy.io import wavfile
-from aubio import pitch
 from pytch.util import f2cent, cent2f
 
 
@@ -303,9 +303,7 @@ class Channel(RingBuffer):
 
         self.__algorithm = "yinfast"
         self.name = ""
-        self.pitch_o = None
         self.fftsize = fftsize
-        self.setup_pitch()
         self.setup_buffers()
 
         # TODO refactor to processing module
@@ -381,21 +379,35 @@ class Channel(RingBuffer):
     def pitch_algorithm(self, alg):
         self.__algorithm = alg
         self.setup_buffers()
-        self.setup_pitch()
 
     def get_latest_pitch(self):
         return self.pitch.latest_frame_data(1)
 
-    def setup_pitch(self):
-        if self.pitch_o:
-            self.pitch_o = None
-        tolerance = 0.8
-        win_s = self.fftsize
+    def compute_pitch(self, x):
+        if self.pitch_algorithm == "YIN":
+            f0, t, conf = libf0.yin(
+                x,
+                Fs=self.sampling_rate,
+                N=2048,
+                H=256,
+                F_min=55.0,
+                F_max=1760.0,
+                threshold=0.15,
+                verbose=False,
+            )
+        else:
+            f0, t, conf = libf0.swipe(
+                x,
+                Fs=self.sampling_rate,
+                H=256,
+                F_min=55.0,
+                F_max=1760.0,
+                dlog2p=1 / 96,
+                derbs=0.1,
+                strength_threshold=0,
+            )
 
-        # TODO check parameters
-        self.pitch_o = pitch(self.pitch_algorithm, win_s, win_s, self.sampling_rate)
-        self.pitch_o.set_unit("Hz")
-        self.pitch_o.set_tolerance(tolerance)
+        return f0, t, conf
 
 
 class DataProvider:
@@ -561,9 +573,10 @@ class Worker(qc.QObject):
             amp_spec = num.abs(num.fft.rfft(frame_work * win)) ** 2 / channel.fftsize
             channel.fft.append(num.asarray(amp_spec, dtype=num.uint32))
 
-            channel.pitch_confidence.append_value(channel.pitch_o.get_confidence())
+            f0, t, conf = channel.compute_pitch(frame_work)
+            channel.pitch_confidence.append_value(num.mean(conf))
 
-            channel.pitch.append_value(channel.pitch_o(frame_work)[0])
+            channel.pitch.append_value(num.mean(f0))
 
 
 class Kalman:

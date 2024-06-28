@@ -12,12 +12,12 @@ from .menu import DeviceMenu, ProcessingMenu
 from .config import _color_names, _colors
 from .audio import Worker
 
-from PyQt5 import QtCore as qc
-from PyQt5 import QtGui as qg
-from PyQt5 import QtWidgets as qw
-from PyQt5.QtWidgets import QVBoxLayout
-from PyQt5.QtWidgets import QAction, QPushButton, QDockWidget, QFrame, QSizePolicy
-from PyQt5.QtWidgets import QMenu, QActionGroup, QFileDialog
+from PyQt6 import QtCore as qc
+from PyQt6 import QtGui as qg
+from PyQt6 import QtWidgets as qw
+from PyQt6.QtWidgets import QVBoxLayout
+from PyQt6.QtWidgets import QPushButton, QDockWidget, QFrame, QSizePolicy
+from PyQt6.QtGui import QAction
 
 import matplotlib
 from matplotlib.backends.backend_qtagg import FigureCanvas
@@ -64,7 +64,7 @@ class ChannelViews(qw.QWidget):
             self.layout.addWidget(c_view)
         self.layout.setContentsMargins(-5, -5, -5, -5)
 
-        self.setSizePolicy(qw.QSizePolicy.Minimum, qw.QSizePolicy.Minimum)
+        self.setSizePolicy(qw.QSizePolicy.Policy.Minimum, qw.QSizePolicy.Policy.Minimum)
         self.show_level_widgets(False)
         self.show_spectrum_widgets(False)
         self.show_spectrogram_widgets(False)
@@ -130,9 +130,9 @@ class QHLine(QFrame):
         super().__init__()
         self.setMinimumWidth(1)
         self.setFixedHeight(20)
-        self.setFrameShape(QFrame.HLine)
-        self.setFrameShadow(QFrame.Sunken)
-        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+        self.setFrameShape(QFrame.Shape.HLine)
+        self.setFrameShadow(QFrame.Shadow.Sunken)
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
         return
 
 
@@ -631,12 +631,13 @@ class RightTabs(qw.QTabWidget):
     def __init__(self, *args, **kwargs):
         qw.QTabWidget.__init__(self, *args, **kwargs)
         self.setSizePolicy(
-            qw.QSizePolicy.MinimumExpanding, qw.QSizePolicy.MinimumExpanding
+            qw.QSizePolicy.Policy.MinimumExpanding,
+            qw.QSizePolicy.Policy.MinimumExpanding,
         )
         self.setAutoFillBackground(True)
 
         pal = self.palette()
-        pal.setColor(qg.QPalette.Background, qg.QColor(*_colors["white"]))
+        pal.setColor(qg.QPalette.ColorRole.Window, qg.QColor(*_colors["white"]))
         self.setPalette(pal)
 
     def sizeHint(self):
@@ -656,7 +657,7 @@ class MainWidget(qw.QWidget):
 
         pal = self.palette()
         self.setAutoFillBackground(True)
-        pal.setColor(qg.QPalette.Background, qg.QColor(*_colors["white"]))
+        pal.setColor(qg.QPalette.ColorRole.Window, qg.QColor(*_colors["white"]))
         self.setPalette(pal)
 
         self.setMouseTracking(True)
@@ -816,18 +817,18 @@ class MainWindow(qw.QMainWindow):
 
         # main widget inside window
         self.main_widget = MainWidget()
-        self.main_widget.setFocusPolicy(qc.Qt.StrongFocus)
+        self.main_widget.setFocusPolicy(qc.Qt.FocusPolicy.StrongFocus)
         self.setCentralWidget(self.main_widget)
 
         # add dock widget for menu on left side
         menu_dock_widget = QDockWidget()
         menu_dock_widget.setWidget(self.main_widget.menu)
-        self.addDockWidget(qc.Qt.LeftDockWidgetArea, menu_dock_widget)
+        self.addDockWidget(qc.Qt.DockWidgetArea.LeftDockWidgetArea, menu_dock_widget)
 
         # add dock widget for trajectory views on right side
         views_dock_widget = QDockWidget()
         views_dock_widget.setWidget(self.main_widget.tabbed_pitch_widget)
-        self.addDockWidget(qc.Qt.RightDockWidgetArea, views_dock_widget)
+        self.addDockWidget(qc.Qt.DockWidgetArea.RightDockWidgetArea, views_dock_widget)
 
         self.showMaximized()  # maximize window always
         self.show()
@@ -837,7 +838,7 @@ def start_gui():
     """Starts the GUI"""
     app = qw.QApplication(sys.argv)
     _ = MainWindow()
-    app.exec_()
+    app.exec()
 
 
 # start GUI by executing this file
