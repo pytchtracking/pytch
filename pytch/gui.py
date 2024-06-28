@@ -153,7 +153,7 @@ class ChannelView(qw.QWidget):
         self.color = color
         self.is_product = is_product
 
-        self.confidence_threshold = 0.9
+        self.confidence_threshold = 0.0
         self.t_follow = 3
 
         self.level_widget = LevelWidget(channel_label=channel_label)
