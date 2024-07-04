@@ -1,77 +1,36 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """Audio Functions"""
-import os
 import threading
 import atexit
-import numpy as num
+import numpy as np
 import logging
 import sounddevice
 import libf0
-import PyQt6.QtCore as qc
 
 from collections import defaultdict
-from functools import lru_cache
-from scipy.io import wavfile
-from pytch.util import f2cent, cent2f
+from .util import f2cent, cent2f
 
 
 _lock = threading.Lock()
 logger = logging.getLogger("pytch.data")
 
 
-# TODO: Should be sufficient to have two classes only here
-class AudioBuffer:
-    """Main class for audio buffer for all channels."""
-
-    def __init__(self):
-        # collect info about available devices here
-        pass
-
-    def initialize_audio_stream(self):
-        pass
-
-    def initialize_buffers(self):
-        pass
-
-    def start_audio_stream(self):
-        pass
-
-    def stop_audio_stream(self):
-        pass
-
-    def reset_buffers(self):
-        pass
-
-    def audio_callback(self):
-        pass
-
-
-class ChannelBuffer:
-    """Ring buffer for a single channel."""
-
-    def __init__(self):
-        pass
-
-    def update(self):
-        pass
-
-    def flush(self):
-        pass
-
-
 def get_input_devices():
-    """returns a list of devices."""
+    """
+    Returns a list of devices.
+    """
     return sounddevice.query_devices()
 
 
-@lru_cache(maxsize=128)
-def get_sampling_rate_options(audio=None):
-    """dictionary of supported sampling rates for all devices."""
+def get_sampling_rate_options(device_idx):
+    """
+    Returns a dictionary of supported sampling rates for all devices.
+    """
 
     candidates = [8000.0, 11025.0, 16000.0, 22050.0, 32000.0, 37800.0, 44100.0, 48000.0]
     supported_sampling_rates = defaultdict(list)
-    for device_no in range(len(sounddevice.query_devices())):
+    for device_no in range(len(sounddevice.query_devices(device=device_idx))):
         for c in candidates:
             if check_sampling_rate(device_no, int(c)):
                 supported_sampling_rates[device_no].append(c)
@@ -79,7 +38,10 @@ def get_sampling_rate_options(audio=None):
     return supported_sampling_rates
 
 
-def check_sampling_rate(device_index, sampling_rate, audio=None):
+def check_sampling_rate(device_index, sampling_rate):
+    """
+    Validates chosen sampling rate.
+    """
     valid = True
     try:
         sounddevice.check_input_settings(
@@ -97,17 +59,14 @@ def check_sampling_rate(device_index, sampling_rate, audio=None):
         return valid
 
 
-class Buffer:
-
-    """data container
-
-    new data is prepended, so that the latest data point is in self.data[0]"""
+class RingBuffer:
+    """Based on numpy"""
 
     def __init__(
         self,
         sampling_rate,
         buffer_length_seconds,
-        dtype=num.float32,
+        dtype=np.float32,
         tmin=0,
         proxy=None,
     ):
@@ -118,95 +77,18 @@ class Buffer:
         self.dtype = dtype
         self.empty()
         self.i_filled = 0
-        self._x = num.arange(self.data_len, dtype=self.dtype) * self.delta + self.tmin
+        self._x = np.arange(self.data_len, dtype=self.dtype) * self.delta() + self.tmin
         self.proxy = self._proxy if not proxy else proxy
 
+    def empty(self):
+        self.data = np.empty((int(self.data_len)), dtype=self.dtype)
+
     def _proxy(self, data):
-        """subclass this method do do extra work on data chunk."""
+        """subclass this method do extra work on data chunk."""
         return data
 
-    def empty(self):
-        self.data = num.empty((int(self.data_len)), dtype=self.dtype)
-
-    def save_as(self, fn, fmt="txt"):
-        fn = fn + "." + fmt
-        if fmt == "txt":
-            num.savetxt(fn, num.vstack((self.xdata, self.ydata)).T)
-        elif fmt == "mseed":
-            fn = os.path.join(fn, "." + fmt)
-            try:
-                from pyrocko import trace, io
-            except ImportError as e:
-                logger.warn("%e \n no pyrocko installation found!" % e)
-                return
-
-            tr = trace.Trace(tmin=self.tmin, deltat=self.deltat, ydata=self.ydata)
-            io.save([tr], fn)
-
-        elif fmt == "wav":
-            wavfile.write(
-                fn, self.sampling_rate, num.asarray(self.ydata, dtype=num.int16)
-            )
-        logger.info("Saved file in %s" % fn)
-
-    @property
-    def t_filled(self):
-        """the time to which the data buffer contains data."""
-        return self.tmin + self.i_filled * self.delta
-
-    @property
     def delta(self):
         return 1.0 / self.sampling_rate
-
-    @property
-    def ydata(self):
-        return self.proxy(self.data[: self.i_filled])
-
-    @property
-    def xdata(self):
-        return self._x[: self.i_filled]
-
-    def index_at_time(self, t):
-        """Get the index of the sample (closest) defined by *t*"""
-        return int((t - self.tmin) * self.sampling_rate)
-
-    def latest_indices(self, seconds):
-        return (
-            self.i_filled - int(min(seconds * self.sampling_rate, self.i_filled)),
-            self.i_filled,
-        )
-
-    def latest_frame(self, seconds):
-        """Return the latest *seconds* data from buffer as x and y data tuple."""
-        istart, istop = self.latest_indices(seconds)
-        return (self._x[istart:istop], self.proxy(self.data[istart:istop]))
-
-    def latest_frame_data(self, n):
-        """Return the latest n samples data from buffer as array."""
-        return self.proxy(self.data[max(self.i_filled - n, 0) : self.i_filled])
-
-    def append(self, d):
-        """Append data frame *d* to Buffer"""
-        n = d.shape[0]
-        self.data[self.i_filled : self.i_filled + n] = d
-        self.i_filled += n
-
-    def append_value(self, v):
-        self.data[self.i_filled + 1] = v
-        self.i_filled += 1
-
-    # def energy(self, nsamples_total, nsamples_sum=1):
-    #    xi = num.arange(self.i_filled-nsamples_total, self.i_filled)
-    #    y = self.data[xi].reshape((int(len(xi)/nsamples_sum), nsamples_sum))
-    #    y = num.sum(y**2, axis=1)
-    #    return self._x[xi[::nsamples_sum]], y
-
-
-class RingBuffer(Buffer):
-    """Based on numpy"""
-
-    def __init__(self, *args, **kwargs):
-        Buffer.__init__(self, *args, **kwargs)
 
     def append(self, d):
         """append new data d to buffer f"""
@@ -234,9 +116,9 @@ class RingBuffer(Buffer):
     def latest_frame_data(self, n):
         """Return the latest n samples data from buffer as array."""
         return self.proxy(
-            num.take(
+            np.take(
                 self.data,
-                num.arange(self.i_filled - n, self.i_filled),
+                np.arange(self.i_filled - n, self.i_filled),
                 mode="wrap",
                 axis=0,
             )
@@ -248,14 +130,20 @@ class RingBuffer(Buffer):
         n = int(seconds * self.sampling_rate) + 1
         x = self.i_filled / self.sampling_rate - self._x[:n][::-1]
         if clip_min:
-            istart = num.where(x > 0)[0]
+            istart = np.where(x > 0)[0]
             if not len(istart):
                 istart = 0
             else:
-                istart = num.min(istart)
+                istart = np.min(istart)
         else:
             istart = 0
         return (x[istart:], self.latest_frame_data(n - istart))
+
+    def latest_indices(self, seconds):
+        return (
+            self.i_filled - int(min(seconds * self.sampling_rate, self.i_filled)),
+            self.i_filled,
+        )
 
 
 class RingBuffer2D(RingBuffer):
@@ -266,7 +154,7 @@ class RingBuffer2D(RingBuffer):
         RingBuffer.__init__(self, *args, **kwargs)
 
     def empty(self):
-        self.data = num.ones(
+        self.data = np.ones(
             (int(self.data_len), int(self.ndimension2)), dtype=self.dtype
         )
 
@@ -305,12 +193,6 @@ class Channel(RingBuffer):
         self.name = ""
         self.fftsize = fftsize
         self.setup_buffers()
-
-        # TODO refactor to processing module
-        P = 0.0
-        R = 0.01**2
-        Q = 1e-6
-        self.kalman_pitch_filter = Kalman(P, R, Q)
         self.standard_frequency = 220.0
         self.pitch_shift = 0.0
 
@@ -324,8 +206,8 @@ class Channel(RingBuffer):
 
     def setup_buffers(self):
         """Setup Buffers."""
-        nfft = (int(self.fftsize), self.delta)
-        self.freqs = num.fft.rfftfreq(*nfft)
+        nfft = (int(self.fftsize), self.delta())
+        self.freqs = np.fft.rfftfreq(*nfft)
         sr = int(1000.0 / 58.0)
         # TODO: 58=gui refresh rate. Nastily hard coded here for now
         self.fft = RingBuffer2D(
@@ -333,7 +215,7 @@ class Channel(RingBuffer):
             # sampling_rate=self.sampling_rate/self.fftsize,   # Hop size
             sampling_rate=sr,
             buffer_length_seconds=self.buffer_length_seconds,
-            dtype=num.float32,
+            dtype=np.float32,
         )
         self.fft_power = RingBuffer(
             sampling_rate=sr, buffer_length_seconds=self.buffer_length_seconds
@@ -353,14 +235,7 @@ class Channel(RingBuffer):
         )
 
     def latest_confident_indices(self, n, threshold):
-        return num.where(self.pitch_confidence.latest_frame_data(n) >= threshold)
-
-    def append_value_pitch(self, val, apply_kalman=False):
-        """Append a new pitch value to pitch buffer. Apply Kalman filter
-        before appending"""
-        if apply_kalman:
-            val = self.kalman_pitch_filter.evaluate(val)
-        self.pitch.append_value(val)
+        return np.where(self.pitch_confidence.latest_frame_data(n) >= threshold)
 
     @property
     def fftsize(self):
@@ -410,19 +285,7 @@ class Channel(RingBuffer):
         return f0, t, conf
 
 
-class DataProvider:
-    """Base class defining common interface for data input to Worker"""
-
-    def __init__(self):
-        self.frames = []
-        atexit.register(self.terminate)
-
-    def terminate(self):
-        # cleanup
-        pass
-
-
-class MicrophoneRecorder(DataProvider):
+class MicrophoneRecorder:
     """Interfacing Sounddevice to record data from sound"""
 
     def __init__(
@@ -433,7 +296,8 @@ class MicrophoneRecorder(DataProvider):
         fftsize=1024,
         selected_channels=None,
     ):
-        DataProvider.__init__(self)
+        self.frames = []
+        atexit.register(self.terminate)
 
         selected_channels = selected_channels or []
         self.stream = None
@@ -467,7 +331,7 @@ class MicrophoneRecorder(DataProvider):
         available data."""
 
         with _lock:
-            self.frames.append(data.astype(num.float32, order="C") / 32768.0)
+            self.frames.append(data.astype(np.float32, order="C") / 32768.0)
             if self._stop:
                 return None
 
@@ -506,7 +370,7 @@ class MicrophoneRecorder(DataProvider):
             blocksize=self.chunksize,
             device=self.device_no,
             channels=self.nchannels,
-            dtype=num.int16,
+            dtype=np.int16,
             latency=None,
             extra_settings=None,
             callback=self.new_frame,
@@ -542,14 +406,14 @@ class MicrophoneRecorder(DataProvider):
     def flush(self):
         """read data and put it into channels' track_data"""
         # make this entirely numpy:
-        frames = num.array(self.get_frames())
+        frames = np.array(self.get_frames())
         for frame in frames:
-            r = num.reshape(frame, (self.chunksize, self.nchannels)).T
+            r = np.reshape(frame, (self.chunksize, self.nchannels)).T
             for channel, i in zip(self.channels, self.selected_channels):
                 channel.append(r[i])
 
 
-class Worker(qc.QObject):
+class Worker:
     def __init__(self, channels):
         """
         The Worker does the signal processing in its' `process` method.
@@ -565,55 +429,11 @@ class Worker(qc.QObject):
 
         for ic, channel in enumerate(self.channels):
             frame_work = channel.latest_frame_data(channel.fftsize)
-            win = num.hanning(channel.fftsize)
-            amp_spec = num.abs(num.fft.rfft(frame_work * win)) ** 2 / channel.fftsize
-            channel.fft.append(num.asarray(amp_spec, dtype=num.float32))
+            win = np.hanning(channel.fftsize)
+            amp_spec = np.abs(np.fft.rfft(frame_work * win)) ** 2 / channel.fftsize
+            channel.fft.append(np.asarray(amp_spec, dtype=np.float32))
 
             f0, t, conf = channel.compute_pitch(frame_work)
-            channel.pitch_confidence.append_value(num.mean(conf))
+            channel.pitch_confidence.append_value(np.mean(conf))
 
-            channel.pitch.append_value(num.mean(f0))
-
-
-class Kalman:
-    """A simple Kalman filter which can be applied recusively to continuous
-    data.
-
-    A Python implementation of the example given in pages 11-15 of "An
-    Introduction to the Kalman Filter" by Greg Welch and Gary Bishop,
-    University of North Carolina at Chapel Hill, Department of Computer
-    Science, TR 95-041,
-    http://www.cs.unc.edu/~welch/kalman/kalmanIntro.html
-
-    by Andrew D. Straw
-    """
-
-    def __init__(self, P, R, Q):
-        self.P = P
-        self.R = R
-        self.Q = Q
-
-    def evaluate(self, new_sample, previous_estimate, weight=1.0, dt=None):
-        """Calculate the next estimate, based on the
-        *new_sample* and the *previous_sample*"""
-
-        # time update
-        xhatminus = previous_estimate
-        Pminus = self.P + self.Q * dt * 100.0
-
-        # measurement update
-        K = Pminus / (Pminus + self.R) * weight
-        self.P = (1 - K) * Pminus
-        return xhatminus + K * (new_sample - xhatminus)
-
-    def evaluate_array(self, array):
-        xhat = num.zeros(array.shape)
-        for k in range(1, len(array)):
-            new_sample = array[k]  # grab a new sample from the data set
-
-            # get a filtered new estimate:
-            xhat[k] = self.evaluate(
-                new_sample=new_sample, previous_estimate=xhat[k - 1]
-            )
-
-        return xhat
+            channel.pitch.append_value(np.mean(f0))

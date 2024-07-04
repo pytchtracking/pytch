@@ -107,7 +107,7 @@ class DeviceMenu(qw.QDialog):
         device = self.devices[index]
         nmax_channels = device["max_input_channels"]
 
-        sampling_rate_options = get_sampling_rate_options()
+        sampling_rate_options = get_sampling_rate_options(index)
         self.channel_selector = ChannelSelector(
             nchannels=nmax_channels, channels_enabled=[0, 1]
         )

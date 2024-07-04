@@ -5,7 +5,6 @@
 import logging
 import sys
 import numpy as np
-import os
 
 from .util import consecutive, index_gradient_filter
 from .menu import DeviceMenu, ProcessingMenu
@@ -16,8 +15,7 @@ from PyQt6 import QtCore as qc
 from PyQt6 import QtGui as qg
 from PyQt6 import QtWidgets as qw
 from PyQt6.QtWidgets import QVBoxLayout
-from PyQt6.QtWidgets import QPushButton, QDockWidget, QFrame, QSizePolicy
-from PyQt6.QtGui import QAction
+from PyQt6.QtWidgets import QDockWidget, QFrame, QSizePolicy
 
 import matplotlib
 from matplotlib.backends.backend_qtagg import FigureCanvas
