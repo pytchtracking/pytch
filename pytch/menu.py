@@ -6,7 +6,7 @@ import numpy as num
 import logging
 
 from .util import cent2f
-from .audio import get_input_devices, MicrophoneRecorder
+from .audio import get_input_devices, AudioProcessor
 from .audio import get_sampling_rate_options
 from .config import get_config, _colors
 
@@ -130,8 +130,8 @@ class DeviceMenu(qw.QDialog):
         selected_channels = self.channel_selector.get_selected_channels()
         logger.debug("selected channels: %s" % selected_channels)
         fftsize = int(self.nfft_choice.currentText())
-        recorder = MicrophoneRecorder(
-            chunksize=1024,
+        recorder = AudioProcessor(
+            blocksize=1024,
             device_no=self.select_input.currentIndex(),
             sampling_rate=int(self.edit_sampling_rate.currentText()),
             fftsize=int(fftsize),

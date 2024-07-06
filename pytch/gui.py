@@ -710,7 +710,7 @@ class MainWidget(qw.QWidget):
     def on_algorithm_select(self, arg):
         """Change pitch algorithm."""
         for c in self.data_input.channels:
-            c.pitch_algorithm = arg
+            c.f0_algorithm = arg
 
     def on_pitch_min_changed(self, p):
         """Update axis min limit."""

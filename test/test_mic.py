@@ -1,5 +1,5 @@
 from subprocess import call
-from pytch.audio import MicrophoneRecorder
+from pytch.audio import AudioProcessor
 import pytest
 
 
@@ -13,6 +13,6 @@ def test_mic_init():
             pass
         else:
             raise e
-    mic = MicrophoneRecorder()
+    mic = AudioProcessor()
     mic.start_new_stream()
     mic.terminate()
