@@ -9,7 +9,6 @@ import numpy as np
 from .util import consecutive, index_gradient_filter
 from .menu import DeviceMenu, ProcessingMenu
 from .config import _color_names, _colors
-from .audio import Worker
 
 from PyQt6 import QtCore as qc
 from PyQt6 import QtGui as qg
@@ -667,7 +666,7 @@ class MainWidget(qw.QWidget):
         self.menu = ProcessingMenu()
         self.input_dialog = DeviceMenu()
 
-        self.input_dialog.set_input_callback = self.set_input
+        self.input_dialog.audio_processor = self.set_input
         self.data_input = None
         self.freq_max = 1000
         self.pitch_min = -1500
@@ -745,7 +744,7 @@ class MainWidget(qw.QWidget):
         """Initializes widgets and makes connections."""
         # TODO: Don't initialise widgets here for the first time!
         dinput = self.data_input
-        self.worker = Worker(dinput.channels)
+        # self.worker = Worker(dinput.channels)
         self.channel_views_widget = ChannelViews(
             dinput.channels, freq_max=self.freq_max
         )
@@ -795,7 +794,7 @@ class MainWidget(qw.QWidget):
     @qc.pyqtSlot()
     def refresh_widgets(self):
         """This is the main refresh loop."""
-        self.worker.process()
+        # self.worker.process()
         self.signal_widgets_clear.emit()
         self.signal_widgets_draw.emit()
 

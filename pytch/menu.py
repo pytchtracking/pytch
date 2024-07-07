@@ -6,8 +6,7 @@ import numpy as num
 import logging
 
 from .util import cent2f
-from .audio import get_input_devices, AudioProcessor
-from .audio import get_sampling_rate_options
+from .audio import get_input_devices, get_fs_options, AudioProcessor
 from .config import get_config, _colors
 
 
@@ -54,10 +53,10 @@ class ChannelSelector(qw.QWidget):
 class DeviceMenu(qw.QDialog):
     """Pop up menu at program start devining basic settings"""
 
-    def __init__(self, set_input_callback=None, *args, **kwargs):
+    def __init__(self, audio_processor=None, *args, **kwargs):
         qw.QDialog.__init__(self, *args, **kwargs)
         self.setModal(True)
-        self.set_input_callback = set_input_callback
+        self.audio_processor = audio_processor
 
         layout = qw.QGridLayout()
         self.setLayout(layout)
@@ -98,7 +97,6 @@ class DeviceMenu(qw.QDialog):
         buttons.accepted.connect(self.on_ok_clicked)
         buttons.rejected.connect(self.close)
         layout.addWidget(buttons)
-        c = get_config()
         if get_config().accept:
             self.on_ok_clicked()
 
@@ -107,16 +105,14 @@ class DeviceMenu(qw.QDialog):
         device = self.devices[index]
         nmax_channels = device["max_input_channels"]
 
-        sampling_rate_options = get_sampling_rate_options(index)
+        sampling_rate_options = get_fs_options(index)
         self.channel_selector = ChannelSelector(
             nchannels=nmax_channels, channels_enabled=[0, 1]
         )
 
         self.channel_selector_scroll.setWidget(self.channel_selector)
-
-        self.edit_sampling_rate.addItems(
-            [str(int(v)) for v in sampling_rate_options[device["index"]]]
-        )
+        self.edit_sampling_rate.clear()
+        self.edit_sampling_rate.addItems([str(int(v)) for v in sampling_rate_options])
 
     def get_nfft_box(self):
         """Return a qw.QSlider for modifying FFT width"""
@@ -130,15 +126,12 @@ class DeviceMenu(qw.QDialog):
         selected_channels = self.channel_selector.get_selected_channels()
         logger.debug("selected channels: %s" % selected_channels)
         fftsize = int(self.nfft_choice.currentText())
-        recorder = AudioProcessor(
-            blocksize=1024,
+        self.audio_processor = AudioProcessor(
             device_no=self.select_input.currentIndex(),
-            sampling_rate=int(self.edit_sampling_rate.currentText()),
-            fftsize=int(fftsize),
-            selected_channels=selected_channels,
+            channels=selected_channels,
+            fft_len=fftsize,
+            fs=int(self.edit_sampling_rate.currentText()),
         )
-
-        self.set_input_callback(recorder)
         self.hide()
 
 
@@ -355,10 +348,6 @@ class ProcessingMenu(qw.QFrame):
         self.freq_max.accepted_value.connect(channel_views.on_max_freq_changed)
 
         self.box_show_spectra.stateChanged.connect(channel_views.show_spectrum_widgets)
-
-        # self.pitch_shift_box.accepted_value.connect(
-        #     channel_views.on_pitch_shift_changed
-        # )
 
         for i, cv in enumerate(channel_views.views):
             self.spectrum_type_selected.connect(cv.on_spectrum_type_select)

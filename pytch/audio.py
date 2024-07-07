@@ -11,7 +11,8 @@ import sounddevice
 import libf0
 
 
-_lock = threading.Lock()
+_audio_lock = threading.Lock()
+_gui_lock = threading.Lock()
 logger = logging.getLogger("pytch.audio")
 
 eps = np.finfo(float).eps
@@ -22,18 +23,18 @@ def get_input_devices():
     return sounddevice.query_devices()
 
 
-def get_sampling_rate_options(device_idx):
+def get_fs_options(device_idx):
     """Returns a dictionary of supported sampling rates for all devices."""
     candidates = [8000.0, 11025.0, 16000.0, 22050.0, 32000.0, 37800.0, 44100.0, 48000.0]
-    supported_sampling_rates = []
+    supported_fs = []
     for c in candidates:
-        if check_sampling_rate(device_idx, int(c)):
-            supported_sampling_rates.append(c)
+        if check_fs(device_idx, int(c)):
+            supported_fs.append(c)
 
-    return supported_sampling_rates
+    return supported_fs
 
 
-def check_sampling_rate(device_index, sampling_rate):
+def check_fs(device_index, fs):
     """Validates chosen sampling rate."""
     valid = True
     try:
@@ -42,7 +43,7 @@ def check_sampling_rate(device_index, sampling_rate):
             channels=None,
             dtype=None,
             extra_settings=None,
-            samplerate=sampling_rate,
+            samplerate=fs,
         )
     except ValueError as e:
         logger.debug(e)
@@ -61,22 +62,33 @@ class RingBuffer:
         self.size = size
         self.buffer = np.zeros(size, dtype=dtype)
         self.write_head = 0
-        self.read_head = 0
+        self.available_frames = 0
 
     def write(self, data):
-        write_idcs = np.mod(self.write_head + np.arange(len(data)), self.size[0])
+        if data.shape[0] > self.size[0]:
+            logger.warning("Buffer overflow!")
+        write_idcs = np.mod(self.write_head + np.arange(data.shape[0]), self.size[0])
         self.buffer[write_idcs, ...] = data
-        self.write_head = write_idcs[-1] + 1
+        self.write_head = np.mod(write_idcs[-1] + 1, self.size[0])
+        if self.available_frames < self.size[0]:
+            self.available_frames += data.shape[0]
 
     def read(self, blocksize):
-        read_idcs = np.mod(self.read_head + np.arange(blocksize), self.size[0])
-        self.read_head = read_idcs[-1] + 1
+        # make sure that we are not reading more than we are allowed to
+        if self.available_frames < blocksize:
+            read_frames = self.available_frames
+            logger.warning("Buffer underflow!")
+        else:
+            read_frames = blocksize
+        read_idcs = np.mod(
+            self.size[0] + self.write_head - np.arange(read_frames) - 1, self.size[0]
+        )[::-1]
         return self.buffer[read_idcs, ...]
 
     def flush(self):
         self.buffer = np.zeros_like(self.buffer)
         self.write_head = 0
-        self.read_head = 0
+        self.available_frames = 0
 
 
 class AudioProcessor:
@@ -91,22 +103,20 @@ class AudioProcessor:
         fft_len=1024,
         hop_len=256,
         blocksize=4096,
-        n_channels=1,
-        device_no=0,
+        channels=[0],
+        device_no=None,
         f0_algorithm="YIN",
-        f0_ref=220.0,
     ):
         self.fs = fs
         self.buf_len_sec = buf_len_sec
         self.fft_len = fft_len
         self.hop_len = hop_len
-        self.n_channels = n_channels
+        self.channels = channels
         self.blocksize = blocksize
         self.device_no = device_no
         self.f0_algorithm = f0_algorithm
-        self.f0_ref = f0_ref
         self.stft = ShortTimeFFT(
-            np.hanning(self.fft_len),
+            np.hanning(fft_len),
             hop_len,
             fs,
             fft_mode="onesided",
@@ -117,18 +127,25 @@ class AudioProcessor:
         )
 
         # initialize buffers
-        buf_len_smp = int(np.ceil(buf_len_sec * fs))
-        buf_len_block = int(np.ceil(buf_len_smp / blocksize))
-        buf_len_hop = int(np.ceil(buf_len_smp / hop_len))
-        self.audio_buf = RingBuffer(size=(buf_len_smp, n_channels), dtype=np.float64)
-        self.lvl_buf = RingBuffer(size=(buf_len_block, n_channels), dtype=np.float64)
-        self.fft_buf = RingBuffer(
-            size=(buf_len_hop, n_channels, 1 + self.fft_len // 2), dtype=np.float64
+        buf_len_smp = int(np.ceil(buf_len_sec * fs / blocksize) * blocksize)
+        n_blocks = int(buf_len_smp / blocksize)
+        self.frames_per_block_f0 = 1 + int(blocksize / hop_len)
+        self.frames_per_block_stft = 3 + int(blocksize / hop_len)
+        self.audio_buf = RingBuffer(size=(buf_len_smp, len(channels)), dtype=np.float64)
+        self.lvl_buf = RingBuffer(size=(n_blocks, len(channels)), dtype=np.float64)
+        self.stft_buf = RingBuffer(
+            size=(
+                n_blocks * self.frames_per_block_stft,
+                len(channels),
+                1 + self.fft_len // 2,
+            ),
+            dtype=np.float64,
         )
-        self.f0_buf = RingBuffer(size=(buf_len_hop, n_channels), dtype=np.float64)
-        self.conf_buf = RingBuffer(size=(buf_len_hop, n_channels), dtype=np.float64)
-        self.f0_diff_buf = RingBuffer(
-            size=(buf_len_hop, np.max([1, n_channels - 1])), dtype=np.float64
+        self.f0_buf = RingBuffer(
+            size=(n_blocks * self.frames_per_block_f0, len(channels)), dtype=np.float64
+        )
+        self.conf_buf = RingBuffer(
+            size=(n_blocks * self.frames_per_block_f0, len(channels)), dtype=np.float64
         )
 
         # initialize audio stream
@@ -136,11 +153,11 @@ class AudioProcessor:
             samplerate=self.fs,
             blocksize=self.blocksize,
             device=self.device_no,
-            channels=self.n_channels,
+            channels=np.max(channels) + 1,
             dtype=np.int16,
             latency=None,
             extra_settings=None,
-            callback=self.callback,
+            callback=self.recording_callback,
             finished_callback=None,
             clip_off=None,
             dither_off=None,
@@ -170,8 +187,8 @@ class AudioProcessor:
     def worker_thread(self):
         while self.running:
             audio = None
-            with _lock:
-                if self.audio_buf.read_head != self.audio_buf.write_head:
+            with _audio_lock:
+                if self.audio_buf.available_frames >= self.blocksize:
                     audio = self.audio_buf.read(self.blocksize)  # get audio
 
             if audio is None:
@@ -182,23 +199,19 @@ class AudioProcessor:
             fft = self.compute_stft(audio)  # compute fft
             f0, conf = self.compute_f0(audio)  # compute f0 & confidence
 
-            with _lock:
+            with _gui_lock:
                 self.lvl_buf.write(lvl)
-                self.fft_buf.write(fft)
+                self.stft_buf.write(fft)
                 self.f0_buf.write(f0)
                 self.conf_buf.write(conf)
 
-                if self.n_channels > 1:
-                    f0_diff = self.compute_f0_diff(f0)  # compute f0 diff
-                    self.f0_diff_buf.write(f0_diff)
-
-    def callback(self, data, frames, time, status):
+    def recording_callback(self, data, frames, time, status):
         """receives frames from soundcard, data is of shape (frames, channels)"""
         # only stores audio, we do all the heavy lifting in a dedicated thread for performance reasons
-        with _lock:
+        with _audio_lock:
             self.audio_buf.write(
-                data.astype(np.float64, order="C") / 32768.0
-            )  # convert to float
+                data[:, self.channels].astype(np.float64, order="C") / 32768.0
+            )  # convert int16 to float64
 
     def compute_level(self, audio):
         return 10 * np.log10(np.max(np.abs(audio), axis=0)).reshape(-1, 1)
@@ -209,8 +222,8 @@ class AudioProcessor:
         )
 
     def compute_f0(self, audio):
-        f0 = np.zeros((1 + int(self.blocksize / self.hop_len), audio.shape[1]))
-        conf = np.zeros((1 + int(self.blocksize / self.hop_len), audio.shape[1]))
+        f0 = np.zeros((self.frames_per_block_f0, audio.shape[1]))
+        conf = np.zeros((self.frames_per_block_f0, audio.shape[1]))
 
         for c in range(audio.shape[1]):
             if self.f0_algorithm == "YIN":
@@ -236,9 +249,13 @@ class AudioProcessor:
                     strength_threshold=0,
                 )
 
-        f0 = 1200.0 * np.log2(f0 / self.f0_ref + eps)  # hz to cents
-
         return f0, conf
 
-    def compute_f0_diff(self, f0):
-        return f0[:, 1:] - f0[:, :-1]
+    def read_block_data(self, n_blocks=1):
+        with _gui_lock:
+            lvl = self.lvl_buf.read(n_blocks)
+            stft = self.stft_buf.read(self.frames_per_block_stft * n_blocks)
+            f0 = self.f0_buf.read(self.frames_per_block_f0 * n_blocks)
+            conf = self.conf_buf.read(self.frames_per_block_f0 * n_blocks)
+
+        return lvl, stft, f0, conf
