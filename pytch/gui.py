@@ -9,6 +9,7 @@ import numpy as np
 from .util import consecutive, index_gradient_filter
 from .menu import DeviceMenu, ProcessingMenu
 from .config import _color_names, _colors
+from .audio import AudioProcessor
 
 from PyQt6 import QtCore as qc
 from PyQt6 import QtGui as qg
@@ -130,7 +131,6 @@ class QHLine(QFrame):
         self.setFrameShape(QFrame.Shape.HLine)
         self.setFrameShadow(QFrame.Shadow.Sunken)
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
-        return
 
 
 class ChannelView(qw.QWidget):
@@ -172,51 +172,51 @@ class ChannelView(qw.QWidget):
 
     @qc.pyqtSlot()
     def on_draw(self):
-        ch = self.channel
+        ch_idx = self.channel
 
         # update level
         if self.is_product:
             self.level_widget.update_level(np.nan)
         else:
-            audio_float = ch.latest_frame(1)[1]
+            audio_float = ch_idx.latest_frame(1)[1]
             self.level_widget.update_level(audio_float)
 
         # update spectrum
         vline = None
         if not self.is_product:
-            spectrum = np.mean(ch.fft.latest_frame_data(self.t_follow), axis=0)
-            freqs = ch.freqs
-            confidence = ch.pitch_confidence.latest_frame_data(1)
+            spectrum = np.mean(ch_idx.fft.latest_frame_data(self.t_follow), axis=0)
+            freqs = ch_idx.freqs
+            confidence = ch_idx.pitch_confidence.latest_frame_data(1)
             if confidence > self.confidence_threshold:
-                vline = ch.undo_pitch_proxy(ch.get_latest_pitch())
+                vline = ch_idx.undo_pitch_proxy(ch_idx.get_latest_pitch())
         else:
             spectrum = np.mean(
                 np.asarray(
-                    ch[0].fft.latest_frame_data(self.t_follow), dtype=np.float32
+                    ch_idx[0].fft.latest_frame_data(self.t_follow), dtype=np.float32
                 ),
                 axis=0,
             )
-            for c in ch[1:]:
+            for c in ch_idx[1:]:
                 spectrum *= np.mean(
                     np.asarray(
                         c.fft.latest_frame_data(self.t_follow), dtype=np.float32
                     ),
                     axis=0,
                 )
-            freqs = ch[0].freqs
+            freqs = ch_idx[0].freqs
 
         self.spectrum_widget.update_spectrum(freqs, spectrum, self.color, vline)
 
         # update spectrogram
         if not self.is_product:
-            spectrogram = ch.fft.latest_frame_data(
+            spectrogram = ch_idx.fft.latest_frame_data(
                 self.spectrogram_widget.show_n_frames
             )
         else:
-            spectrogram = ch[0].fft.latest_frame_data(
+            spectrogram = ch_idx[0].fft.latest_frame_data(
                 self.spectrogram_widget.show_n_frames
             )
-            for c in ch[1:]:
+            for c in ch_idx[1:]:
                 spectrogram *= c.fft.latest_frame_data(
                     self.spectrogram_widget.show_n_frames
                 )
@@ -664,15 +664,15 @@ class MainWidget(qw.QWidget):
         self.refresh_timer = qc.QTimer()
         self.refresh_timer.timeout.connect(self.refresh_widgets)
         self.menu = ProcessingMenu()
-        self.input_dialog = DeviceMenu()
+        self.input_dialog = DeviceMenu(self.audio_config_changed)
 
-        self.input_dialog.audio_processor = self.set_input
         self.data_input = None
         self.freq_max = 1000
         self.pitch_min = -1500
         self.pitch_max = 1500
 
-        # TODO: Show before opening the GUI and initialise audio accordingly
+        self.audio_processor = None
+
         qc.QTimer().singleShot(0, self.set_input_dialog)  # show input dialog
 
     def make_connections(self):
@@ -683,8 +683,6 @@ class MainWidget(qw.QWidget):
         menu.pause_button.clicked.connect(self.data_input.stop)
         menu.pause_button.clicked.connect(self.refresh_timer.stop)
 
-        menu.save_as_button.clicked.connect(self.on_save_as)
-
         menu.play_button.clicked.connect(self.data_input.start)
         menu.play_button.clicked.connect(self.refresh_timer.start)
 
@@ -692,18 +690,6 @@ class MainWidget(qw.QWidget):
 
         menu.pitch_max.accepted_value.connect(self.on_pitch_max_changed)
         menu.pitch_min.accepted_value.connect(self.on_pitch_min_changed)
-
-    @qc.pyqtSlot()
-    def on_save_as(self):
-        """Write traces to wav files"""
-        # TODO: fix save fucntion
-        # _fn = QFileDialog().getSaveFileName(self, "Save as", ".", "")[0]
-        # if _fn:
-        #     for i, tr in enumerate(self.channel_views_widget.views):
-        #         if not os.path.exists(_fn):
-        #             os.makedirs(_fn)
-        #         fn = os.path.join(_fn, "channel%s" % i)
-        #         tr.channel.save_as(fn, fmt="wav")
 
     @qc.pyqtSlot(str)
     def on_algorithm_select(self, arg):
@@ -735,18 +721,34 @@ class MainWidget(qw.QWidget):
 
     def set_input_dialog(self):
         """Query device list and set the drop down menu"""
+        if self.audio_processor is not None:
+            self.audio_processor.stop_stream()
+            self.audio_processor.close_stream()
+
         self.refresh_timer.stop()
         self.input_dialog.show()
         self.input_dialog.raise_()
         self.input_dialog.activateWindow()
 
-    def reset(self):
+    def audio_config_changed(self):
         """Initializes widgets and makes connections."""
-        # TODO: Don't initialise widgets here for the first time!
-        dinput = self.data_input
-        # self.worker = Worker(dinput.channels)
+        # setup and start audio processor
+        if self.audio_processor is not None:
+            self.audio_processor.stop_stream()
+            self.audio_processor.close_stream()
+
+        self.audio_processor = AudioProcessor(
+            fs=self.input_dialog.selected_fs,
+            fft_len=self.input_dialog.selected_fftsize,
+            channels=self.input_dialog.selected_channels,
+            device_no=self.input_dialog.selected_device,
+        )
+
+        self.audio_processor.start_stream()
+
+        # prepare widgets
         self.channel_views_widget = ChannelViews(
-            dinput.channels, freq_max=self.freq_max
+            self.audio_processor, freq_max=self.freq_max
         )
         channel_views = self.channel_views_widget.views[:-1]
         for cv in channel_views:
@@ -775,12 +777,7 @@ class MainWidget(qw.QWidget):
         self.signal_widgets_draw.connect(self.pitch_view.on_draw)
         self.signal_widgets_draw.connect(self.pitch_view_all_diff.on_draw)
 
-        # timer for GUI updates
-        t_wait_buffer = int(max(dinput.fftsizes) / dinput.sampling_rate * 1500.0)
-        qc.QTimer().singleShot(t_wait_buffer, self.start_refresh_timer)
-
-    def start_refresh_timer(self):
-        self.refresh_timer.start()
+        self.refresh_timer.start()  # start refreshing GUI
 
     def set_input(self, input):
         """Set audio input."""
@@ -789,7 +786,7 @@ class MainWidget(qw.QWidget):
         self.data_input.start_new_stream()
         self.make_connections()
 
-        self.reset()
+        self.audio_config_changed()
 
     @qc.pyqtSlot()
     def refresh_widgets(self):
@@ -828,7 +825,6 @@ class MainWindow(qw.QMainWindow):
         self.addDockWidget(qc.Qt.DockWidgetArea.RightDockWidgetArea, views_dock_widget)
 
         self.showMaximized()  # maximize window always
-        self.show()
 
 
 def start_gui():

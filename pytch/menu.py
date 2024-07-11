@@ -6,8 +6,8 @@ import numpy as num
 import logging
 
 from .util import cent2f
-from .audio import get_input_devices, get_fs_options, AudioProcessor
-from .config import get_config, _colors
+from .audio import get_input_devices, get_fs_options
+from .config import _colors
 
 
 logger = logging.getLogger("pytch.menu")
@@ -53,55 +53,59 @@ class ChannelSelector(qw.QWidget):
 class DeviceMenu(qw.QDialog):
     """Pop up menu at program start devining basic settings"""
 
-    def __init__(self, audio_processor=None, *args, **kwargs):
+    def __init__(self, gui_callback, *args, **kwargs):
         qw.QDialog.__init__(self, *args, **kwargs)
         self.setModal(True)
-        self.audio_processor = audio_processor
 
         layout = qw.QGridLayout()
         self.setLayout(layout)
 
         layout.addWidget(qw.QLabel("Input Device"))
-        self.select_input = qw.QComboBox()
-        layout.addWidget(self.select_input)
+        self.input_options = qw.QComboBox()
+        layout.addWidget(self.input_options)
 
-        self.select_input.clear()
+        self.input_options.clear()
         self.devices = get_input_devices()
 
         default_device = (0, self.devices[0])
         for idevice, device in enumerate(self.devices):
-            self.select_input.addItem("{} {}".format(idevice, device["name"]))
+            self.input_options.addItem("{} {}".format(idevice, device["name"]))
 
         # select sampling rate
         layout.addWidget(qw.QLabel("Sampling Rate"))
-        self.edit_sampling_rate = qw.QComboBox()
-        layout.addWidget(self.edit_sampling_rate)
+        self.fs_options = qw.QComboBox()
+        layout.addWidget(self.fs_options)
 
         # select chunksize
         layout.addWidget(qw.QLabel("Chunksize in Samples"))
-        self.nfft_choice = self.get_nfft_box()
-        layout.addWidget(self.nfft_choice)
+        self.nfft_options = self.get_nfft_box()
+        layout.addWidget(self.nfft_options)
 
-        self.channel_selector_scroll = qw.QScrollArea()
+        self.channel_options = qw.QScrollArea()
         layout.addWidget(qw.QLabel("Select Channels"), 0, 2, 1, 1)
-        layout.addWidget(self.channel_selector_scroll, 1, 2, 6, 1)
+        layout.addWidget(self.channel_options, 1, 2, 6, 1)
 
         buttons = qw.QDialogButtonBox(
             qw.QDialogButtonBox.StandardButton.Ok
             | qw.QDialogButtonBox.StandardButton.Cancel
         )
 
-        self.select_input.currentIndexChanged.connect(self.update_channel_info)
-        self.select_input.setCurrentIndex(default_device[0])
+        self.input_options.currentIndexChanged.connect(self.update_channel_info)
+        self.input_options.setCurrentIndex(default_device[0])
 
         buttons.accepted.connect(self.on_ok_clicked)
         buttons.rejected.connect(self.close)
         layout.addWidget(buttons)
-        if get_config().accept:
-            self.on_ok_clicked()
+
+        self.gui_callback = gui_callback
+        self.selected_channels = None
+        self.selected_device = None
+        self.selected_fftsize = None
+        self.selected_fs = None
 
     @qc.pyqtSlot(int)
     def update_channel_info(self, index):
+        """Updates available channels in input menu"""
         device = self.devices[index]
         nmax_channels = device["max_input_channels"]
 
@@ -110,9 +114,9 @@ class DeviceMenu(qw.QDialog):
             nchannels=nmax_channels, channels_enabled=[0, 1]
         )
 
-        self.channel_selector_scroll.setWidget(self.channel_selector)
-        self.edit_sampling_rate.clear()
-        self.edit_sampling_rate.addItems([str(int(v)) for v in sampling_rate_options])
+        self.channel_options.setWidget(self.channel_selector)
+        self.fs_options.clear()
+        self.fs_options.addItems([str(int(v)) for v in sampling_rate_options])
 
     def get_nfft_box(self):
         """Return a qw.QSlider for modifying FFT width"""
@@ -123,16 +127,12 @@ class DeviceMenu(qw.QDialog):
 
     @qc.pyqtSlot()
     def on_ok_clicked(self):
-        selected_channels = self.channel_selector.get_selected_channels()
-        logger.debug("selected channels: %s" % selected_channels)
-        fftsize = int(self.nfft_choice.currentText())
-        self.audio_processor = AudioProcessor(
-            device_no=self.select_input.currentIndex(),
-            channels=selected_channels,
-            fft_len=fftsize,
-            fs=int(self.edit_sampling_rate.currentText()),
-        )
+        self.selected_channels = self.channel_selector.get_selected_channels()
+        self.selected_device = self.input_options.currentIndex()
+        self.selected_fftsize = int(self.nfft_options.currentText())
+        self.selected_fs = int(self.fs_options.currentText())
         self.hide()
+        self.gui_callback()
 
 
 class ProcessingMenu(qw.QFrame):
