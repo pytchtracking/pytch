@@ -27,6 +27,9 @@ matplotlib.rcParams.update({"font.size": 9})
 colormaps = ["viridis", "wb", "bw"]
 logger = logging.getLogger("pytch.gui")
 tfollow = 3.0
+gui_refresh = int(1000 / 12)
+
+audio_processor = AudioProcessor()
 
 
 class ChannelViews(qw.QWidget):
@@ -39,22 +42,15 @@ class ChannelViews(qw.QWidget):
         self.widget_ready_to_show = False
 
         self.views = []
-        for id, channel in enumerate(channels):
+        for ch_id in range(channels):
             self.views.append(
                 ChannelView(
-                    channel,
-                    channel_label=f"Channel {id+1}",
-                    color=_color_names[3 * id],
+                    ch_id=ch_id,
                     is_product=False,
                 )
             )
 
-        channels = [cv.channel for cv in self.views]
-        self.views.append(
-            ChannelView(
-                channels, channel_label="Product", color="black", is_product=True
-            )
-        )
+        self.views.append(ChannelView(is_product=True))
 
         for i, c_view in enumerate(self.views):
             if i == len(self.views) - 1:
@@ -141,18 +137,18 @@ class ChannelView(qw.QWidget):
     spectrogram-view and the sepctrum-view of a single channel.
     """
 
-    def __init__(
-        self, channel, channel_label, color="red", is_product=False, *args, **kwargs
-    ):
+    def __init__(self, ch_id=None, is_product=False, *args, **kwargs):
         qw.QWidget.__init__(self, *args, **kwargs)
         self.setLayout(qw.QHBoxLayout())
-        self.channel = channel
-        self.color = color
+
+        self.color = "black" if ch_id is None else _color_names[3 * ch_id]
         self.is_product = is_product
+        self.ch_id = ch_id
 
         self.confidence_threshold = 0.0
         self.t_follow = 3
 
+        channel_label = "Product" if ch_id is None else f"Channel {ch_id + 1}"
         self.level_widget = LevelWidget(channel_label=channel_label)
         self.spectrogram_widget = SpectrogramWidget()
         self.spectrum_widget = SpectrumWidget()
@@ -172,57 +168,34 @@ class ChannelView(qw.QWidget):
 
     @qc.pyqtSlot()
     def on_draw(self):
-        ch_idx = self.channel
+        # get latest data
+        lvl, stft, f0, conf = audio_processor.read_block_data(n_blocks=1)
 
-        # update level
+        if (lvl.size == 0) or (stft.size == 0) or (f0.size == 0) or (conf.size == 0):
+            return
+
+        # prepare data
         if self.is_product:
-            self.level_widget.update_level(np.nan)
+            lvl_update = np.nan
+            stft_update = np.prod(stft, axis=2).T
+            spec_update = np.mean(stft_update, axis=1)
+            vline = None
         else:
-            audio_float = ch_idx.latest_frame(1)[1]
-            self.level_widget.update_level(audio_float)
+            lvl_update = np.mean(lvl[:, self.ch_id])
+            stft_update = stft[:, :, self.ch_id].T
+            spec_update = np.mean(stft_update, axis=1)
+            conf_update = np.mean(conf[:, self.ch_id])
+            f0_update = np.mean(f0[:, self.ch_id])
 
-        # update spectrum
-        vline = None
-        if not self.is_product:
-            spectrum = np.mean(ch_idx.fft.latest_frame_data(self.t_follow), axis=0)
-            freqs = ch_idx.freqs
-            confidence = ch_idx.pitch_confidence.latest_frame_data(1)
-            if confidence > self.confidence_threshold:
-                vline = ch_idx.undo_pitch_proxy(ch_idx.get_latest_pitch())
-        else:
-            spectrum = np.mean(
-                np.asarray(
-                    ch_idx[0].fft.latest_frame_data(self.t_follow), dtype=np.float32
-                ),
-                axis=0,
-            )
-            for c in ch_idx[1:]:
-                spectrum *= np.mean(
-                    np.asarray(
-                        c.fft.latest_frame_data(self.t_follow), dtype=np.float32
-                    ),
-                    axis=0,
-                )
-            freqs = ch_idx[0].freqs
+            if conf_update > self.confidence_threshold:
+                vline = f0_update
+            else:
+                vline = None
 
-        self.spectrum_widget.update_spectrum(freqs, spectrum, self.color, vline)
-
-        # update spectrogram
-        if not self.is_product:
-            spectrogram = ch_idx.fft.latest_frame_data(
-                self.spectrogram_widget.show_n_frames
-            )
-        else:
-            spectrogram = ch_idx[0].fft.latest_frame_data(
-                self.spectrogram_widget.show_n_frames
-            )
-            for c in ch_idx[1:]:
-                spectrogram *= c.fft.latest_frame_data(
-                    self.spectrogram_widget.show_n_frames
-                )
-
-        spectrogram = np.flipud(spectrogram)  # modifies run direction
-        self.spectrogram_widget.update_spectrogram(spectrogram)
+        # update widgets
+        self.level_widget.update_level(lvl_update)
+        self.spectrum_widget.update_spectrum(spec_update, self.color, vline=vline)
+        self.spectrogram_widget.update_spectrogram(stft_update)
 
     def show_spectrum_widget(self, show):
         self.spectrum_widget.setVisible(show)
@@ -304,12 +277,11 @@ class LevelWidget(FigureCanvas):
         self.ax.invert_yaxis()
         self.figure.set_tight_layout(True)
 
-    def update_level(self, data):
-        if np.any(np.isnan(data)):
+    def update_level(self, lvl):
+        if np.any(np.isnan(lvl)):
             plot_mat = np.full((2, 2), fill_value=np.nan)
         else:
-            peak_db = 10 * np.log10(np.max(np.abs(data)))
-            plot_val = np.max((0, 40 + peak_db)).astype(int)
+            plot_val = np.max((0, 40 + lvl)).astype(int)
             plot_mat = np.linspace((0, 0), (40, 40), 400)
             plot_mat[plot_val * 10 + 10 :, :] = np.nan
         self.img.set_data(plot_mat)
@@ -339,8 +311,8 @@ class SpectrumWidget(FigureCanvas):
         self.spectral_type = "log"
         self.figure.tight_layout()
 
-    def update_spectrum(self, f_axis, data, color, vline=None):
-        # data /= num.max(num.abs(data))
+    def update_spectrum(self, data, color, vline=None):
+        f_axis = audio_processor.fft_freqs
         if self._line is None:
             (self._line,) = self.ax.plot(
                 f_axis, data, color=np.array(_colors[color]) / 256
@@ -471,42 +443,43 @@ class PitchWidget(FigureCanvas):
 
     @qc.pyqtSlot()
     def on_draw(self):
-        for i, cv in enumerate(self.channel_views):
-            x, y = cv.channel.pitch.latest_frame(self.tfollow, clip_min=True)
-            index = np.where(
-                cv.channel.pitch_confidence.latest_frame_data(len(x))
-                >= cv.confidence_threshold
-            )[0]
-
-            index_grad = index_gradient_filter(x, y, self.derivative_filter)
-            index = np.intersect1d(index, index_grad)
-            indices_grouped = consecutive(index)
-            for group in indices_grouped:
-                if len(group) == 0:
-                    continue
-                if self._line[i] is None:
-                    (self._line[i],) = self.ax.plot(
-                        x[group],
-                        y[group],
-                        color=np.array(_colors[cv.color]) / 256,
-                        linewidth="4",
-                    )
-                else:
-                    if len(x[group]) != 0:
-                        self._line[i].set_data(x[group], y[group])
-
-            try:
-                self.current_low_pitch[i] = y[indices_grouped[-1][-1]]
-            except IndexError as e:
-                pass
-
-            self.low_pitch_changed.emit(self.current_low_pitch)
-
-        xstart = np.min(x)
-        self.ax.set_xticks(np.arange(0, xstart + self.tfollow, 1))
-        self.ax.set_xlim(xstart, xstart + self.tfollow)
-        self.figure.set_tight_layout(True)
-        self.draw()
+        pass
+        # for i, cv in enumerate(self.channel_views):
+        #     x, y = cv.channel.pitch.latest_frame(self.tfollow, clip_min=True)
+        #     index = np.where(
+        #         cv.channel.pitch_confidence.latest_frame_data(len(x))
+        #         >= cv.confidence_threshold
+        #     )[0]
+        #
+        #     index_grad = index_gradient_filter(x, y, self.derivative_filter)
+        #     index = np.intersect1d(index, index_grad)
+        #     indices_grouped = consecutive(index)
+        #     for group in indices_grouped:
+        #         if len(group) == 0:
+        #             continue
+        #         if self._line[i] is None:
+        #             (self._line[i],) = self.ax.plot(
+        #                 x[group],
+        #                 y[group],
+        #                 color=np.array(_colors[cv.color]) / 256,
+        #                 linewidth="4",
+        #             )
+        #         else:
+        #             if len(x[group]) != 0:
+        #                 self._line[i].set_data(x[group], y[group])
+        #
+        #     try:
+        #         self.current_low_pitch[i] = y[indices_grouped[-1][-1]]
+        #     except IndexError as e:
+        #         pass
+        #
+        #     self.low_pitch_changed.emit(self.current_low_pitch)
+        #
+        # xstart = np.min(x)
+        # self.ax.set_xticks(np.arange(0, xstart + self.tfollow, 1))
+        # self.ax.set_xlim(xstart, xstart + self.tfollow)
+        # self.figure.set_tight_layout(True)
+        # self.draw()
 
 
 class DifferentialPitchWidget(FigureCanvas):
@@ -564,62 +537,63 @@ class DifferentialPitchWidget(FigureCanvas):
 
     @qc.pyqtSlot()
     def on_draw(self):
-        for i1, cv1 in enumerate(self.channel_views):
-            x1, y1 = cv1.channel.pitch.latest_frame(tfollow, clip_min=True)
-            xstart = np.min(x1)
-            index1 = cv1.channel.latest_confident_indices(
-                len(x1), cv1.confidence_threshold
-            )
-            index1_grad = index_gradient_filter(x1, y1, self.derivative_filter)
-            index1 = np.intersect1d(index1, index1_grad)
-            for i2, cv2 in enumerate(self.channel_views):
-                if i1 >= i2:
-                    continue
-                x2, y2 = cv2.channel.pitch.latest_frame(tfollow, clip_min=True)
-                index2_grad = index_gradient_filter(x2, y2, self.derivative_filter)
-                index2 = cv2.channel.latest_confident_indices(
-                    len(x2), cv2.confidence_threshold
-                )
-
-                index2 = np.intersect1d(index2, index2_grad)
-                indices = np.intersect1d(index1, index2)
-                indices_grouped = consecutive(indices)
-
-                for group in indices_grouped:
-                    if len(group) == 0:
-                        continue
-
-                    y = y1[group] - y2[group]
-
-                    x = x1[group]
-                    if self._line[i1][i2][0] is None:
-                        (self._line[i1][i2][0],) = self.ax.plot(
-                            x,
-                            y,
-                            color=np.array(_colors[cv1.color]) / 256,
-                            linewidth="4",
-                            linestyle="-",
-                        )
-                    else:
-                        if len(x) != 0:
-                            self._line[i1][i1][0].set_data(x, y)
-
-                    if self._line[i1][i2][1] is None:
-                        (self._line[i1][i2][1],) = self.ax.plot(
-                            x,
-                            y,
-                            color=np.array(_colors[cv2.color]) / 256,
-                            linewidth="4",
-                            linestyle="--",
-                        )
-                    else:
-                        if len(x) != 0:
-                            self._line[i1][i1][1].set_data(x, y)
-
-        self.ax.set_xticks(np.arange(0, xstart + self.tfollow, 1))
-        self.ax.set_xlim(xstart, xstart + self.tfollow)
-        self.figure.set_tight_layout(True)
-        self.draw()
+        pass
+        # for i1, cv1 in enumerate(self.channel_views):
+        #     x1, y1 = cv1.channel.pitch.latest_frame(tfollow, clip_min=True)
+        #     xstart = np.min(x1)
+        #     index1 = cv1.channel.latest_confident_indices(
+        #         len(x1), cv1.confidence_threshold
+        #     )
+        #     index1_grad = index_gradient_filter(x1, y1, self.derivative_filter)
+        #     index1 = np.intersect1d(index1, index1_grad)
+        #     for i2, cv2 in enumerate(self.channel_views):
+        #         if i1 >= i2:
+        #             continue
+        #         x2, y2 = cv2.channel.pitch.latest_frame(tfollow, clip_min=True)
+        #         index2_grad = index_gradient_filter(x2, y2, self.derivative_filter)
+        #         index2 = cv2.channel.latest_confident_indices(
+        #             len(x2), cv2.confidence_threshold
+        #         )
+        #
+        #         index2 = np.intersect1d(index2, index2_grad)
+        #         indices = np.intersect1d(index1, index2)
+        #         indices_grouped = consecutive(indices)
+        #
+        #         for group in indices_grouped:
+        #             if len(group) == 0:
+        #                 continue
+        #
+        #             y = y1[group] - y2[group]
+        #
+        #             x = x1[group]
+        #             if self._line[i1][i2][0] is None:
+        #                 (self._line[i1][i2][0],) = self.ax.plot(
+        #                     x,
+        #                     y,
+        #                     color=np.array(_colors[cv1.color]) / 256,
+        #                     linewidth="4",
+        #                     linestyle="-",
+        #                 )
+        #             else:
+        #                 if len(x) != 0:
+        #                     self._line[i1][i1][0].set_data(x, y)
+        #
+        #             if self._line[i1][i2][1] is None:
+        #                 (self._line[i1][i2][1],) = self.ax.plot(
+        #                     x,
+        #                     y,
+        #                     color=np.array(_colors[cv2.color]) / 256,
+        #                     linewidth="4",
+        #                     linestyle="--",
+        #                 )
+        #             else:
+        #                 if len(x) != 0:
+        #                     self._line[i1][i1][1].set_data(x, y)
+        #
+        # self.ax.set_xticks(np.arange(0, xstart + self.tfollow, 1))
+        # self.ax.set_xlim(xstart, xstart + self.tfollow)
+        # self.figure.set_tight_layout(True)
+        # self.draw()
 
 
 class RightTabs(qw.QTabWidget):
@@ -671,8 +645,6 @@ class MainWidget(qw.QWidget):
         self.pitch_min = -1500
         self.pitch_max = 1500
 
-        self.audio_processor = None
-
         qc.QTimer().singleShot(0, self.set_input_dialog)  # show input dialog
 
     def make_connections(self):
@@ -684,7 +656,7 @@ class MainWidget(qw.QWidget):
         menu.pause_button.clicked.connect(self.refresh_timer.stop)
 
         menu.play_button.clicked.connect(self.data_input.start)
-        menu.play_button.clicked.connect(self.refresh_timer.start)
+        menu.play_button.clicked.connect(self.refresh_timer.start(gui_refresh))
 
         menu.select_algorithm.currentTextChanged.connect(self.on_algorithm_select)
 
@@ -721,9 +693,8 @@ class MainWidget(qw.QWidget):
 
     def set_input_dialog(self):
         """Query device list and set the drop down menu"""
-        if self.audio_processor is not None:
-            self.audio_processor.stop_stream()
-            self.audio_processor.close_stream()
+        audio_processor.stop_stream()
+        audio_processor.close_stream()
 
         self.refresh_timer.stop()
         self.input_dialog.show()
@@ -732,23 +703,18 @@ class MainWidget(qw.QWidget):
 
     def audio_config_changed(self):
         """Initializes widgets and makes connections."""
+
         # setup and start audio processor
-        if self.audio_processor is not None:
-            self.audio_processor.stop_stream()
-            self.audio_processor.close_stream()
-
-        self.audio_processor = AudioProcessor(
-            fs=self.input_dialog.selected_fs,
-            fft_len=self.input_dialog.selected_fftsize,
-            channels=self.input_dialog.selected_channels,
-            device_no=self.input_dialog.selected_device,
-        )
-
-        self.audio_processor.start_stream()
+        audio_processor.fs = self.input_dialog.selected_fs
+        audio_processor.fft_len = self.input_dialog.selected_fftsize
+        audio_processor.channels = self.input_dialog.selected_channels
+        audio_processor.device_no = self.input_dialog.selected_device
+        audio_processor.init_buffers()
+        audio_processor.start_stream()
 
         # prepare widgets
         self.channel_views_widget = ChannelViews(
-            self.audio_processor, freq_max=self.freq_max
+            channels=len(audio_processor.channels), freq_max=self.freq_max
         )
         channel_views = self.channel_views_widget.views[:-1]
         for cv in channel_views:
@@ -777,7 +743,7 @@ class MainWidget(qw.QWidget):
         self.signal_widgets_draw.connect(self.pitch_view.on_draw)
         self.signal_widgets_draw.connect(self.pitch_view_all_diff.on_draw)
 
-        self.refresh_timer.start()  # start refreshing GUI
+        self.refresh_timer.start(gui_refresh)  # start refreshing GUI
 
     def set_input(self, input):
         """Set audio input."""
