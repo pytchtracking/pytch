@@ -102,7 +102,7 @@ class AudioProcessor:
         buf_len_sec=10.0,
         fft_len=1024,
         hop_len=256,
-        blocksize=4096,
+        blocksize=256,
         channels=[0],
         device_no=None,
         f0_algorithm="YIN",
@@ -115,45 +115,66 @@ class AudioProcessor:
         self.blocksize = blocksize
         self.device_no = device_no
         self.f0_algorithm = f0_algorithm
+        self.stream = None
+        self.is_running = False
+        self.worker = threading.Thread(
+            target=self.worker_thread
+        )  # thread for computations
+        atexit.register(self.close_stream)
+
+        self.init_buffers()
+
+    def init_buffers(self):
         self.stft = ShortTimeFFT(
-            np.hanning(fft_len),
-            hop_len,
-            fs,
+            np.hanning(self.fft_len),
+            self.hop_len,
+            self.fs,
             fft_mode="onesided",
             mfft=None,
             dual_win=None,
             scale_to=None,
             phase_shift=0,
         )
+        self.fft_freqs = np.arange(self.fft_len // 2 + 1) * self.fs / self.fft_len
 
         # initialize buffers
-        buf_len_smp = int(np.ceil(buf_len_sec * fs / blocksize) * blocksize)
-        n_blocks = int(buf_len_smp / blocksize)
-        self.frames_per_block_f0 = 1 + int(blocksize / hop_len)
-        self.frames_per_block_stft = 3 + int(blocksize / hop_len)
-        self.audio_buf = RingBuffer(size=(buf_len_smp, len(channels)), dtype=np.float64)
-        self.lvl_buf = RingBuffer(size=(n_blocks, len(channels)), dtype=np.float64)
+        buf_len_smp = int(
+            np.ceil(self.buf_len_sec * self.fs / self.blocksize) * self.blocksize
+        )
+        n_blocks = int(buf_len_smp / self.blocksize)
+        self.frames_per_block_f0 = 1 + int(self.blocksize / self.hop_len)
+        self.frames_per_block_stft = 3 + int(self.blocksize / self.hop_len)
+        self.audio_buf = RingBuffer(
+            size=(buf_len_smp, len(self.channels)), dtype=np.float64
+        )
+        self.lvl_buf = RingBuffer(size=(n_blocks, len(self.channels)), dtype=np.float64)
         self.stft_buf = RingBuffer(
             size=(
                 n_blocks * self.frames_per_block_stft,
-                len(channels),
                 1 + self.fft_len // 2,
+                len(self.channels),
             ),
             dtype=np.float64,
         )
         self.f0_buf = RingBuffer(
-            size=(n_blocks * self.frames_per_block_f0, len(channels)), dtype=np.float64
+            size=(n_blocks * self.frames_per_block_f0, len(self.channels)),
+            dtype=np.float64,
         )
         self.conf_buf = RingBuffer(
-            size=(n_blocks * self.frames_per_block_f0, len(channels)), dtype=np.float64
+            size=(n_blocks * self.frames_per_block_f0, len(self.channels)),
+            dtype=np.float64,
         )
+
+    def start_stream(self):
+        if self.is_running:
+            self.stop_stream()
 
         # initialize audio stream
         self.stream = sounddevice.InputStream(
             samplerate=self.fs,
             blocksize=self.blocksize,
             device=self.device_no,
-            channels=np.max(channels) + 1,
+            channels=np.max(self.channels) + 1,
             dtype=np.int16,
             latency=None,
             extra_settings=None,
@@ -164,44 +185,40 @@ class AudioProcessor:
             never_drop_input=None,
             prime_output_buffers_using_stream_callback=None,
         )
-
-        # initialize thread for computations
-        self.worker = threading.Thread(target=self.worker_thread)
-        self.running = False
-
-        atexit.register(self.close_stream)
-
-    def start_stream(self):
         self.stream.start()
-        self.running = True
+        self.is_running = True
         self.worker.start()
 
     def stop_stream(self):
-        self.stream.stop()
-        self.running = False
-        self.worker.join()
+        if self.is_running:
+            self.stream.stop()
+            self.is_running = False
+            self.worker.join()
 
     def close_stream(self):
-        self.stream.close()
+        if self.is_running:
+            self.stop_stream()
+            self.stream.close()
+            self.stream = None
 
     def worker_thread(self):
-        while self.running:
+        while self.is_running:
             audio = None
             with _audio_lock:
-                if self.audio_buf.available_frames >= self.blocksize:
-                    audio = self.audio_buf.read(self.blocksize)  # get audio
+                if self.audio_buf.available_frames >= self.fft_len:
+                    audio = self.audio_buf.read(self.fft_len)  # get audio
 
             if audio is None:
-                sleep(self.blocksize / 4 / self.fs)
+                sleep(self.blocksize / self.fs)
                 continue
 
             lvl = self.compute_level(audio)  # compute level
-            fft = self.compute_stft(audio)  # compute fft
+            stft = self.compute_stft(audio)  # compute stft
             f0, conf = self.compute_f0(audio)  # compute f0 & confidence
 
             with _gui_lock:
                 self.lvl_buf.write(lvl)
-                self.stft_buf.write(fft)
+                self.stft_buf.write(stft)
                 self.f0_buf.write(f0)
                 self.conf_buf.write(conf)
 
@@ -218,7 +235,7 @@ class AudioProcessor:
 
     def compute_stft(self, audio):
         return np.transpose(
-            np.abs(self.stft.stft(audio, axis=0, padding="even")), (2, 1, 0)
+            np.abs(self.stft.stft(audio, axis=0, padding="even")), (2, 0, 1)
         )
 
     def compute_f0(self, audio):
