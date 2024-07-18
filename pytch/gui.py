@@ -169,7 +169,7 @@ class ChannelView(qw.QWidget):
     @qc.pyqtSlot()
     def on_draw(self):
         # get latest data
-        lvl, stft, f0, conf = audio_processor.read_block_data(n_blocks=1)
+        lvl, stft, f0, conf = audio_processor.read_block_data(n_blocks=100)
 
         if (lvl.size == 0) or (stft.size == 0) or (f0.size == 0) or (conf.size == 0):
             return
@@ -177,13 +177,13 @@ class ChannelView(qw.QWidget):
         # prepare data
         if self.is_product:
             lvl_update = np.nan
-            stft_update = np.prod(stft, axis=2).T
-            spec_update = np.mean(stft_update, axis=1)
+            stft_update = np.prod(stft, axis=2)
+            spec_update = np.mean(stft_update, axis=0)
             vline = None
         else:
             lvl_update = np.mean(lvl[:, self.ch_id])
-            stft_update = stft[:, :, self.ch_id].T
-            spec_update = np.mean(stft_update, axis=1)
+            stft_update = stft[:, :, self.ch_id]
+            spec_update = np.mean(stft_update, axis=0)
             conf_update = np.mean(conf[:, self.ch_id])
             f0_update = np.mean(f0[:, self.ch_id])
 
@@ -356,13 +356,7 @@ class SpectrogramWidget(FigureCanvas):
         self.freq_min = 20
         self.freq_max = 1000
         self.show_n_frames = 300
-        self.img = self.ax.imshow(
-            np.zeros((self.show_n_frames, 4096)),
-            origin="lower",
-            aspect="auto",
-            cmap="viridis",
-            extent=[0, 4000, 0, 3],
-        )
+        self.img = None
         self.ax.set_xlim((self.freq_min, self.freq_max))
         self.ax.set_xlabel("Frequency [Hz]")
         self.ax.xaxis.grid(True, which="both")
@@ -371,7 +365,16 @@ class SpectrogramWidget(FigureCanvas):
 
     def update_spectrogram(self, data):
         if self.spectral_type == "log":
-            data = np.log(1 + 1000 * data)
+            data = np.log(1 + 10 * data)
+
+        if self.img is None:
+            self.img = self.ax.imshow(
+                data,
+                origin="lower",
+                aspect="auto",
+                cmap="viridis",
+                extent=[0, 4000, 0, 3],
+            )
 
         self.img.set_data(data)
         self.img.set_clim(vmin=np.min(data), vmax=np.max(data))

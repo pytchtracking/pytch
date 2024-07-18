@@ -76,8 +76,8 @@ class DeviceMenu(qw.QDialog):
         self.fs_options = qw.QComboBox()
         layout.addWidget(self.fs_options)
 
-        # select chunksize
-        layout.addWidget(qw.QLabel("Chunksize in Samples"))
+        # select fft size
+        layout.addWidget(qw.QLabel("FFT Size in Samples"))
         self.nfft_options = self.get_nfft_box()
         layout.addWidget(self.nfft_options)
 
@@ -121,7 +121,7 @@ class DeviceMenu(qw.QDialog):
     def get_nfft_box(self):
         """Return a qw.QSlider for modifying FFT width"""
         b = qw.QComboBox()
-        b.addItems([str(f * 1024) for f in [1, 2, 4, 8, 16]])
+        b.addItems([str(f * 256) for f in [1, 2, 4, 8, 16]])
         b.setCurrentIndex(1)
         return b
 
