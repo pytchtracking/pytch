@@ -100,7 +100,7 @@ class AudioProcessor:
         self,
         fs=8000,
         buf_len_sec=10.0,
-        fft_len=1024,
+        fft_len=512,
         hop_len=256,
         blocksize=256,
         channels=[0],
@@ -125,6 +125,8 @@ class AudioProcessor:
         self.init_buffers()
 
     def init_buffers(self):
+        self.blocksize = self.fft_len
+        self.hop_len = self.fft_len // 2
         self.stft = ShortTimeFFT(
             np.hanning(self.fft_len),
             self.hop_len,
@@ -135,15 +137,16 @@ class AudioProcessor:
             scale_to=None,
             phase_shift=0,
         )
-        self.fft_freqs = np.arange(self.fft_len // 2 + 1) * self.fs / self.fft_len
+        self.fft_freqs = self.stft.f
 
         # initialize buffers
         buf_len_smp = int(
             np.ceil(self.buf_len_sec * self.fs / self.blocksize) * self.blocksize
         )
         n_blocks = int(buf_len_smp / self.blocksize)
-        self.frames_per_block_f0 = 1 + int(self.blocksize / self.hop_len)
-        self.frames_per_block_stft = 3 + int(self.blocksize / self.hop_len)
+
+        self.frames_per_block_f0 = int(np.floor(self.blocksize / self.hop_len)) + 1
+        self.frames_per_block_stft = len(self.stft.t(self.blocksize))
         self.audio_buf = RingBuffer(
             size=(buf_len_smp, len(self.channels)), dtype=np.float64
         )
@@ -205,16 +208,18 @@ class AudioProcessor:
         while self.is_running:
             audio = None
             with _audio_lock:
-                if self.audio_buf.available_frames >= self.fft_len:
-                    audio = self.audio_buf.read(self.fft_len)  # get audio
+                if self.audio_buf.available_frames >= self.fft_len + self.fft_len // 2:
+                    audio = self.audio_buf.read(
+                        self.fft_len + self.fft_len // 2
+                    )  # get audio
 
             if audio is None:
                 sleep(self.blocksize / self.fs)
                 continue
 
-            lvl = self.compute_level(audio)  # compute level
+            lvl = self.compute_level(audio[: self.fft_len])  # compute level
             stft = self.compute_stft(audio)  # compute stft
-            f0, conf = self.compute_f0(audio)  # compute f0 & confidence
+            f0, conf = self.compute_f0(audio[: self.fft_len])  # compute f0 & confidence
 
             with _gui_lock:
                 self.lvl_buf.write(lvl)
@@ -236,7 +241,7 @@ class AudioProcessor:
     def compute_stft(self, audio):
         return np.transpose(
             np.abs(self.stft.stft(audio, axis=0, padding="even")), (2, 0, 1)
-        )
+        )[:-1, :]
 
     def compute_f0(self, audio):
         f0 = np.zeros((self.frames_per_block_f0, audio.shape[1]))
