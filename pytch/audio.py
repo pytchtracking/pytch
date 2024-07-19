@@ -59,36 +59,58 @@ class RingBuffer:
     """
 
     def __init__(self, size, dtype):
+        """Initialize buffer, size should be of format (n_frames, ..., n_channels)"""
         self.size = size
         self.buffer = np.zeros(size, dtype=dtype)
         self.write_head = 0
-        self.available_frames = 0
+        self.read_head = 0
 
     def write(self, data):
+        """Writes data to buffer"""
         if data.shape[0] > self.size[0]:
             logger.warning("Buffer overflow!")
         write_idcs = np.mod(self.write_head + np.arange(data.shape[0]), self.size[0])
         self.buffer[write_idcs, ...] = data
-        self.write_head = np.mod(write_idcs[-1] + 1, self.size[0])
-        if self.available_frames < self.size[0]:
-            self.available_frames += data.shape[0]
+        self.write_head = np.mod(
+            write_idcs[-1] + 1, self.size[0]
+        )  # set write head to the next bin to write to
 
-    def read(self, blocksize):
-        # make sure that we are not reading more than we are allowed to
-        if self.available_frames < blocksize:
-            read_frames = self.available_frames
-            logger.warning("Buffer underflow!")
-        else:
-            read_frames = blocksize
+    def read_latest(self, n_frames):
+        """Reads n_frames from buffer, starting from latest data"""
+        if self.size[0] < n_frames:
+            Exception("Cannot read more data than buffer length!")
+
         read_idcs = np.mod(
-            self.size[0] + self.write_head - np.arange(read_frames) - 1, self.size[0]
+            self.size[0] + self.write_head - np.arange(n_frames) - 1, self.size[0]
         )[::-1]
+        return self.buffer[read_idcs, ...]
+
+    def read_next(self, n_frames, hop_frames=None):
+        """Reads n_frames from buffer, starting from latest read"""
+
+        if (
+            np.mod(self.size[0] + self.write_head - self.read_head, self.size[0])
+            < n_frames
+        ):
+            return np.array([])
+
+        read_idcs = np.mod(
+            self.size[0] + self.read_head + np.arange(n_frames), self.size[0]
+        )[::-1]
+
+        if hop_frames is None:
+            hop_frames = n_frames
+
+        self.read_head = np.mod(
+            self.read_head + hop_frames, self.size[0]
+        )  # advance read head
+
         return self.buffer[read_idcs, ...]
 
     def flush(self):
         self.buffer = np.zeros_like(self.buffer)
         self.write_head = 0
-        self.available_frames = 0
+        self.read_head = 0
 
 
 class AudioProcessor:
@@ -99,10 +121,8 @@ class AudioProcessor:
     def __init__(
         self,
         fs=8000,
-        buf_len_sec=10.0,
+        buf_len_sec=30.0,
         fft_len=512,
-        hop_len=256,
-        blocksize=256,
         channels=[0],
         device_no=None,
         f0_algorithm="YIN",
@@ -110,9 +130,8 @@ class AudioProcessor:
         self.fs = fs
         self.buf_len_sec = buf_len_sec
         self.fft_len = fft_len
-        self.hop_len = hop_len
+        self.hop_len = fft_len // 2
         self.channels = channels
-        self.blocksize = blocksize
         self.device_no = device_no
         self.f0_algorithm = f0_algorithm
         self.stream = None
@@ -120,51 +139,42 @@ class AudioProcessor:
         self.worker = threading.Thread(
             target=self.worker_thread
         )  # thread for computations
-        atexit.register(self.close_stream)
 
         self.init_buffers()
 
     def init_buffers(self):
-        self.blocksize = self.fft_len
-        self.hop_len = self.fft_len // 2
-        self.stft = ShortTimeFFT(
-            np.hanning(self.fft_len),
-            self.hop_len,
-            self.fs,
-            fft_mode="onesided",
-            mfft=None,
-            dual_win=None,
-            scale_to=None,
-            phase_shift=0,
-        )
-        self.fft_freqs = self.stft.f
+        self.fft_freqs = np.fft.rfftfreq(self.fft_len, 1 / self.fs)
+        self.fft_win = np.hanning(self.fft_len).reshape(-1, 1)
+        self.hop_len = self.fft_len // self.hop_len
 
         # initialize buffers
         buf_len_smp = int(
-            np.ceil(self.buf_len_sec * self.fs / self.blocksize) * self.blocksize
+            np.ceil(self.buf_len_sec * self.fs / self.hop_len) * self.hop_len
         )
-        n_blocks = int(buf_len_smp / self.blocksize)
-
-        self.frames_per_block_f0 = int(np.floor(self.blocksize / self.hop_len)) + 1
-        self.frames_per_block_stft = len(self.stft.t(self.blocksize))
         self.audio_buf = RingBuffer(
             size=(buf_len_smp, len(self.channels)), dtype=np.float64
         )
-        self.lvl_buf = RingBuffer(size=(n_blocks, len(self.channels)), dtype=np.float64)
-        self.stft_buf = RingBuffer(
+
+        buf_len_frm = int(
+            np.floor((self.buf_len_sec * self.fs - self.fft_len) / self.hop_len)
+        )
+        self.lvl_buf = RingBuffer(
+            size=(buf_len_frm, len(self.channels)), dtype=np.float64
+        )
+        self.fft_buf = RingBuffer(
             size=(
-                n_blocks * self.frames_per_block_stft,
-                1 + self.fft_len // 2,
+                buf_len_frm,
+                len(self.fft_freqs),
                 len(self.channels),
             ),
             dtype=np.float64,
         )
         self.f0_buf = RingBuffer(
-            size=(n_blocks * self.frames_per_block_f0, len(self.channels)),
+            size=(buf_len_frm, len(self.channels)),
             dtype=np.float64,
         )
         self.conf_buf = RingBuffer(
-            size=(n_blocks * self.frames_per_block_f0, len(self.channels)),
+            size=(buf_len_frm, len(self.channels)),
             dtype=np.float64,
         )
 
@@ -175,7 +185,7 @@ class AudioProcessor:
         # initialize audio stream
         self.stream = sounddevice.InputStream(
             samplerate=self.fs,
-            blocksize=self.blocksize,
+            blocksize=self.hop_len,
             device=self.device_no,
             channels=np.max(self.channels) + 1,
             dtype=np.int16,
@@ -199,31 +209,28 @@ class AudioProcessor:
             self.worker.join()
 
     def close_stream(self):
-        if self.is_running:
-            self.stop_stream()
+        if self.stream is not None:
             self.stream.close()
             self.stream = None
 
     def worker_thread(self):
         while self.is_running:
-            audio = None
             with _audio_lock:
-                if self.audio_buf.available_frames >= self.fft_len + self.fft_len // 2:
-                    audio = self.audio_buf.read(
-                        self.fft_len + self.fft_len // 2
-                    )  # get audio
+                audio = self.audio_buf.read_next(
+                    self.fft_len, self.hop_len
+                )  # get audio
 
-            if audio is None:
-                sleep(self.blocksize / self.fs)
+            if audio.size == 0:
+                sleep(self.hop_len / self.fs)
                 continue
 
-            lvl = self.compute_level(audio[: self.fft_len])  # compute level
-            stft = self.compute_stft(audio)  # compute stft
-            f0, conf = self.compute_f0(audio[: self.fft_len])  # compute f0 & confidence
+            lvl = self.compute_level(audio)  # compute level
+            fft = self.compute_fft(audio)  # compute fft
+            f0, conf = self.compute_f0(audio)  # compute f0 & confidence
 
             with _gui_lock:
                 self.lvl_buf.write(lvl)
-                self.stft_buf.write(stft)
+                self.fft_buf.write(fft)
                 self.f0_buf.write(f0)
                 self.conf_buf.write(conf)
 
@@ -238,18 +245,18 @@ class AudioProcessor:
     def compute_level(self, audio):
         return 10 * np.log10(np.max(np.abs(audio), axis=0)).reshape(-1, 1)
 
-    def compute_stft(self, audio):
-        return np.transpose(
-            np.abs(self.stft.stft(audio, axis=0, padding="even")), (2, 0, 1)
-        )[:-1, :]
+    def compute_fft(self, audio):
+        return np.abs(np.fft.rfft(audio * self.fft_win, self.fft_len, axis=0))[
+            np.newaxis, :, :
+        ]
 
     def compute_f0(self, audio):
-        f0 = np.zeros((self.frames_per_block_f0, audio.shape[1]))
-        conf = np.zeros((self.frames_per_block_f0, audio.shape[1]))
+        f0 = np.zeros((1, audio.shape[1]))
+        conf = np.zeros((1, audio.shape[1]))
 
         for c in range(audio.shape[1]):
             if self.f0_algorithm == "YIN":
-                f0[:, c], _, conf[:, c] = libf0.yin(
+                f0_tmp, _, conf_tmp = libf0.yin(
                     audio[:, c],
                     Fs=self.fs,
                     N=self.fft_len,
@@ -259,8 +266,11 @@ class AudioProcessor:
                     threshold=0.15,
                     verbose=False,
                 )
+                f0[:, c] = f0_tmp[1]  # take the center frame
+                conf[:, c] = conf_tmp[1]
+
             else:
-                f0[:, c], _, conf[:, c] = libf0.swipe(
+                f0_tmp, _, conf_tmp = libf0.swipe(
                     audio[:, c],
                     Fs=self.fs,
                     H=self.hop_len,
@@ -270,14 +280,20 @@ class AudioProcessor:
                     derbs=0.1,
                     strength_threshold=0,
                 )
+                f0[:, c] = f0_tmp[1]  # take the center frame
+                conf[:, c] = conf_tmp[1]
 
         return f0, conf
 
-    def read_block_data(self, n_blocks=1):
+    def read_latest_frames(self, t_lvl, t_stft, t_f0, t_conf):
+        """Reads latest t seconds from buffers"""
+
+        frame_rate = self.fs / self.hop_len
+
         with _gui_lock:
-            lvl = self.lvl_buf.read(n_blocks)
-            stft = self.stft_buf.read(self.frames_per_block_stft * n_blocks)
-            f0 = self.f0_buf.read(self.frames_per_block_f0 * n_blocks)
-            conf = self.conf_buf.read(self.frames_per_block_f0 * n_blocks)
+            lvl = self.lvl_buf.read_latest(int(np.round(t_lvl * frame_rate)))
+            stft = self.fft_buf.read_latest(int(np.round(t_stft * frame_rate)))
+            f0 = self.f0_buf.read_latest(int(np.round(t_f0 * frame_rate)))
+            conf = self.conf_buf.read_latest(int(np.round(t_conf * frame_rate)))
 
         return lvl, stft, f0, conf
