@@ -26,8 +26,7 @@ import matplotlib.pyplot as plt
 matplotlib.rcParams.update({"font.size": 9})
 colormaps = ["viridis", "wb", "bw"]
 logger = logging.getLogger("pytch.gui")
-tfollow = 3.0
-gui_refresh = int(1000 / 12)
+gui_refresh = int(1000 / 25)
 
 audio_processor = AudioProcessor()
 
@@ -169,21 +168,28 @@ class ChannelView(qw.QWidget):
     @qc.pyqtSlot()
     def on_draw(self):
         # get latest data
-        lvl, stft, f0, conf = audio_processor.read_block_data(n_blocks=100)
+        lvl, stft, f0, conf = audio_processor.read_latest_frames(
+            t_lvl=1, t_stft=15, t_f0=1, t_conf=1
+        )
 
-        if (lvl.size == 0) or (stft.size == 0) or (f0.size == 0) or (conf.size == 0):
+        if (
+            np.all(lvl == 0)
+            or np.all(stft == 0)
+            or np.all(f0 == 0)
+            or np.all(conf == 0)
+        ):
             return
 
         # prepare data
         if self.is_product:
             lvl_update = np.nan
-            stft_update = np.prod(stft, axis=2)
-            spec_update = np.mean(stft_update, axis=0)
+            stft_update = np.flipud(np.prod(stft, axis=2))
+            spec_update = np.mean(stft_update[: lvl.shape[0]], axis=0)
             vline = None
         else:
             lvl_update = np.mean(lvl[:, self.ch_id])
-            stft_update = stft[:, :, self.ch_id]
-            spec_update = np.mean(stft_update, axis=0)
+            stft_update = np.flipud(stft[:, :, self.ch_id])
+            spec_update = np.mean(stft_update[: lvl.shape[0]], axis=0)
             conf_update = np.mean(conf[:, self.ch_id])
             f0_update = np.mean(f0[:, self.ch_id])
 
@@ -794,6 +800,10 @@ class MainWindow(qw.QMainWindow):
         self.addDockWidget(qc.Qt.DockWidgetArea.RightDockWidgetArea, views_dock_widget)
 
         self.showMaximized()  # maximize window always
+
+    def closeEvent(self, a0):
+        audio_processor.stop_stream()
+        audio_processor.close_stream()
 
 
 def start_gui():
