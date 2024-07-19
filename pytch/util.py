@@ -7,11 +7,11 @@ eps = np.finfo(float).eps
 
 
 def f2cent(f, standard_frequency):
-    return 1200.0 * np.log2(np.abs(f) / np.abs(standard_frequency) + eps)
+    return 1200.0 * np.log2(np.abs(f) / standard_frequency + eps)
 
 
 def cent2f(p, standard_frequency):
-    return np.exp2(p / 1200.0) * np.abs(standard_frequency)
+    return np.exp2(p / 1200.0) * standard_frequency
 
 
 def consecutive(arr):
