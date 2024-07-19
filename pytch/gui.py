@@ -6,7 +6,7 @@ import logging
 import sys
 import numpy as np
 
-from .util import consecutive, index_gradient_filter
+from .util import consecutive, index_gradient_filter, f2cent
 from .menu import DeviceMenu, ProcessingMenu
 from .config import _color_names, _colors
 from .audio import AudioProcessor
@@ -144,8 +144,7 @@ class ChannelView(qw.QWidget):
         self.is_product = is_product
         self.ch_id = ch_id
 
-        self.confidence_threshold = 0.0
-        self.t_follow = 3
+        self.confidence_threshold = 0.8  # default
 
         channel_label = "Product" if ch_id is None else f"Channel {ch_id + 1}"
         self.level_widget = LevelWidget(channel_label=channel_label)
@@ -381,8 +380,8 @@ class SpectrogramWidget(FigureCanvas):
                 cmap="viridis",
                 extent=[0, 4000, 0, 3],
             )
-
-        self.img.set_data(data)
+        else:
+            self.img.set_data(data)
         self.img.set_clim(vmin=np.min(data), vmax=np.max(data))
         self.ax.set_xlim((self.freq_min, self.freq_max))
 
@@ -405,7 +404,7 @@ class PitchWidget(FigureCanvas):
         self.current_low_pitch = np.zeros(len(channel_views))
         self.current_low_pitch[:] = np.nan
         self.track_start = None
-        self.tfollow = 3.0
+        self.x_tick_pos = 0
 
         self.figure = Figure(tight_layout=True)
         self.ax = self.figure.add_subplot(111, position=[0, 0, 0, 0])
@@ -452,43 +451,54 @@ class PitchWidget(FigureCanvas):
 
     @qc.pyqtSlot()
     def on_draw(self):
-        pass
-        # for i, cv in enumerate(self.channel_views):
-        #     x, y = cv.channel.pitch.latest_frame(self.tfollow, clip_min=True)
-        #     index = np.where(
-        #         cv.channel.pitch_confidence.latest_frame_data(len(x))
-        #         >= cv.confidence_threshold
-        #     )[0]
-        #
-        #     index_grad = index_gradient_filter(x, y, self.derivative_filter)
-        #     index = np.intersect1d(index, index_grad)
-        #     indices_grouped = consecutive(index)
-        #     for group in indices_grouped:
-        #         if len(group) == 0:
-        #             continue
-        #         if self._line[i] is None:
-        #             (self._line[i],) = self.ax.plot(
-        #                 x[group],
-        #                 y[group],
-        #                 color=np.array(_colors[cv.color]) / 256,
-        #                 linewidth="4",
-        #             )
-        #         else:
-        #             if len(x[group]) != 0:
-        #                 self._line[i].set_data(x[group], y[group])
-        #
-        #     try:
-        #         self.current_low_pitch[i] = y[indices_grouped[-1][-1]]
-        #     except IndexError as e:
-        #         pass
-        #
-        #     self.low_pitch_changed.emit(self.current_low_pitch)
-        #
-        # xstart = np.min(x)
-        # self.ax.set_xticks(np.arange(0, xstart + self.tfollow, 1))
-        # self.ax.set_xlim(xstart, xstart + self.tfollow)
-        # self.figure.set_tight_layout(True)
-        # self.draw()
+        _, _, f0, conf = audio_processor.read_latest_frames(
+            t_lvl=0, t_stft=0, t_f0=15, t_conf=15
+        )
+
+        if np.all(f0 == 0) or np.all(conf == 0):
+            return
+
+        for i, cv in enumerate(self.channel_views):
+            # filter f0 using confidence threshold and gradient filter
+            index = np.where((conf[:, i] >= cv.confidence_threshold) & (f0[:, i] > 0))[
+                0
+            ]
+            index_grad = index_gradient_filter(
+                np.arange(conf.shape[0]), conf[:, i], self.derivative_filter
+            )
+            index = np.intersect1d(index, index_grad)
+
+            f0_plot = np.full(f0.shape[0], np.nan)
+            f0_plot[index] = f0[index, i]
+            f0_plot = f2cent(f0_plot, self.channel_views.views.standard_frequency)
+
+            if self._line[i] is None:
+                (self._line[i],) = self.ax.plot(
+                    np.arange(len(f0_plot)),
+                    f0_plot,
+                    color=np.array(_colors[cv.color]) / 256,
+                    linewidth="4",
+                )
+            else:
+                self._line[i].set_data(np.arange(len(f0_plot)), f0_plot)
+
+            # try:
+            #     self.current_low_pitch[i] = y[indices_grouped[-1][-1]]
+            # except IndexError as e:
+            #     pass
+            #
+            # self.low_pitch_changed.emit(self.current_low_pitch)
+
+        self.ax.set_xlim(0, len(f0_plot))
+        self.ax.set_xticks(
+            np.arange(
+                0,
+                len(f0_plot),
+                int(np.round(audio_processor.fs / audio_processor.hop_len)),
+            )
+        )
+        self.figure.set_tight_layout(True)
+        self.draw()
 
 
 class DifferentialPitchWidget(FigureCanvas):

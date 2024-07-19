@@ -220,8 +220,7 @@ class ProcessingMenu(qw.QFrame):
 
         pv_layout.addWidget(qw.QLabel("Confidence Threshold"), 1, 0)
         self.noise_thresh_slider = qw.QSlider()
-        self.noise_thresh_slider.setRange(0, 15)
-        # self.noise_thresh_slider.setTickPosition(qw.QSlider.TicksBelow)
+        self.noise_thresh_slider.setRange(0, 10)
         self.noise_thresh_slider.setOrientation(qc.Qt.Orientation.Horizontal)
         self.noise_thresh_slider.valueChanged.connect(
             lambda x: self.noise_thresh_label.setText(str(x / 10.0))

@@ -3,9 +3,7 @@
 """Audio Functions"""
 import threading
 from time import sleep
-import atexit
 import numpy as np
-from scipy.signal import ShortTimeFFT
 import logging
 import sounddevice
 import libf0
@@ -262,12 +260,12 @@ class AudioProcessor:
                     N=self.fft_len,
                     H=self.hop_len,
                     F_min=55.0,
-                    F_max=1760.0,
+                    F_max=880.0,
                     threshold=0.15,
                     verbose=False,
                 )
                 f0[:, c] = f0_tmp[1]  # take the center frame
-                conf[:, c] = conf_tmp[1]
+                conf[:, c] = 1 - conf_tmp[1]
 
             else:
                 f0_tmp, _, conf_tmp = libf0.swipe(
@@ -275,7 +273,7 @@ class AudioProcessor:
                     Fs=self.fs,
                     H=self.hop_len,
                     F_min=55.0,
-                    F_max=1760.0,
+                    F_max=880.0,
                     dlog2p=1 / 96,
                     derbs=0.1,
                     strength_threshold=0,
