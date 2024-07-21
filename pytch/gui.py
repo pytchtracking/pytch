@@ -77,11 +77,6 @@ class ChannelViews(qw.QWidget):
     def show_product_widgets(self, show):
         self.views[-1].setVisible(show)
 
-    @qc.pyqtSlot(float)
-    def on_standard_frequency_changed(self, f):
-        for cv in self.views:
-            cv.on_standard_frequency_changed(f)
-
     def on_min_freq_changed(self, f):
         for cv in self.views:
             cv.on_min_freq_changed(f)
@@ -433,10 +428,14 @@ class PitchWidget(FigureCanvas):
         self.figure.tight_layout()
 
         self.derivative_filter = 2000  # pitch/seconds
+        self.reference_freq = 220  # Hz
 
     @qc.pyqtSlot(int)
     def on_derivative_filter_changed(self, max_derivative):
         self.derivative_filter = max_derivative
+
+    def on_reference_frequency_changed(self, f):
+        self.reference_freq = f
 
     def update_pitchlims(self):
         self.ax.set_ylim((self.parent.pitch_min, self.parent.pitch_max))
@@ -470,7 +469,7 @@ class PitchWidget(FigureCanvas):
 
             f0_plot = np.full(f0.shape[0], np.nan)
             f0_plot[index] = f0[index, i]
-            f0_plot = f2cent(f0_plot, self.channel_views.views.standard_frequency)
+            f0_plot = f2cent(f0_plot, self.reference_freq)
 
             if self._line[i] is None:
                 (self._line[i],) = self.ax.plot(
@@ -556,7 +555,13 @@ class DifferentialPitchWidget(FigureCanvas):
 
     @qc.pyqtSlot()
     def on_draw(self):
-        pass
+        _, _, f0, conf = audio_processor.read_latest_frames(
+            t_lvl=0, t_stft=0, t_f0=15, t_conf=15
+        )
+
+        if np.all(f0 == 0) or np.all(conf == 0):
+            return
+
         # for i1, cv1 in enumerate(self.channel_views):
         #     x1, y1 = cv1.channel.pitch.latest_frame(tfollow, clip_min=True)
         #     xstart = np.min(x1)
@@ -666,22 +671,6 @@ class MainWidget(qw.QWidget):
 
         qc.QTimer().singleShot(0, self.set_input_dialog)  # show input dialog
 
-    def make_connections(self):
-        """Connect menu elements with backend."""
-        menu = self.menu
-        menu.input_button.clicked.connect(self.set_input_dialog)
-
-        menu.pause_button.clicked.connect(self.data_input.stop)
-        menu.pause_button.clicked.connect(self.refresh_timer.stop)
-
-        menu.play_button.clicked.connect(self.data_input.start)
-        menu.play_button.clicked.connect(self.refresh_timer.start(gui_refresh))
-
-        menu.select_algorithm.currentTextChanged.connect(self.on_algorithm_select)
-
-        menu.pitch_max.accepted_value.connect(self.on_pitch_max_changed)
-        menu.pitch_min.accepted_value.connect(self.on_pitch_min_changed)
-
     @qc.pyqtSlot(str)
     def on_algorithm_select(self, arg):
         """Change pitch algorithm."""
@@ -743,7 +732,7 @@ class MainWidget(qw.QWidget):
         self.top_layout.addWidget(self.channel_views_widget, 1, 0, 1, 1)
 
         self.pitch_view = PitchWidget(self, channel_views)
-        self.pitch_view.low_pitch_changed.connect(self.menu.on_adapt_standard_frequency)
+        self.pitch_view.low_pitch_changed.connect(self.menu.update_reference_frequency)
         self.pitch_view_all_diff = DifferentialPitchWidget(self, channel_views)
 
         # remove old tabs from pitch view
@@ -757,21 +746,16 @@ class MainWidget(qw.QWidget):
         self.menu.derivative_filter_slider.valueChanged.connect(
             self.pitch_view_all_diff.on_derivative_filter_changed
         )
-        self.menu.connect_channel_views(self.channel_views_widget)
+        self.menu.connect_channel_views(self.channel_views_widget, self.pitch_view)
 
         self.signal_widgets_draw.connect(self.pitch_view.on_draw)
         self.signal_widgets_draw.connect(self.pitch_view_all_diff.on_draw)
 
+        self.menu.select_algorithm.currentTextChanged.connect(self.on_algorithm_select)
+        self.menu.pitch_max.accepted_value.connect(self.on_pitch_max_changed)
+        self.menu.pitch_min.accepted_value.connect(self.on_pitch_min_changed)
+
         self.refresh_timer.start(gui_refresh)  # start refreshing GUI
-
-    def set_input(self, input):
-        """Set audio input."""
-        self.cleanup()
-        self.data_input = input
-        self.data_input.start_new_stream()
-        self.make_connections()
-
-        self.audio_config_changed()
 
     @qc.pyqtSlot()
     def refresh_widgets(self):

@@ -244,12 +244,14 @@ class ProcessingMenu(qw.QFrame):
         )
         pv_layout.addWidget(self.derivative_filter_slider, 2, 1, 1, 1)
 
-        self.f_standard_mode = qw.QComboBox()
-        self.f_standard_mode.addItems(["Fixed Freq.", "Highest", "Lowest"])
-        self.f_standard_mode.currentTextChanged.connect(self.on_f_standard_mode_changed)
+        self.reference_frequency_mode = qw.QComboBox()
+        self.reference_frequency_mode.addItems(["Fixed Freq.", "Highest", "Lowest"])
+        self.reference_frequency_mode.currentTextChanged.connect(
+            self.on_reference_frequency_mode_changed
+        )
 
         pv_layout.addWidget(qw.QLabel("Reference Voice"), 3, 0)
-        pv_layout.addWidget(self.f_standard_mode, 3, 1, 1, 1)
+        pv_layout.addWidget(self.reference_frequency_mode, 3, 1, 1, 1)
 
         self.freq_box = FloatQLineEdit(parent=self, default=220)
         pv_layout.addWidget(qw.QLabel("Reference Frequency"), 4, 0)
@@ -277,7 +279,7 @@ class ProcessingMenu(qw.QFrame):
         # layout.addItem(qw.QSpacerItem(40, 20), 7, 0, qc.Qt.AlignTop)
 
         self.setLineWidth(1)
-        self.get_adaptive_f = num.nanmin
+        self.get_reference_frequency = num.nanmin
         self.setFrameStyle(qw.QFrame.Shadow.Sunken)
         self.setFrameShape(qw.QFrame.Shape.Box)
         self.setSizePolicy(qw.QSizePolicy.Policy.Minimum, qw.QSizePolicy.Policy.Minimum)
@@ -290,29 +292,25 @@ class ProcessingMenu(qw.QFrame):
         self.setAutoFillBackground(True)
 
     @qc.pyqtSlot(str)
-    def on_f_standard_mode_changed(self, text):
+    def on_reference_frequency_mode_changed(self, text):
         if text == "Highest":
             self.freq_box.setReadOnly(True)
-            self.get_adaptive_f = num.nanmax
+            self.get_reference_frequency = num.nanmax
         elif text == "Lowest":
             self.freq_box.setReadOnly(True)
-            self.get_adaptive_f = num.nanmin
+            self.get_reference_frequency = num.nanmin
         elif "Channel" in text:
             self.freq_box.setReadOnly(True)
             ichannel = int(text[-2:]) - 1
-            self.get_adaptive_f = lambda x: x[ichannel]
+            self.get_reference_frequency = lambda x: x[ichannel]
         else:
-            self.get_adaptive_f = lambda x: x
+            self.get_reference_frequency = lambda x: x
             self.freq_box.setText("220")
             self.freq_box.do_check()
             self.freq_box.setReadOnly(False)
 
     @qc.pyqtSlot(num.ndarray)
-    def on_adapt_standard_frequency(self, fs):
-        if num.isnan(fs):
-            f = num.nan
-        else:
-            f = self.get_adaptive_f(fs)
+    def update_reference_frequency(self, f):
         if self.freq_box.isReadOnly() and not num.isnan(f):
             fref = num.clip(float(self.freq_box.text()), -3000.0, 3000.0)
             txt = str(num.round((cent2f(f, fref) + fref) / 2.0, 2))
@@ -330,7 +328,7 @@ class ProcessingMenu(qw.QFrame):
         )
         self.noise_thresh_slider.setValue(int(widget.confidence_threshold * 10))
 
-    def connect_channel_views(self, channel_views):
+    def connect_channel_views(self, channel_views, pitch_view):
         self.box_show_levels.stateChanged.connect(channel_views.show_level_widgets)
 
         self.box_show_spectrograms.stateChanged.connect(
@@ -339,9 +337,7 @@ class ProcessingMenu(qw.QFrame):
 
         self.box_show_products.stateChanged.connect(channel_views.show_product_widgets)
 
-        self.freq_box.accepted_value.connect(
-            channel_views.on_standard_frequency_changed
-        )
+        self.freq_box.accepted_value.connect(pitch_view.on_reference_frequency_changed)
 
         self.freq_min.accepted_value.connect(channel_views.on_min_freq_changed)
         self.freq_max.accepted_value.connect(channel_views.on_max_freq_changed)
@@ -352,7 +348,7 @@ class ProcessingMenu(qw.QFrame):
             self.spectrum_type_selected.connect(cv.on_spectrum_type_select)
 
         for i, cv in enumerate(channel_views.views[:-1]):
-            self.f_standard_mode.addItem("Channel %s" % (i + 1))
+            self.reference_frequency_mode.addItem("Channel %s" % (i + 1))
 
     def sizeHint(self):
         return qc.QSize(200, 200)
