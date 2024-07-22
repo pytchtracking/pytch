@@ -212,7 +212,6 @@ class ChannelView(qw.QWidget):
         self.channel_views_widget.
         """
         self.confidence_threshold = threshold / 10.0
-        logger.debug("update confidence threshold: %i" % self.confidence_threshold)
 
     @qc.pyqtSlot(float)
     def on_standard_frequency_changed(self, f):
@@ -457,19 +456,30 @@ class PitchWidget(FigureCanvas):
         if np.all(f0 == 0) or np.all(conf == 0):
             return
 
+        # compute reference frequency
+        cur_mode = self.parent.menu.ref_freq_mode
+        if cur_mode == "Fixed":
+            cur_ref_freq = self.reference_freq
+        elif cur_mode == "Highest":
+            cur_ref_freq = np.max(np.max(f0, axis=0))
+        elif cur_mode == "Lowest":
+            cur_ref_freq = np.min(np.min(f0, axis=0))
+        else:
+            cur_ref_freq = f0[-1, int(cur_mode[-2:]) - 1]
+
         for i, cv in enumerate(self.channel_views):
             # filter f0 using confidence threshold and gradient filter
             index = np.where((conf[:, i] >= cv.confidence_threshold) & (f0[:, i] > 0))[
                 0
             ]
             index_grad = index_gradient_filter(
-                np.arange(conf.shape[0]), conf[:, i], self.derivative_filter
+                np.arange(f0.shape[0]), f0[:, i], self.derivative_filter
             )
             index = np.intersect1d(index, index_grad)
 
             f0_plot = np.full(f0.shape[0], np.nan)
             f0_plot[index] = f0[index, i]
-            f0_plot = f2cent(f0_plot, self.reference_freq)
+            f0_plot = f2cent(f0_plot, cur_ref_freq)
 
             if self._line[i] is None:
                 (self._line[i],) = self.ax.plot(
@@ -479,14 +489,7 @@ class PitchWidget(FigureCanvas):
                     linewidth="4",
                 )
             else:
-                self._line[i].set_data(np.arange(len(f0_plot)), f0_plot)
-
-            # try:
-            #     self.current_low_pitch[i] = y[indices_grouped[-1][-1]]
-            # except IndexError as e:
-            #     pass
-            #
-            # self.low_pitch_changed.emit(self.current_low_pitch)
+                self._line[i].set_ydata(f0_plot)
 
         self.ax.set_xlim(0, len(f0_plot))
         self.ax.set_xticks(
@@ -537,10 +540,14 @@ class DifferentialPitchWidget(FigureCanvas):
         self.figure.tight_layout()
 
         self.derivative_filter = 2000  # pitch/seconds
+        self.reference_freq = 220
 
     @qc.pyqtSlot(int)
     def on_derivative_filter_changed(self, max_derivative):
         self.derivative_filter = max_derivative
+
+    def on_reference_frequency_changed(self, f):
+        self.reference_freq = f
 
     def update_pitchlims(self):
         self.ax.set_ylim((self.parent.pitch_min, self.parent.pitch_max))
@@ -555,6 +562,10 @@ class DifferentialPitchWidget(FigureCanvas):
 
     @qc.pyqtSlot()
     def on_draw(self):
+
+        if len(audio_processor.channels) == 1:
+            return
+
         _, _, f0, conf = audio_processor.read_latest_frames(
             t_lvl=0, t_stft=0, t_f0=15, t_conf=15
         )
@@ -562,62 +573,73 @@ class DifferentialPitchWidget(FigureCanvas):
         if np.all(f0 == 0) or np.all(conf == 0):
             return
 
-        # for i1, cv1 in enumerate(self.channel_views):
-        #     x1, y1 = cv1.channel.pitch.latest_frame(tfollow, clip_min=True)
-        #     xstart = np.min(x1)
-        #     index1 = cv1.channel.latest_confident_indices(
-        #         len(x1), cv1.confidence_threshold
-        #     )
-        #     index1_grad = index_gradient_filter(x1, y1, self.derivative_filter)
-        #     index1 = np.intersect1d(index1, index1_grad)
-        #     for i2, cv2 in enumerate(self.channel_views):
-        #         if i1 >= i2:
-        #             continue
-        #         x2, y2 = cv2.channel.pitch.latest_frame(tfollow, clip_min=True)
-        #         index2_grad = index_gradient_filter(x2, y2, self.derivative_filter)
-        #         index2 = cv2.channel.latest_confident_indices(
-        #             len(x2), cv2.confidence_threshold
-        #         )
-        #
-        #         index2 = np.intersect1d(index2, index2_grad)
-        #         indices = np.intersect1d(index1, index2)
-        #         indices_grouped = consecutive(indices)
-        #
-        #         for group in indices_grouped:
-        #             if len(group) == 0:
-        #                 continue
-        #
-        #             y = y1[group] - y2[group]
-        #
-        #             x = x1[group]
-        #             if self._line[i1][i2][0] is None:
-        #                 (self._line[i1][i2][0],) = self.ax.plot(
-        #                     x,
-        #                     y,
-        #                     color=np.array(_colors[cv1.color]) / 256,
-        #                     linewidth="4",
-        #                     linestyle="-",
-        #                 )
-        #             else:
-        #                 if len(x) != 0:
-        #                     self._line[i1][i1][0].set_data(x, y)
-        #
-        #             if self._line[i1][i2][1] is None:
-        #                 (self._line[i1][i2][1],) = self.ax.plot(
-        #                     x,
-        #                     y,
-        #                     color=np.array(_colors[cv2.color]) / 256,
-        #                     linewidth="4",
-        #                     linestyle="--",
-        #                 )
-        #             else:
-        #                 if len(x) != 0:
-        #                     self._line[i1][i1][1].set_data(x, y)
-        #
-        # self.ax.set_xticks(np.arange(0, xstart + self.tfollow, 1))
-        # self.ax.set_xlim(xstart, xstart + self.tfollow)
-        # self.figure.set_tight_layout(True)
-        # self.draw()
+        # compute reference frequency
+        cur_mode = self.parent.menu.ref_freq_mode
+        if cur_mode == "Fixed":
+            cur_ref_freq = self.reference_freq
+        elif cur_mode == "Highest":
+            cur_ref_freq = np.max(np.max(f0, axis=0))
+        elif cur_mode == "Lowest":
+            cur_ref_freq = np.min(np.min(f0, axis=0))
+        else:
+            cur_ref_freq = f0[-1, int(cur_mode[-2:]) - 1]
+
+        for ch0, cv0 in enumerate(self.channel_views):
+            for ch1, cv1 in enumerate(self.channel_views):
+                if ch0 >= ch1:
+                    continue
+
+                index = np.where(
+                    (conf[:, ch0] >= cv0.confidence_threshold)
+                    & (conf[:, ch1] >= cv1.confidence_threshold)
+                    & (f0[:, ch0] > 0)
+                    & (f0[:, ch1] > 0)
+                )[0]
+                index_grad0 = index_gradient_filter(
+                    np.arange(f0.shape[0]), f0[:, ch0], self.derivative_filter
+                )
+                index_grad1 = index_gradient_filter(
+                    np.arange(f0.shape[0]), f0[:, ch1], self.derivative_filter
+                )
+                index = np.intersect1d(np.intersect1d(index, index_grad0), index_grad1)
+
+                f0_plot = np.full(f0.shape[0], np.nan)
+                f0_plot[index] = f2cent(f0[index, ch0], cur_ref_freq) - f2cent(
+                    f0[index, ch1], cur_ref_freq
+                )
+
+                if self._line[ch0][ch1][0] is None:
+                    (self._line[ch0][ch1][0],) = self.ax.plot(
+                        np.arange(len(f0_plot)),
+                        f0_plot,
+                        color=np.array(_colors[cv0.color]) / 256,
+                        linewidth="4",
+                        linestyle="-",
+                    )
+                else:
+                    self._line[ch0][ch1][0].set_ydata(f0_plot)
+
+                if self._line[ch0][ch1][1] is None:
+                    (self._line[ch0][ch1][1],) = self.ax.plot(
+                        np.arange(len(f0_plot)),
+                        f0_plot,
+                        color=np.array(_colors[cv1.color]) / 256,
+                        linewidth="4",
+                        linestyle="--",
+                    )
+                else:
+                    self._line[ch0][ch1][1].set_ydata(f0_plot)
+
+            self.ax.set_xlim(0, len(f0_plot))
+            self.ax.set_xticks(
+                np.arange(
+                    0,
+                    len(f0_plot),
+                    int(np.round(audio_processor.fs / audio_processor.hop_len)),
+                )
+            )
+            self.figure.set_tight_layout(True)
+            self.draw()
 
 
 class RightTabs(qw.QTabWidget):
@@ -732,7 +754,6 @@ class MainWidget(qw.QWidget):
         self.top_layout.addWidget(self.channel_views_widget, 1, 0, 1, 1)
 
         self.pitch_view = PitchWidget(self, channel_views)
-        self.pitch_view.low_pitch_changed.connect(self.menu.update_reference_frequency)
         self.pitch_view_all_diff = DifferentialPitchWidget(self, channel_views)
 
         # remove old tabs from pitch view
@@ -746,7 +767,9 @@ class MainWidget(qw.QWidget):
         self.menu.derivative_filter_slider.valueChanged.connect(
             self.pitch_view_all_diff.on_derivative_filter_changed
         )
-        self.menu.connect_channel_views(self.channel_views_widget, self.pitch_view)
+        self.menu.connect_channel_views(
+            self.channel_views_widget, self.pitch_view, self.pitch_view_all_diff
+        )
 
         self.signal_widgets_draw.connect(self.pitch_view.on_draw)
         self.signal_widgets_draw.connect(self.pitch_view_all_diff.on_draw)
