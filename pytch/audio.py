@@ -129,21 +129,13 @@ class AudioProcessor:
         self.buf_len_sec = buf_len_sec
         self.fft_len = fft_len
         self.hop_len = fft_len // 2
+        self.fft_freqs = np.fft.rfftfreq(self.fft_len, 1 / self.fs)
+        self.fft_win = np.hanning(self.fft_len).reshape(-1, 1)
         self.channels = channels
         self.device_no = device_no
         self.f0_algorithm = f0_algorithm
         self.stream = None
         self.is_running = False
-        self.worker = threading.Thread(
-            target=self.worker_thread
-        )  # thread for computations
-
-        self.init_buffers()
-
-    def init_buffers(self):
-        self.fft_freqs = np.fft.rfftfreq(self.fft_len, 1 / self.fs)
-        self.fft_win = np.hanning(self.fft_len).reshape(-1, 1)
-        self.hop_len = self.fft_len // self.hop_len
 
         # initialize buffers
         buf_len_smp = int(
@@ -198,6 +190,9 @@ class AudioProcessor:
         )
         self.stream.start()
         self.is_running = True
+        self.worker = threading.Thread(
+            target=self.worker_thread
+        )  # thread for computations
         self.worker.start()
 
     def stop_stream(self):
