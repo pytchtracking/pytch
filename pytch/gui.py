@@ -196,9 +196,9 @@ class MainWindow(qw.QMainWindow):
             qc.Qt.Orientation.Horizontal, central_widget
         )  # split GUI horizontally
 
-        self.menu = ProcessingMenu(self)  # left-hand menu
         self.channel_views = ChannelViews(self)  # channel views
         self.trajectory_views = TrajectoryViews(self)  # trajectory views
+        self.menu = ProcessingMenu(self)  # left-hand menu
 
         splitter.addWidget(self.menu)
         splitter.addWidget(self.channel_views)
@@ -297,21 +297,33 @@ class ProcessingMenu(QFrame):
         layout.addWidget(qw.QLabel("Levels"), 1, 0)
         self.box_show_levels = qw.QCheckBox()
         self.box_show_levels.setChecked(True)
+        self.box_show_levels.stateChanged.connect(
+            main_window.channel_views.show_level_widgets
+        )
         layout.addWidget(self.box_show_levels, 1, 1, 1, 1)
 
         layout.addWidget(qw.QLabel("Spectra"), 2, 0)
         self.box_show_spectra = qw.QCheckBox()
         self.box_show_spectra.setChecked(True)
+        self.box_show_spectra.stateChanged.connect(
+            main_window.channel_views.show_spectrum_widgets
+        )
         layout.addWidget(self.box_show_spectra, 2, 1, 1, 1)
 
         layout.addWidget(qw.QLabel("Spectrograms"), 3, 0)
         self.box_show_spectrograms = qw.QCheckBox()
         self.box_show_spectrograms.setChecked(True)
+        self.box_show_spectrograms.stateChanged.connect(
+            main_window.channel_views.show_spectrogram_widgets
+        )
         layout.addWidget(self.box_show_spectrograms, 3, 1, 1, 1)
 
         layout.addWidget(qw.QLabel("Products"), 4, 0)
         self.box_show_products = qw.QCheckBox()
         self.box_show_products.setChecked(True)
+        self.box_show_products.stateChanged.connect(
+            main_window.channel_views.show_product_widgets
+        )
         layout.addWidget(self.box_show_products, 4, 1, 1, 1)
 
         self.freq_min = FloatQLineEdit(
@@ -488,7 +500,8 @@ class ChannelViews(qw.QWidget):
 
         for i, c_view in enumerate(self.views):
             if i == len(self.views) - 1:
-                self.layout.addWidget(QHLine())
+                self.h_line = QHLine()
+                self.layout.addWidget(self.h_line)
             self.layout.addWidget(c_view)
         self.layout.setContentsMargins(0, 25, 0, 0)
 
@@ -511,6 +524,7 @@ class ChannelViews(qw.QWidget):
 
     def show_product_widgets(self, show):
         self.views[-1].setVisible(show)
+        self.h_line.setVisible(show)
 
     def on_min_freq_changed(self, f):
         for cv in self.views:
