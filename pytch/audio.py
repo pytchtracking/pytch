@@ -134,6 +134,7 @@ class AudioProcessor:
         self.channels = channels
         self.device_no = device_no
         self.f0_algorithm = f0_algorithm
+        self.frame_rate = self.fs / self.hop_len
         self.stream = None
         self.is_running = False
 
@@ -281,12 +282,10 @@ class AudioProcessor:
     def read_latest_frames(self, t_lvl, t_stft, t_f0, t_conf):
         """Reads latest t seconds from buffers"""
 
-        frame_rate = self.fs / self.hop_len
-
         with _gui_lock:
-            lvl = self.lvl_buf.read_latest(int(np.round(t_lvl * frame_rate)))
-            stft = self.fft_buf.read_latest(int(np.round(t_stft * frame_rate)))
-            f0 = self.f0_buf.read_latest(int(np.round(t_f0 * frame_rate)))
-            conf = self.conf_buf.read_latest(int(np.round(t_conf * frame_rate)))
+            lvl = self.lvl_buf.read_latest(int(np.round(t_lvl * self.frame_rate)))
+            stft = self.fft_buf.read_latest(int(np.round(t_stft * self.frame_rate)))
+            f0 = self.f0_buf.read_latest(int(np.round(t_f0 * self.frame_rate)))
+            conf = self.conf_buf.read_latest(int(np.round(t_conf * self.frame_rate)))
 
         return lvl, stft, f0, conf

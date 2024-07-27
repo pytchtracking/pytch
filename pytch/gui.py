@@ -156,8 +156,13 @@ class MainWindow(qw.QMainWindow):
         self.spec_scale_types = ["log", "linear"]
         self.ref_freq_modes = ["fixed", "highest", "lowest"]
         self.ref_freq = 220
-        self.conf_threshold = 0.8
+        self.conf_threshold = 0.5
         self.derivative_tol = 1000
+        self.disp_t_lvl = 1
+        self.disp_t_spec = 1
+        self.disp_t_stft = 20
+        self.disp_t_f0 = 20
+        self.disp_t_conf = 20
 
         # status variables
         self.is_running = False
@@ -227,8 +232,14 @@ class MainWindow(qw.QMainWindow):
             self.menu.play_pause_button.setText("Pause")
 
     def refresh_gui(self):
-        self.channel_views.on_draw()
-        self.trajectory_views.on_draw()
+        lvl, stft, f0, conf = self.audio_processor.read_latest_frames(
+            t_lvl=self.disp_t_lvl,
+            t_stft=self.disp_t_stft,
+            t_f0=self.disp_t_f0,
+            t_conf=self.disp_t_conf,
+        )
+        self.channel_views.on_draw(lvl, stft, f0, conf)
+        self.trajectory_views.on_draw(f0, conf)
 
     def menu_toggle_button(self):
         top_bar = QHBoxLayout()
@@ -462,7 +473,6 @@ class ChannelViews(qw.QWidget):
         qw.QWidget.__init__(self)
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
-        self.widget_ready_to_show = False
 
         self.views = []
         for ch_id in range(len(main_window.channels)):
@@ -483,9 +493,9 @@ class ChannelViews(qw.QWidget):
         self.layout.setContentsMargins(0, 25, 0, 0)
 
         self.setSizePolicy(qw.QSizePolicy.Policy.Minimum, qw.QSizePolicy.Policy.Minimum)
-        self.show_level_widgets(False)
-        self.show_spectrum_widgets(False)
-        self.show_spectrogram_widgets(False)
+        self.show_level_widgets(True)
+        self.show_spectrum_widgets(True)
+        self.show_spectrogram_widgets(True)
 
     def show_level_widgets(self, show):
         for view in self.views:
@@ -516,16 +526,9 @@ class ChannelViews(qw.QWidget):
             view.on_pitch_shift_changed(f)
 
     @qc.pyqtSlot()
-    def on_draw(self):
-        if not self.widget_ready_to_show:
-            self.widget_ready_to_show = True
-            self.show_level_widgets(True)
-            self.show_spectrum_widgets(True)
-            self.show_spectrogram_widgets(True)
-            self.show_product_widgets(True)
-
+    def on_draw(self, lvl, stft, f0, conf):
         for view in self.views:
-            view.on_draw()
+            view.on_draw(lvl, stft, f0, conf)
 
     def sizeHint(self):
         return qc.QSize(400, 200)
@@ -574,12 +577,7 @@ class ChannelView(qw.QWidget):
             self.level_widget.ax.yaxis.grid(False, which="both")
 
     @qc.pyqtSlot()
-    def on_draw(self):
-        # get latest data
-        lvl, stft, f0, conf = self.main_window.audio_processor.read_latest_frames(
-            t_lvl=1, t_stft=15, t_f0=1, t_conf=1
-        )
-
+    def on_draw(self, lvl, stft, f0, conf):
         if (
             np.all(lvl == 0)
             or np.all(stft == 0)
@@ -588,18 +586,22 @@ class ChannelView(qw.QWidget):
         ):
             return
 
+        frames_spec = int(
+            self.main_window.audio_processor.frame_rate * self.main_window.disp_t_spec
+        )
+
         # prepare data
         if self.is_product:
             lvl_update = np.nan
             stft_update = np.flipud(np.prod(stft, axis=2))
-            spec_update = np.mean(stft_update[: lvl.shape[0]], axis=0)
+            spec_update = np.prod(np.mean(stft[-frames_spec:, :, :], axis=0), axis=1)
             vline = None
         else:
             lvl_update = np.mean(lvl[:, self.ch_id])
             stft_update = np.flipud(stft[:, :, self.ch_id])
-            spec_update = np.mean(stft_update[: lvl.shape[0]], axis=0)
-            conf_update = np.mean(conf[:, self.ch_id])
-            f0_update = np.mean(f0[:, self.ch_id])
+            spec_update = np.mean(stft[-frames_spec:, :, self.ch_id], axis=0)
+            conf_update = np.mean(conf[-frames_spec:, self.ch_id])
+            f0_update = np.mean(f0[-frames_spec:, self.ch_id])
 
             if conf_update > self.confidence_threshold:
                 vline = f0_update
@@ -608,8 +610,8 @@ class ChannelView(qw.QWidget):
 
         # update widgets
         self.level_widget.on_draw(lvl_update)
-        self.spectrum_widget.update_spectrum(spec_update, self.color, vline=vline)
-        self.spectrogram_widget.update_spectrogram(stft_update)
+        self.spectrum_widget.on_draw(spec_update, self.color, vline=vline)
+        self.spectrogram_widget.on_draw(stft_update)
 
     def show_spectrum_widget(self, show):
         self.spectrum_widget.setVisible(show)
@@ -722,7 +724,7 @@ class SpectrumWidget(FigureCanvas):
         self._vline = None
         self.figure.tight_layout()
 
-    def update_spectrum(self, data, color, vline=None):
+    def on_draw(self, data, color, vline=None):
         f_axis = self.main_window.audio_processor.fft_freqs
         if self._line is None:
             (self._line,) = self.ax.plot(
@@ -771,7 +773,7 @@ class SpectrogramWidget(FigureCanvas):
         self.ax.xaxis.grid(True, which="both")
         self.figure.tight_layout()
 
-    def update_spectrogram(self, data):
+    def on_draw(self, data):
         if self.main_window.cur_spec_scale_type == "log":
             data = np.log(1 + 10 * data)
 
@@ -862,16 +864,12 @@ class PitchWidget(FigureCanvas):
         self.draw()
 
     @qc.pyqtSlot()
-    def on_draw(self):
-        cur_ref_freq_mode = self.main_window.cur_ref_freq_mode
-        ref_freq = self.main_window.ref_freq
-
-        _, _, f0, conf = self.main_window.audio_processor.read_latest_frames(
-            t_lvl=0, t_stft=0, t_f0=15, t_conf=15
-        )
-
+    def on_draw(self, f0, conf):
         if np.all(f0 == 0) or np.all(conf == 0):
             return
+
+        cur_ref_freq_mode = self.main_window.cur_ref_freq_mode
+        ref_freq = self.main_window.ref_freq
 
         # compute reference frequency
         if cur_ref_freq_mode == "fixed":
@@ -989,19 +987,15 @@ class DifferentialPitchWidget(FigureCanvas):
         self.draw()
 
     @qc.pyqtSlot()
-    def on_draw(self):
-        cur_ref_freq_mode = self.main_window.cur_ref_freq_mode
-        cur_ref_freq = self.main_window.cur_ref_freq
-
+    def on_draw(self, f0, conf):
         if len(self.main_window.audio_processor.channels) == 1:
             return
 
-        _, _, f0, conf = self.main_window.audio_processor.read_latest_frames(
-            t_lvl=0, t_stft=0, t_f0=15, t_conf=15
-        )
-
         if np.all(f0 == 0) or np.all(conf == 0):
             return
+
+        cur_ref_freq_mode = self.main_window.cur_ref_freq_mode
+        cur_ref_freq = self.main_window.cur_ref_freq
 
         # compute reference frequency
         if cur_ref_freq_mode == "fixed":
@@ -1115,9 +1109,9 @@ class TrajectoryViews(qw.QTabWidget):
         self.addTab(self.pitch_view, "Pitches")
         self.addTab(self.pitch_view_all_diff, "Differential")
 
-    def on_draw(self):
-        self.pitch_view.on_draw()
-        self.pitch_view_all_diff.on_draw()
+    def on_draw(self, f0, conf):
+        self.pitch_view.on_draw(f0, conf)
+        self.pitch_view_all_diff.on_draw(f0, conf)
 
     def sizeHint(self):
         """Makes sure the widget is show with the right aspect."""
