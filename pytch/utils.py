@@ -59,11 +59,11 @@ class QVLine(QFrame):
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
 
 
-def f2cent(f, standard_frequency):
+def f2cent(f, standard_frequency=440.0):
     return 1200.0 * np.log2(np.abs(f) / standard_frequency + eps)
 
 
-def cent2f(p, standard_frequency):
+def cent2f(p, standard_frequency=440.0):
     return np.exp2(p / 1200.0) * standard_frequency
 
 
@@ -73,4 +73,4 @@ def consecutive(arr):
 
 def index_gradient_filter(x, y, max_gradient):
     """Get index where the abs gradient of x, y is < max_gradient."""
-    return np.where(np.abs(np.diff(y) / np.diff(x)) < max_gradient)[0]
+    return np.where(np.abs(np.diff(f2cent(y))) < max_gradient)[0]
