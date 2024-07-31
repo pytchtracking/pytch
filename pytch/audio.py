@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 """Audio Functions"""
 import threading
+import time
 from time import sleep
 import numpy as np
 import logging
@@ -18,7 +19,11 @@ eps = np.finfo(float).eps
 
 def get_input_devices():
     """Returns a list of devices."""
-    return sounddevice.query_devices()
+    input_devices = []
+    for device_id, device in enumerate(sounddevice.query_devices()):
+        if device["max_input_channels"] > 0:
+            input_devices.append((device_id, device))
+    return input_devices
 
 
 def get_fs_options(device_idx):
@@ -215,7 +220,7 @@ class AudioProcessor:
                 )  # get audio
 
             if audio.size == 0:
-                sleep(self.hop_len / self.fs)
+                sleep(0.001)
                 continue
 
             lvl = self.compute_level(audio)  # compute level
@@ -237,7 +242,7 @@ class AudioProcessor:
             )  # convert int16 to float64
 
     def compute_level(self, audio):
-        return 10 * np.log10(np.max(np.abs(audio), axis=0)).reshape(-1, 1)
+        return 10 * np.log10(np.max(np.abs(audio + eps), axis=0)).reshape(-1, 1)
 
     def compute_fft(self, audio):
         return np.abs(np.fft.rfft(audio * self.fft_win, self.fft_len, axis=0))[
@@ -254,9 +259,9 @@ class AudioProcessor:
                     audio[:, c],
                     Fs=self.fs,
                     N=self.fft_len,
-                    H=self.hop_len,
+                    H=self.fft_len,
                     F_min=55.0,
-                    F_max=880.0,
+                    F_max=1650.0,
                     threshold=0.15,
                     verbose=False,
                 )
@@ -269,7 +274,7 @@ class AudioProcessor:
                     Fs=self.fs,
                     H=self.hop_len,
                     F_min=55.0,
-                    F_max=880.0,
+                    F_max=1650.0,
                     dlog2p=1 / 96,
                     derbs=0.1,
                     strength_threshold=0,
