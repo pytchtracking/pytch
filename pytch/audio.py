@@ -242,7 +242,7 @@ class AudioProcessor:
             )  # convert int16 to float64
 
     def compute_level(self, audio):
-        return 10 * np.log10(np.max(np.abs(audio + eps), axis=0)).reshape(-1, 1)
+        return 10 * np.log10(np.max(np.abs(audio + eps), axis=0)).reshape(1, -1)
 
     def compute_fft(self, audio):
         return np.abs(np.fft.rfft(audio * self.fft_win, self.fft_len, axis=0))[
