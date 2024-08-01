@@ -16,6 +16,7 @@ from .utils import (
     cent2f,
     FloatQLineEdit,
     QHLine,
+    BlitManager
 )
 from .config import _color_names, _colors
 from .audio import AudioProcessor, get_input_devices, get_fs_options
@@ -238,6 +239,7 @@ class MainWindow(qw.QMainWindow):
         # refresh timer
         self.refresh_timer = qc.QTimer()
         self.refresh_timer.timeout.connect(self.refresh_gui)
+        self.last_refresh = time.time()
 
         self.play_pause()  # start recording and plotting
 
@@ -254,6 +256,9 @@ class MainWindow(qw.QMainWindow):
             self.menu.play_pause_button.setText("Pause")
 
     def refresh_gui(self):
+        cur_t = time.time()
+        logger.info(f"Diff last refresh {cur_t-self.last_refresh}")
+        self.last_refresh = cur_t
         lvl, stft, f0, conf = self.audio_processor.read_latest_frames(
             t_lvl=self.disp_t_lvl,
             t_stft=self.disp_t_stft,
@@ -350,18 +355,18 @@ class ProcessingMenu(QFrame):
         )
         layout.addWidget(self.box_show_products, 4, 1, 1, 1)
 
+        layout.addWidget(qw.QLabel("Minimum Frequency"), 5, 0)
         self.freq_min = FloatQLineEdit(
             parent=self, default=main_window.cur_disp_freq_lims[0]
         )
-        layout.addWidget(qw.QLabel("Minimum Frequency"), 5, 0)
         layout.addWidget(self.freq_min, 5, 1, 1, 1)
         self.freq_min.accepted_value.connect(self.on_min_freq_changed)
         layout.addWidget(qw.QLabel("Hz"), 5, 2)
 
+        layout.addWidget(qw.QLabel("Maximum Frequency"), 6, 0)
         self.freq_max = FloatQLineEdit(
             parent=self, default=main_window.cur_disp_freq_lims[1]
         )
-        layout.addWidget(qw.QLabel("Maximum Frequency"), 6, 0)
         layout.addWidget(self.freq_max, 6, 1, 1, 1)
         self.freq_max.accepted_value.connect(self.on_max_freq_changed)
         layout.addWidget(qw.QLabel("Hz"), 6, 2)
@@ -482,10 +487,10 @@ class ProcessingMenu(QFrame):
         self.main_window.cur_ref_freq = val
 
     def on_pitch_min_changed(self, val):
-        self.main_window.disp_pitch_lims[0] = val
+        self.main_window.disp_pitch_lims[0] = int(val)
 
     def on_pitch_max_changed(self, val):
-        self.main_window.disp_pitch_lims[1] = val
+        self.main_window.disp_pitch_lims[1] = int(val)
 
     def on_spectrum_type_select(self, arg):
         self.main_window.cur_spec_scale_type = arg
@@ -569,14 +574,14 @@ class ChannelView(qw.QWidget):
         self.setLayout(qw.QHBoxLayout())
         self.main_window = main_window
 
-        self.color = "black" if ch_id is None else _color_names[3 * ch_id]
+        self.color = "black" if ch_id is None else np.array(_colors[_color_names[3 * ch_id]]) / 256
         self.is_product = is_product
         self.ch_id = ch_id
 
         channel_label = "Product" if ch_id is None else f"Channel {ch_id + 1}"
         self.level_widget = LevelWidget(channel_label=channel_label)
-        self.spectrogram_widget = SpectrogramWidget(self.main_window)
-        self.spectrum_widget = SpectrumWidget(self.main_window)
+        self.spectrogram_widget = SpectrogramWidget(self.main_window, self.color)
+        self.spectrum_widget = SpectrumWidget(self.main_window, self.color)
 
         layout = self.layout()
         layout.addWidget(self.level_widget, 2)
@@ -609,7 +614,7 @@ class ChannelView(qw.QWidget):
             lvl_update = np.nan
             stft_update = np.prod(stft, axis=2)
             spec_update = np.prod(np.mean(stft[-frames_spec:, :, :], axis=0), axis=1)
-            vline = None
+            vline = np.nan
         else:
             lvl_update = np.mean(lvl[:, self.ch_id])
             stft_update = stft[:, :, self.ch_id]
@@ -617,15 +622,19 @@ class ChannelView(qw.QWidget):
             conf_update = np.mean(conf[-frames_spec:, self.ch_id])
             f0_update = np.mean(f0[-frames_spec:, self.ch_id])
 
-            if conf_update > self.main_window.cur_conf_threshold:
+            if self.ch_id == 3:
+                pass
+
+            if ((conf_update > self.main_window.cur_conf_threshold) and
+                    (lvl_update >= self.level_widget.cvals[0])):
                 vline = f0_update
             else:
-                vline = None
+                vline = np.nan
 
         # update widgets
         self.level_widget.on_draw(lvl_update)
-        self.spectrum_widget.on_draw(spec_update, self.color, vline=vline)
-        self.spectrogram_widget.on_draw(stft_update, self.color)
+        self.spectrum_widget.on_draw(spec_update, vline=vline)
+        self.spectrogram_widget.on_draw(stft_update)
 
     def show_spectrum_widget(self, show):
         self.spectrum_widget.setVisible(show)
@@ -650,35 +659,39 @@ class LevelWidget(FigureCanvas):
         self.ax.set_xlabel("Level")
         self.ax.set_ylabel(f"{channel_label}", fontweight="bold")
 
-        cvals = [0, 38, 40]
+        self.cvals = [-80, -12, 0]
         colors = ["green", "yellow", "red"]
-        norm = plt.Normalize(min(cvals), max(cvals))
-        tuples = list(zip(map(norm, cvals), colors))
+        norm = plt.Normalize(min(self.cvals), max(self.cvals))
+        tuples = list(zip(map(norm, self.cvals), colors))
         cmap = matplotlib.colors.LinearSegmentedColormap.from_list("", tuples)
+        self.plot_mat_tmp = np.linspace(self.cvals[0],
+                                        self.cvals[-1],
+                                        np.abs(self.cvals[0]-self.cvals[-1])).reshape(-1, 1)
         self.img = self.ax.imshow(
-            np.linspace((0, 0), (40, 40), 400),
+            self.plot_mat_tmp * np.nan,
             cmap=cmap,
             aspect="auto",
             origin="lower",
-            extent=[0, 1, -40, 0],
+            extent=[0, 1, self.cvals[0], self.cvals[-1]],
         )
-        self.figure.subplots_adjust(
-            left=0, right=0.8, top=1, bottom=0, wspace=0, hspace=0
-        )
-        self.ax.set_ylim((0, -40))
+        self.img.set_clim(vmin=self.cvals[0], vmax=self.cvals[-1])
+        self.ax.set_ylim((self.cvals[-1], self.cvals[0]))
         self.ax.invert_yaxis()
+        self.frame = [self.ax.spines[side] for side in self.ax.spines]
         self.draw()
+        self.bm = BlitManager(self.figure.canvas, [self.img] + self.frame)
 
     def on_draw(self, lvl):
         if np.any(np.isnan(lvl)):
-            plot_mat = np.full((2, 2), fill_value=np.nan)
+            plot_mat = self.plot_mat_tmp.copy() * np.nan
         else:
-            plot_val = np.max((0, 40 + lvl)).astype(int)
-            plot_mat = np.linspace((0, 0), (40, 40), 400)
-            plot_mat[plot_val * 10 + 11:, :] = np.nan
+            lvl_clip = int(np.round(np.clip(lvl, a_min=self.cvals[0], a_max=self.cvals[-1])))
+            plot_mat = self.plot_mat_tmp.copy()
+            plot_mat[lvl_clip:, :] = np.nan
 
         self.img.set_data(plot_mat)
-        self.draw_idle()
+
+        self.bm.update()
 
 
 class SpectrumWidget(FigureCanvas):
@@ -686,45 +699,45 @@ class SpectrumWidget(FigureCanvas):
     Spectrum widget
     """
 
-    def __init__(self, main_window: MainWindow):
+    def __init__(self, main_window: MainWindow, color):
         self.figure = Figure(tight_layout=True)
         super(SpectrumWidget, self).__init__(self.figure)
 
         self.main_window = main_window
-        self.ax = self.figure.add_subplot(111, position=[0, 0, 0, 0])
+        self.color = color
+        self.f_axis = self.main_window.audio_processor.fft_freqs
+        self.ax = self.figure.add_subplot(111)
         self.ax.set_title("")
         self.ax.set_xlabel("Frequency [Hz]")
         self.ax.set_ylabel("Magnitude")
         self.ax.get_yaxis().set_visible(False)
-        self.ax.xaxis.grid(True, which="both")
-        self._line = None
-        self._vline = None
-        self.draw()
-
-    def on_draw(self, data, color, vline=None):
-        f_axis = self.main_window.audio_processor.fft_freqs
-        if self._line is None:
-            (self._line,) = self.ax.plot(
-                f_axis, data, color=np.array(_colors[color]) / 256
+        self.ax.xaxis.grid(True, which="major")
+        self.ax.xaxis.minorticks_on()
+        (self._line, ) = self.ax.plot(
+                self.f_axis, np.zeros_like(self.f_axis), color=self.color
             )
-        else:
-            self._line.set_data(f_axis, data)
+        self._vline = self.ax.axvline(np.nan, c=self.color, linestyle="--")
+        self.cur_disp_freq_lims = self.main_window.cur_disp_freq_lims.copy()
+        self.ax.set_xlim(self.main_window.cur_disp_freq_lims)
+        self.ax.set_ylim((0, 1))
+        self.draw()
+        self.bm = BlitManager(self.figure.canvas, [self._line, self._vline])
 
-        if self._vline is not None:
-            try:
-                self._vline.remove()
-            except:
-                pass
-        if vline is not None:
-            self._vline = self.ax.axvline(vline, c=np.array(_colors[color]) / 256, linestyle="--")
+    def on_draw(self, data, vline=None):
+        if self.main_window.cur_spec_scale_type == "log":
+            data = np.log(1 + 1 * data)
 
-        self.ax.set_yscale(self.main_window.cur_spec_scale_type)
-        self.ax.set_xlim(
-            (self.main_window.cur_disp_freq_lims[0], self.main_window.cur_disp_freq_lims[1])
-        )
-        self.ax.relim()
-        self.ax.autoscale(axis="y")
-        self.draw_idle()
+        data_plot = data / np.max(np.abs(data))
+
+        if self.cur_disp_freq_lims != self.main_window.cur_disp_freq_lims:
+            self.ax.set_xlim(self.main_window.cur_disp_freq_lims)
+            self.cur_disp_freq_lims = self.main_window.cur_disp_freq_lims.copy()
+            self.bm.update_bg()
+
+        self._line.set_ydata(data_plot)
+        self._vline.set_xdata([vline, vline])
+
+        self.bm.update()
 
 
 class SpectrogramWidget(FigureCanvas):
@@ -732,47 +745,51 @@ class SpectrogramWidget(FigureCanvas):
     Spectrogram widget
     """
 
-    def __init__(self, main_window: MainWindow):
+    def __init__(self, main_window: MainWindow, color):
         self.figure = Figure(tight_layout=True)
         super(SpectrogramWidget, self).__init__(self.figure)
 
         self.main_window = main_window
+        # custom colormap or viridis
+        self.cmap = mcolors.LinearSegmentedColormap.from_list("custom_cmap",
+                                                               list(zip([0, 1], ["w", color])))
         self.ax = self.figure.add_subplot(111)
         self.ax.set_title("")
         self.ax.set_ylabel("Time")
         self.ax.get_yaxis().set_visible(False)
-        self.img = None
-        self.ax.set_xlim(
-            (self.main_window.cur_disp_freq_lims[0], self.main_window.cur_disp_freq_lims[1])
-        )
+        self.ax.xaxis.grid(True, which="major")
+        self.ax.xaxis.minorticks_on()
+        self.grid_lines = [line for line in self.ax.get_xgridlines()]
+        self.frame = [self.ax.spines[side] for side in self.ax.spines]
+        self.img = self.ax.imshow(
+                np.zeros((len(self.main_window.audio_processor.fft_freqs),
+                          int(np.round(self.main_window.audio_processor.frame_rate *
+                                       self.main_window.disp_t_spec)))),
+                origin="lower",
+                aspect="auto",
+                cmap=self.cmap,
+                extent=[0, self.main_window.audio_processor.fs // 2, 0, self.main_window.disp_t_spec],
+            )
+        self.img.set_clim(vmin=0, vmax=1)
         self.ax.set_xlabel("Frequency [Hz]")
-        self.ax.xaxis.grid(True, which="both")
+        self.cur_disp_freq_lims = self.main_window.cur_disp_freq_lims.copy()
+        self.ax.set_xlim(self.main_window.cur_disp_freq_lims)
         self.draw()
+        self.bm = BlitManager(self.figure.canvas, [self.img] + self.grid_lines + self.frame)
 
-    def on_draw(self, data, color):
+    def on_draw(self, data):
         if self.main_window.cur_spec_scale_type == "log":
             data = np.log(1 + 1 * data)
 
-        c = np.array(_colors[color]) / 256
+        data_plot = data / np.max(np.abs(data))
+        self.img.set_data(data_plot)
 
-        if self.img is None:
-            self.img = self.ax.imshow(
-                data,
-                origin="lower",
-                aspect="auto",
-                cmap=mcolors.LinearSegmentedColormap.from_list("custom_cmap",
-                                                               list(zip([0, 1], ["w", c]))),
-                #cmap="viridis",
-                extent=[0, 4000, 0, 3],
-            )
-        else:
-            self.img.set_data(data)
-        self.img.set_clim(vmin=np.min(data), vmax=np.max(data))
-        self.ax.set_xlim(
-            (self.main_window.cur_disp_freq_lims[0], self.main_window.cur_disp_freq_lims[1])
-        )
+        if self.cur_disp_freq_lims != self.main_window.cur_disp_freq_lims:
+            self.ax.set_xlim(self.main_window.cur_disp_freq_lims)
+            self.cur_disp_freq_lims = self.main_window.cur_disp_freq_lims.copy()
+            self.bm.update_bg()
 
-        self.draw_idle()
+        self.bm.update()
 
 
 class TrajectoryViews(qw.QTabWidget):
@@ -836,9 +853,6 @@ class PitchWidget(FigureCanvas):
 
         self.main_window = main_window
         self.channel_views = main_window.channel_views.views[:-1]
-        self.current_low_pitch = np.zeros(len(self.channel_views))
-        self.current_low_pitch[:] = np.nan
-        self.x_tick_pos = 0
 
         self.ax = self.figure.add_subplot(111, position=[0, 0, 0, 0])
         self.ax.set_title(None)
@@ -846,14 +860,6 @@ class PitchWidget(FigureCanvas):
         self.ax.set_xlabel("Time")
         self.ax.yaxis.grid(True, which="both")
         self.ax.xaxis.grid(True, which="major")
-        self.ax.set_ylim(main_window.disp_pitch_lims)
-        self.ax.set_yticks(
-            np.arange(
-                main_window.disp_pitch_lims[0],
-                main_window.disp_pitch_lims[1] + 100,
-                100,
-            )
-        )
         self.ax.tick_params(
             labelbottom=True,
             labeltop=False,
@@ -864,8 +870,19 @@ class PitchWidget(FigureCanvas):
             left=True,
             right=True,
         )
-        self.ax.set_xticklabels([])
-        self._line = [None] * len(self.channel_views)
+        self.t_axis = np.arange(int(np.round(self.main_window.audio_processor.frame_rate *
+                                             self.main_window.disp_t_f0)))
+        self.f0_tmp = np.full(len(self.t_axis), np.nan)
+        self._lines = []
+        for i in range(len(self.channel_views)):
+            self._lines.append(self.ax.plot(
+                self.t_axis,
+                self.f0_tmp,
+                color=self.channel_views[i].color,
+                linewidth="3",
+            )[0])
+        self.cur_disp_pitch_lims = self.main_window.disp_pitch_lims.copy()
+        self.set_axes_limits()
 
         pal = self.palette()
         pal.setColor(qg.QPalette.ColorRole.Window, qg.QColor(*_colors["white"]))
@@ -873,12 +890,26 @@ class PitchWidget(FigureCanvas):
 
         self.draw()
 
-    def update_pitchlims(self):
-        self.ax.set_ylim((self.parent.pitch_min, self.parent.pitch_max))
-        self.ax.set_yticks(
-            np.arange(self.parent.pitch_min, self.parent.pitch_max + 100, 100)
+        self.grid_lines = ([line for line in self.ax.get_xgridlines()] +
+                           [line for line in self.ax.get_ygridlines()])
+
+        self.bm = BlitManager(self.figure.canvas, self._lines + self.grid_lines)
+
+    def set_axes_limits(self):
+        self.ax.set_xlim(0, len(self.t_axis))
+        self.ax.set_xticks(
+            np.arange(
+                0,
+                len(self.t_axis),
+                self.main_window.audio_processor.frame_rate,
+            )
         )
-        self.draw()
+        self.ax.set_xticklabels([])
+        self.ax.set_ylim(self.cur_disp_pitch_lims)
+        self.ax.set_yticks(
+            np.arange(self.cur_disp_pitch_lims[0],
+                      self.cur_disp_pitch_lims[1] + 100, 100)
+        )
 
     @qc.pyqtSlot()
     def on_draw(self, f0, conf):
@@ -908,39 +939,17 @@ class PitchWidget(FigureCanvas):
             )
             index = np.intersect1d(index, index_grad)
 
-            f0_plot = np.full(f0.shape[0], np.nan)
+            f0_plot = self.f0_tmp.copy()
             f0_plot[index] = f0[index, i]
             f0_plot = f2cent(f0_plot, cur_ref_freq)
+            self._lines[i].set_ydata(f0_plot)
 
-            if self._line[i] is None:
-                (self._line[i],) = self.ax.plot(
-                    np.arange(len(f0_plot)),
-                    f0_plot,
-                    color=np.array(_colors[cv.color]) / 256,
-                    linewidth="3",
-                )
-            else:
-                self._line[i].set_ydata(f0_plot)
+        if self.cur_disp_pitch_lims != self.main_window.disp_pitch_lims:
+            self.cur_disp_pitch_lims = self.main_window.disp_pitch_lims.copy()
+            self.set_axes_limits()
+            self.bm.update_bg()
 
-        self.ax.set_xlim(0, len(f0_plot))
-        self.ax.set_xticks(
-            np.arange(
-                0,
-                len(f0_plot),
-                int(
-                    np.round(
-                        self.main_window.audio_processor.fs
-                        / self.main_window.audio_processor.hop_len
-                    )
-                ),
-            )
-        )
-        self.ax.set_ylim(self.main_window.disp_pitch_lims)
-        self.ax.set_yticks(
-            np.arange(self.main_window.disp_pitch_lims[0],
-                      self.main_window.disp_pitch_lims[1] + 100, 100)
-        )
-        self.draw_idle()
+        self.bm.update()
 
 
 class DifferentialPitchWidget(FigureCanvas):
@@ -958,14 +967,6 @@ class DifferentialPitchWidget(FigureCanvas):
         self.ax.set_xlabel("Time")
         self.ax.yaxis.grid(True, which="both")
         self.ax.xaxis.grid(True, which="major")
-        self.ax.set_ylim(main_window.disp_pitch_lims)
-        self.ax.set_yticks(
-            np.arange(
-                main_window.disp_pitch_lims[0],
-                main_window.disp_pitch_lims[1] + 100,
-                100,
-            )
-        )
         self.ax.tick_params(
             labelbottom=True,
             labeltop=False,
@@ -976,8 +977,35 @@ class DifferentialPitchWidget(FigureCanvas):
             left=True,
             right=True,
         )
-        self.ax.set_xticklabels([])
-        self._line = []
+        self.t_axis = np.arange(int(np.round(self.main_window.audio_processor.frame_rate *
+                                             self.main_window.disp_t_f0)))
+        self.f0_tmp = np.full(len(self.t_axis), np.nan)
+        self._lines = []
+        for ch0, cv0 in enumerate(self.channel_views):
+            for ch1, cv1 in enumerate(self.channel_views):
+                if ch0 >= ch1:
+                    continue
+
+                (line1,) = self.ax.plot(
+                    self.t_axis,
+                    self.f0_tmp,
+                    color=cv0.color,
+                    linewidth="3",
+                    linestyle="-",
+                )
+
+                (line2,) = self.ax.plot(
+                    self.t_axis,
+                    self.f0_tmp,
+                    color=cv1.color,
+                    linewidth="3",
+                    linestyle=":",
+                )
+
+                self._lines.append([line1, line2])
+
+        self.cur_disp_pitch_lims = self.main_window.disp_pitch_lims.copy()
+        self.set_axes_limits()
 
         pal = self.palette()
         pal.setColor(qg.QPalette.ColorRole.Window, qg.QColor(*_colors["white"]))
@@ -985,12 +1013,28 @@ class DifferentialPitchWidget(FigureCanvas):
 
         self.draw()
 
-    def update_pitchlims(self):
-        self.ax.set_ylim((self.parent.pitch_min, self.parent.pitch_max))
-        self.ax.set_yticks(
-            np.arange(self.parent.pitch_min, self.parent.pitch_max + 100, 100)
+        self.grid_lines = ([line for line in self.ax.get_xgridlines()] +
+                           [line for line in self.ax.get_ygridlines()])
+        flat_list = []
+        for row in self._lines:
+            flat_list += row
+        self.bm = BlitManager(self.figure.canvas, flat_list + self.grid_lines)
+
+    def set_axes_limits(self):
+        self.ax.set_xlim(0, len(self.t_axis))
+        self.ax.set_xticks(
+            np.arange(
+                0,
+                len(self.t_axis),
+                self.main_window.audio_processor.frame_rate,
+            )
         )
-        self.draw()
+        self.ax.set_xticklabels([])
+        self.ax.set_ylim(self.cur_disp_pitch_lims)
+        self.ax.set_yticks(
+            np.arange(self.cur_disp_pitch_lims[0],
+                      self.cur_disp_pitch_lims[1] + 100, 100)
+        )
 
     @qc.pyqtSlot()
     def on_draw(self, f0, conf):
@@ -1002,7 +1046,6 @@ class DifferentialPitchWidget(FigureCanvas):
 
         cur_ref_freq_mode = self.main_window.cur_ref_freq_mode
         cur_ref_freq = self.main_window.cur_ref_freq
-        t_axis = np.arange(f0.shape[0])
 
         # compute reference frequency
         if cur_ref_freq_mode == "fixed":
@@ -1027,63 +1070,26 @@ class DifferentialPitchWidget(FigureCanvas):
                     & (f0[:, ch1] > 0)
                 )[0]
                 index_grad0 = index_gradient_filter(
-                    t_axis, f0[:, ch0], self.main_window.cur_derivative_tol
+                    self.t_axis, f0[:, ch0], self.main_window.cur_derivative_tol
                 )
                 index_grad1 = index_gradient_filter(
-                    t_axis, f0[:, ch1], self.main_window.cur_derivative_tol
+                    self.t_axis, f0[:, ch1], self.main_window.cur_derivative_tol
                 )
                 index = np.intersect1d(np.intersect1d(index, index_grad0), index_grad1)
 
-                f0_plot = np.full(f0.shape[0], np.nan)
+                f0_plot = self.f0_tmp.copy()
                 f0_plot[index] = f2cent(f0[index, ch0], cur_ref_freq) - f2cent(
                     f0[index, ch1], cur_ref_freq
                 )
 
-                is_first_run = len(self._line) != math.comb(len(self.main_window.channels), 2)
-
-                if is_first_run:
-                    (line1,) = self.ax.plot(
-                        t_axis,
-                        f0_plot,
-                        color=np.array(_colors[cv0.color]) / 256,
-                        linewidth="3",
-                        linestyle="-",
-                    )
-                else:
-                    self._line[pair_num][0].set_ydata(f0_plot)
-
-                if is_first_run:
-                    (line2,) = self.ax.plot(
-                        t_axis,
-                        f0_plot,
-                        color=np.array(_colors[cv1.color]) / 256,
-                        linewidth="3",
-                        linestyle=":",
-                    )
-                else:
-                    self._line[pair_num][1].set_ydata(f0_plot)
-
-                if is_first_run:
-                    self._line.append((line1, line2))
+                self._lines[pair_num][0].set_ydata(f0_plot)
+                self._lines[pair_num][1].set_ydata(f0_plot)
 
                 pair_num += 1
 
-        self.ax.set_xlim(0, len(f0_plot))
-        self.ax.set_xticks(
-            np.arange(
-                0,
-                len(f0_plot),
-                int(
-                    np.round(
-                        self.main_window.audio_processor.fs
-                        / self.main_window.audio_processor.hop_len
-                    )
-                ),
-            )
-        )
-        self.ax.set_ylim(self.main_window.disp_pitch_lims)
-        self.ax.set_yticks(
-            np.arange(self.main_window.disp_pitch_lims[0],
-                      self.main_window.disp_pitch_lims[1] + 100, 100)
-        )
-        self.draw_idle()
+        if self.cur_disp_pitch_lims != self.main_window.disp_pitch_lims:
+            self.cur_disp_pitch_lims = self.main_window.disp_pitch_lims.copy()
+            self.set_axes_limits()
+            self.bm.update_bg()
+
+        self.bm.update()
