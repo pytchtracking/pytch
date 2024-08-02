@@ -6,12 +6,13 @@ import logging
 import sys
 import time
 import numpy as np
+from numba import njit
 import math
 import importlib.metadata
 
 from .utils import (
     consecutive,
-    index_gradient_filter,
+    gradient_filter,
     f2cent,
     cent2f,
     FloatQLineEdit,
@@ -256,17 +257,16 @@ class MainWindow(qw.QMainWindow):
             self.menu.play_pause_button.setText("Pause")
 
     def refresh_gui(self):
-        cur_t = time.time()
-        logger.info(f"Diff last refresh {cur_t-self.last_refresh}")
-        self.last_refresh = cur_t
         lvl, stft, f0, conf = self.audio_processor.read_latest_frames(
             t_lvl=self.disp_t_lvl,
             t_stft=self.disp_t_stft,
             t_f0=self.disp_t_f0,
             t_conf=self.disp_t_conf,
         )
+        cur_t = time.time()
         self.channel_views.on_draw(lvl, stft, f0, conf)
         self.trajectory_views.on_draw(f0, conf)
+        logger.info(f"Refresh took {time.time() - cur_t:.4f}s")
 
     def menu_toggle_button(self):
         top_bar = QHBoxLayout()
@@ -568,7 +568,7 @@ class ChannelView(qw.QWidget):
     """
 
     def __init__(
-        self, main_window: MainWindow, ch_id=None, is_product=False, *args, **kwargs
+            self, main_window: MainWindow, ch_id=None, is_product=False, *args, **kwargs
     ):
         qw.QWidget.__init__(self, *args, **kwargs)
         self.setLayout(qw.QHBoxLayout())
@@ -598,10 +598,10 @@ class ChannelView(qw.QWidget):
     @qc.pyqtSlot()
     def on_draw(self, lvl, stft, f0, conf):
         if (
-            np.all(lvl == 0)
-            or np.all(stft == 0)
-            or np.all(f0 == 0)
-            or np.all(conf == 0)
+                np.all(lvl == 0)
+                or np.all(stft == 0)
+                or np.all(f0 == 0)
+                or np.all(conf == 0)
         ):
             return
 
@@ -666,7 +666,7 @@ class LevelWidget(FigureCanvas):
         cmap = matplotlib.colors.LinearSegmentedColormap.from_list("", tuples)
         self.plot_mat_tmp = np.linspace(self.cvals[0],
                                         self.cvals[-1],
-                                        np.abs(self.cvals[0]-self.cvals[-1])).reshape(-1, 1)
+                                        np.abs(self.cvals[0] - self.cvals[-1])).reshape(-1, 1)
         self.img = self.ax.imshow(
             self.plot_mat_tmp * np.nan,
             cmap=cmap,
@@ -687,7 +687,8 @@ class LevelWidget(FigureCanvas):
         else:
             lvl_clip = int(np.round(np.clip(lvl, a_min=self.cvals[0], a_max=self.cvals[-1])))
             plot_mat = self.plot_mat_tmp.copy()
-            plot_mat[lvl_clip:, :] = np.nan
+            if lvl_clip != 0:
+                plot_mat[lvl_clip:, :] = np.nan
 
         self.img.set_data(plot_mat)
 
@@ -713,9 +714,9 @@ class SpectrumWidget(FigureCanvas):
         self.ax.get_yaxis().set_visible(False)
         self.ax.xaxis.grid(True, which="major")
         self.ax.xaxis.minorticks_on()
-        (self._line, ) = self.ax.plot(
-                self.f_axis, np.zeros_like(self.f_axis), color=self.color
-            )
+        (self._line,) = self.ax.plot(
+            self.f_axis, np.zeros_like(self.f_axis), color=self.color
+        )
         self._vline = self.ax.axvline(np.nan, c=self.color, linestyle="--")
         self.cur_disp_freq_lims = self.main_window.cur_disp_freq_lims.copy()
         self.ax.set_xlim(self.main_window.cur_disp_freq_lims)
@@ -752,29 +753,30 @@ class SpectrogramWidget(FigureCanvas):
         self.main_window = main_window
         # custom colormap or viridis
         self.cmap = mcolors.LinearSegmentedColormap.from_list("custom_cmap",
-                                                               list(zip([0, 1], ["w", color])))
+                                                              list(zip([0, 1], ["w", color])))
         self.ax = self.figure.add_subplot(111)
         self.ax.set_title("")
         self.ax.set_ylabel("Time")
         self.ax.get_yaxis().set_visible(False)
-        self.ax.xaxis.grid(True, which="major")
         self.ax.xaxis.minorticks_on()
-        self.grid_lines = [line for line in self.ax.get_xgridlines()]
-        self.frame = [self.ax.spines[side] for side in self.ax.spines]
+        self.default_spec = np.zeros((len(self.main_window.audio_processor.fft_freqs),
+                                      int(np.round(self.main_window.audio_processor.frame_rate *
+                                                   self.main_window.disp_t_spec))))
         self.img = self.ax.imshow(
-                np.zeros((len(self.main_window.audio_processor.fft_freqs),
-                          int(np.round(self.main_window.audio_processor.frame_rate *
-                                       self.main_window.disp_t_spec)))),
-                origin="lower",
-                aspect="auto",
-                cmap=self.cmap,
-                extent=[0, self.main_window.audio_processor.fs // 2, 0, self.main_window.disp_t_spec],
-            )
+            self.default_spec,
+            origin="lower",
+            aspect="auto",
+            cmap=self.cmap,
+            extent=(0, self.main_window.audio_processor.fs // 2, 0, self.main_window.disp_t_spec),
+        )
+        self.ax.xaxis.grid(True, "major")
         self.img.set_clim(vmin=0, vmax=1)
         self.ax.set_xlabel("Frequency [Hz]")
         self.cur_disp_freq_lims = self.main_window.cur_disp_freq_lims.copy()
         self.ax.set_xlim(self.main_window.cur_disp_freq_lims)
         self.draw()
+        self.grid_lines = [line for line in self.ax.get_xgridlines()]
+        self.frame = [self.ax.spines[side] for side in self.ax.spines]
         self.bm = BlitManager(self.figure.canvas, [self.img] + self.grid_lines + self.frame)
 
     def on_draw(self, data):
@@ -782,12 +784,13 @@ class SpectrogramWidget(FigureCanvas):
             data = np.log(1 + 1 * data)
 
         data_plot = data / np.max(np.abs(data))
-        self.img.set_data(data_plot)
 
         if self.cur_disp_freq_lims != self.main_window.cur_disp_freq_lims:
             self.ax.set_xlim(self.main_window.cur_disp_freq_lims)
             self.cur_disp_freq_lims = self.main_window.cur_disp_freq_lims.copy()
             self.bm.update_bg()
+
+        self.img.set_data(data_plot)
 
         self.bm.update()
 
@@ -879,7 +882,7 @@ class PitchWidget(FigureCanvas):
                 self.t_axis,
                 self.f0_tmp,
                 color=self.channel_views[i].color,
-                linewidth="3",
+                linewidth="2",
             )[0])
         self.cur_disp_pitch_lims = self.main_window.disp_pitch_lims.copy()
         self.set_axes_limits()
@@ -911,6 +914,24 @@ class PitchWidget(FigureCanvas):
                       self.cur_disp_pitch_lims[1] + 100, 100)
         )
 
+    @staticmethod
+    @njit
+    def compute_trajectories(f0, conf, ref_freq, conf_threshold, derivative_tol, nan_val):
+        f0_plot = np.ones_like(f0) * nan_val
+
+        for i in range(f0.shape[1]):
+            # filter f0 using confidence threshold and gradient filter
+            index = np.where((conf[:, i] >= conf_threshold) & (f0[:, i] > 0))[
+                0
+            ]
+            index_grad = gradient_filter(
+                f0[:, i], derivative_tol
+            )
+            index = np.intersect1d(index, index_grad)
+
+            f0_plot[index, i] = f2cent(f0[index, i], ref_freq)
+        return f0_plot
+
     @qc.pyqtSlot()
     def on_draw(self, f0, conf):
         if np.all(f0 == 0) or np.all(conf == 0):
@@ -929,20 +950,16 @@ class PitchWidget(FigureCanvas):
         else:
             cur_ref_freq = f0[-1, int(cur_ref_freq_mode[-2:]) - 1]
 
-        for i, cv in enumerate(self.channel_views):
-            # filter f0 using confidence threshold and gradient filter
-            index = np.where((conf[:, i] >= self.main_window.cur_conf_threshold) & (f0[:, i] > 0))[
-                0
-            ]
-            index_grad = index_gradient_filter(
-                np.arange(f0.shape[0]), f0[:, i], self.main_window.cur_derivative_tol
-            )
-            index = np.intersect1d(index, index_grad)
+        nan_val = 99999
+        f0_plot = self.compute_trajectories(f0,
+                                            conf,
+                                            cur_ref_freq,
+                                            self.main_window.cur_conf_threshold,
+                                            self.main_window.cur_derivative_tol,
+                                            nan_val)
 
-            f0_plot = self.f0_tmp.copy()
-            f0_plot[index] = f0[index, i]
-            f0_plot = f2cent(f0_plot, cur_ref_freq)
-            self._lines[i].set_ydata(f0_plot)
+        f0_plot[f0_plot == nan_val] = np.nan
+        [self._lines[i].set_ydata(f0_plot[:, i]) for i in range(f0_plot.shape[1])]
 
         if self.cur_disp_pitch_lims != self.main_window.disp_pitch_lims:
             self.cur_disp_pitch_lims = self.main_window.disp_pitch_lims.copy()
@@ -990,7 +1007,7 @@ class DifferentialPitchWidget(FigureCanvas):
                     self.t_axis,
                     self.f0_tmp,
                     color=cv0.color,
-                    linewidth="3",
+                    linewidth="2",
                     linestyle="-",
                 )
 
@@ -998,7 +1015,7 @@ class DifferentialPitchWidget(FigureCanvas):
                     self.t_axis,
                     self.f0_tmp,
                     color=cv1.color,
-                    linewidth="3",
+                    linewidth="2",
                     linestyle=":",
                 )
 
@@ -1036,6 +1053,38 @@ class DifferentialPitchWidget(FigureCanvas):
                       self.cur_disp_pitch_lims[1] + 100, 100)
         )
 
+    @staticmethod
+    @njit
+    def compute_trajectories(f0, conf, ref_freq, conf_threshold, derivative_tol, nan_val):
+        f0_plot = np.ones((f0.shape[0], (f0.shape[1] * (f0.shape[1] - 1)) // 2)) * nan_val
+
+        pair_num = 0
+        for ch0 in range(f0.shape[1]):
+            for ch1 in range(f0.shape[1]):
+                if ch0 >= ch1:
+                    continue
+
+                index = np.where(
+                    (conf[:, ch0] >= conf_threshold)
+                    & (conf[:, ch1] >= conf_threshold)
+                    & (f0[:, ch0] > 0)
+                    & (f0[:, ch1] > 0)
+                )[0]
+                index_grad0 = gradient_filter(
+                    f0[:, ch0], derivative_tol
+                )
+                index_grad1 = gradient_filter(
+                    f0[:, ch1], derivative_tol
+                )
+                index = np.intersect1d(np.intersect1d(index, index_grad0), index_grad1)
+
+                f0_plot[index, pair_num] = f2cent(f0[index, ch0], ref_freq) - f2cent(
+                    f0[index, ch1], ref_freq
+                )
+                pair_num += 1
+
+        return f0_plot
+
     @qc.pyqtSlot()
     def on_draw(self, f0, conf):
         if len(self.main_window.audio_processor.channels) == 1:
@@ -1057,35 +1106,18 @@ class DifferentialPitchWidget(FigureCanvas):
         else:
             cur_ref_freq = f0[-1, int(cur_ref_freq_mode[-2:]) - 1]
 
-        pair_num = 0
-        for ch0, cv0 in enumerate(self.channel_views):
-            for ch1, cv1 in enumerate(self.channel_views):
-                if ch0 >= ch1:
-                    continue
+        nan_val = 99999
+        f0_plot = self.compute_trajectories(f0,
+                                            conf,
+                                            cur_ref_freq,
+                                            self.main_window.cur_conf_threshold,
+                                            self.main_window.cur_derivative_tol,
+                                            nan_val)
 
-                index = np.where(
-                    (conf[:, ch0] >= self.main_window.cur_conf_threshold)
-                    & (conf[:, ch1] >= self.main_window.cur_conf_threshold)
-                    & (f0[:, ch0] > 0)
-                    & (f0[:, ch1] > 0)
-                )[0]
-                index_grad0 = index_gradient_filter(
-                    self.t_axis, f0[:, ch0], self.main_window.cur_derivative_tol
-                )
-                index_grad1 = index_gradient_filter(
-                    self.t_axis, f0[:, ch1], self.main_window.cur_derivative_tol
-                )
-                index = np.intersect1d(np.intersect1d(index, index_grad0), index_grad1)
-
-                f0_plot = self.f0_tmp.copy()
-                f0_plot[index] = f2cent(f0[index, ch0], cur_ref_freq) - f2cent(
-                    f0[index, ch1], cur_ref_freq
-                )
-
-                self._lines[pair_num][0].set_ydata(f0_plot)
-                self._lines[pair_num][1].set_ydata(f0_plot)
-
-                pair_num += 1
+        f0_plot[f0_plot == nan_val] = np.nan
+        for i in range(f0_plot.shape[1]):
+            self._lines[i][0].set_ydata(f0_plot[:, i])
+            self._lines[i][1].set_ydata(f0_plot[:, i])
 
         if self.cur_disp_pitch_lims != self.main_window.disp_pitch_lims:
             self.cur_disp_pitch_lims = self.main_window.disp_pitch_lims.copy()
