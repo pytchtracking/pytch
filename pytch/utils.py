@@ -1,5 +1,6 @@
 import logging
 import numpy as np
+from numba import njit
 
 from PyQt6 import QtCore as qc
 from PyQt6 import QtGui as qg
@@ -134,11 +135,11 @@ class BlitManager:
         # let the GUI event loop process anything it has to do
         cv.flush_events()
 
-
+@njit
 def f2cent(f, standard_frequency=440.0):
     return 1200.0 * np.log2(np.abs(f) / standard_frequency + eps)
 
-
+@njit
 def cent2f(p, standard_frequency=440.0):
     return np.exp2(p / 1200.0) * standard_frequency
 
@@ -147,6 +148,7 @@ def consecutive(arr):
     return np.split(arr, np.where(np.diff(arr) != 1)[0] + 1)
 
 
-def index_gradient_filter(x, y, max_gradient):
+@njit
+def gradient_filter(y, max_gradient):
     """Get index where the abs gradient of x, y is < max_gradient."""
     return np.where(np.abs(np.diff(f2cent(y))) < max_gradient)[0]

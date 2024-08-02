@@ -223,9 +223,11 @@ class AudioProcessor:
                 sleep(0.001)
                 continue
 
+            start_t = time.time()
             lvl = self.compute_level(audio)  # compute level
             fft = self.compute_fft(audio)  # compute fft
             f0, conf = self.compute_f0(audio)  # compute f0 & confidence
+            logger.info(f"Processing took {time.time() - start_t:.4f}s")
 
             with _gui_lock:
                 self.lvl_buf.write(lvl)
