@@ -3,7 +3,6 @@
 """Audio Functions"""
 import threading
 import time
-from time import sleep
 import numpy as np
 import logging
 import sounddevice
@@ -196,44 +195,33 @@ class AudioProcessor:
         )
         self.stream.start()
         self.is_running = True
-        self.worker = threading.Thread(
-            target=self.worker_thread
-        )  # thread for computations
-        self.worker.start()
 
     def stop_stream(self):
         if self.is_running:
             self.stream.stop()
             self.is_running = False
-            self.worker.join()
 
     def close_stream(self):
         if self.stream is not None:
             self.stream.close()
             self.stream = None
 
-    def worker_thread(self):
-        while self.is_running:
-            with _audio_lock:
-                audio = self.audio_buf.read_next(
-                    self.fft_len, self.hop_len
-                )  # get audio
+    def processing(self):
+        with _audio_lock:
+            audio = self.audio_buf.read_next(self.fft_len, self.hop_len)  # get audio
 
-            if audio.size == 0:
-                sleep(0.001)
-                continue
+        if audio.size == 0:
+            return
 
-            start_t = time.time()
-            lvl = self.compute_level(audio)  # compute level
-            fft = self.compute_fft(audio)  # compute fft
-            f0, conf = self.compute_f0(audio)  # compute f0 & confidence
-            logger.info(f"Processing took {time.time() - start_t:.4f}s")
+        lvl = self.compute_level(audio)  # compute level
+        fft = self.compute_fft(audio)  # compute fft
+        f0, conf = self.compute_f0(audio)  # compute f0 & confidence
 
-            with _gui_lock:
-                self.lvl_buf.write(lvl)
-                self.fft_buf.write(fft)
-                self.f0_buf.write(f0)
-                self.conf_buf.write(conf)
+        with _gui_lock:
+            self.lvl_buf.write(lvl)
+            self.fft_buf.write(fft)
+            self.f0_buf.write(f0)
+            self.conf_buf.write(conf)
 
     def recording_callback(self, data, frames, time, status):
         """receives frames from soundcard, data is of shape (frames, channels)"""
@@ -242,6 +230,8 @@ class AudioProcessor:
             self.audio_buf.write(
                 data[:, self.channels].astype(np.float64, order="C") / 32768.0
             )  # convert int16 to float64
+
+        self.processing()
 
     def compute_level(self, audio):
         return 10 * np.log10(np.max(np.abs(audio + eps), axis=0)).reshape(1, -1)
@@ -263,7 +253,7 @@ class AudioProcessor:
                     N=self.fft_len,
                     H=self.fft_len,
                     F_min=55.0,
-                    F_max=1650.0,
+                    F_max=440.0,
                     threshold=0.15,
                     verbose=False,
                 )
@@ -271,18 +261,8 @@ class AudioProcessor:
                 conf[:, c] = 1 - conf_tmp[1]
 
             else:
-                f0_tmp, _, conf_tmp = libf0.swipe(
-                    audio[:, c],
-                    Fs=self.fs,
-                    H=self.hop_len,
-                    F_min=55.0,
-                    F_max=1650.0,
-                    dlog2p=1 / 96,
-                    derbs=0.1,
-                    strength_threshold=0,
-                )
-                f0[:, c] = f0_tmp[1]  # take the center frame
-                conf[:, c] = conf_tmp[1]
+                f0[:, c] = np.zeros(f0.shape[0])
+                conf[:, c] = np.zeros(f0.shape[0])
 
         return f0, conf
 
