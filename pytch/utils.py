@@ -135,9 +135,11 @@ class BlitManager:
         # let the GUI event loop process anything it has to do
         cv.flush_events()
 
+
 @njit
 def f2cent(f, standard_frequency=440.0):
     return 1200.0 * np.log2(np.abs(f) / standard_frequency + eps)
+
 
 @njit
 def cent2f(p, standard_frequency=440.0):
