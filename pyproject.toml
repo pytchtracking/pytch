@@ -18,7 +18,7 @@ dependencies = [
     "sounddevice>=0.4.7",
     "matplotlib>=3.7.2"
 ]
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 
 [tool.setuptools]
 include-package-data = false

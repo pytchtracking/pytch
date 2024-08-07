@@ -3,11 +3,13 @@
 """GUI Functions"""
 
 import logging
+import threading
 import sys
 import time
 import numpy as np
 from numba import njit
 import importlib.metadata
+from scipy.ndimage import median_filter
 
 from .utils import gradient_filter, f2cent, FloatQLineEdit, QHLine, BlitManager
 from .audio import AudioProcessor, get_input_devices, get_fs_options
@@ -30,6 +32,7 @@ import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 
 logger = logging.getLogger("pytch.gui")
+_refresh_lock = threading.Lock()
 
 
 def start_gui():
@@ -162,7 +165,6 @@ class MainWindow(qw.QMainWindow):
             -1500,
             1500,
         ]  # limits in cents for pitch trajectory view
-        self.gui_refresh_ms = int(1000 / 25)  # equivalent to 25 fps
         self.spec_scale_types = ["log", "linear"]
         self.ref_freq_modes = ["fixed", "highest", "lowest"]
         self.disp_t_lvl = 1
@@ -181,6 +183,7 @@ class MainWindow(qw.QMainWindow):
         self.cur_ref_freq = 220
         self.cur_conf_threshold = 0.5
         self.cur_derivative_tol = 600
+        self.cur_smoothing_len = 3
 
         # status variables
         self.is_running = False
@@ -230,32 +233,45 @@ class MainWindow(qw.QMainWindow):
         layout.addWidget(splitter)
 
         # refresh timer
-        self.refresh_timer = qc.QTimer()
-        self.refresh_timer.timeout.connect(self.refresh_gui)
+        self.refresh_timer = GUIRefreshTimer()
+        self.refresh_timer.refresh_signal.connect(self.refresh_gui)
+        self.refresh_timer.start()
 
         self.play_pause()  # start recording and plotting
 
     def play_pause(self):
         if self.is_running:
             self.audio_processor.stop_stream()
-            self.refresh_timer.stop()
+            self.refresh_timer.stop_emitting()
             self.is_running = False
             self.menu.play_pause_button.setText("Play")
         else:
             self.audio_processor.start_stream()
-            self.refresh_timer.start(self.gui_refresh_ms)
+            self.refresh_timer.start_emitting()
             self.is_running = True
             self.menu.play_pause_button.setText("Pause")
 
     def refresh_gui(self):
-        lvl, stft, f0, conf = self.audio_processor.read_latest_frames(
-            t_lvl=self.disp_t_lvl,
-            t_stft=self.disp_t_stft,
-            t_f0=self.disp_t_f0,
-            t_conf=self.disp_t_conf,
-        )
-        self.channel_views.on_draw(lvl, stft, f0, conf)
-        self.trajectory_views.on_draw(f0, conf)
+        with _refresh_lock:
+            lvl, stft, f0, conf = self.audio_processor.read_latest_frames(
+                t_lvl=self.disp_t_lvl,
+                t_stft=self.disp_t_stft,
+                t_f0=self.disp_t_f0,
+                t_conf=self.disp_t_conf,
+            )
+
+            # median smoothing
+            if self.cur_smoothing_len > 0:
+                idcs = np.argwhere(f0 > 0)
+                f0[idcs] = median_filter(
+                    f0[idcs], size=self.cur_smoothing_len, axes=(0,)
+                )
+                conf[idcs] = median_filter(
+                    conf[idcs], size=self.cur_smoothing_len, axes=(0,)
+                )
+
+            self.channel_views.on_draw(lvl, stft, f0, conf)
+            self.trajectory_views.on_draw(f0, conf)
 
     def menu_toggle_button(self):
         top_bar = QHBoxLayout()
@@ -281,10 +297,33 @@ class MainWindow(qw.QMainWindow):
         self.menu_visible = not self.menu_visible
 
     def closeEvent(self, a0):
-        self.refresh_timer.stop()
+        self.refresh_timer.terminate()
         self.audio_processor.stop_stream()
         self.audio_processor.close_stream()
         sys.exit()
+
+
+class GUIRefreshTimer(qc.QThread):
+    """Timer for GUI refreshes"""
+
+    refresh_signal = qc.pyqtSignal()
+
+    def __init__(self):
+        super().__init__()
+        self.emit_signal = True
+
+    def run(self):
+        while 1:
+            time.sleep(1 / 60)  # ideally update with 60 fps
+            if self.emit_signal:
+                with _refresh_lock:  # make sure last refresh is done
+                    self.refresh_signal.emit()
+
+    def stop_emitting(self):
+        self.emit_signal = False
+
+    def start_emitting(self):
+        self.emit_signal = True
 
 
 class ProcessingMenu(QFrame):
@@ -401,17 +440,27 @@ class ProcessingMenu(QFrame):
         layout.addWidget(self.noise_thresh_slider, 12, 1, 1, 1)
         layout.addWidget(self.noise_thresh_label, 12, 2)
 
-        layout.addWidget(qw.QLabel("Pitchslide Tolerance [Cents]"), 13, 0)
+        layout.addWidget(qw.QLabel("Median Smoothing [Frames]"), 13, 0)
+        self.smoothing_slider = qw.QSlider()
+        self.smoothing_slider.setRange(0, 100)
+        self.smoothing_slider.setValue(self.main_window.cur_smoothing_len)
+        self.smoothing_slider.setOrientation(qc.Qt.Orientation.Horizontal)
+        self.smoothing_slider.valueChanged.connect(self.on_conf_smoothing_changed)
+        self.smoothing_label = qw.QLabel(f"{self.smoothing_slider.value()}")
+        layout.addWidget(self.smoothing_slider, 13, 1, 1, 1)
+        layout.addWidget(self.smoothing_label, 13, 2)
+
+        layout.addWidget(qw.QLabel("Pitchslide Tolerance [Cents]"), 14, 0)
         self.derivative_tol_slider = qw.QSlider()
         self.derivative_tol_slider.setRange(0, 1200)
         self.derivative_tol_slider.setValue(main_window.cur_derivative_tol)
         self.derivative_tol_slider.setOrientation(qc.Qt.Orientation.Horizontal)
         self.derivative_tol_label = qw.QLabel(f"{self.derivative_tol_slider.value()}")
         self.derivative_tol_slider.valueChanged.connect(self.on_derivative_tol_changed)
-        layout.addWidget(self.derivative_tol_label, 13, 2)
-        layout.addWidget(self.derivative_tol_slider, 13, 1, 1, 1)
+        layout.addWidget(self.derivative_tol_label, 14, 2)
+        layout.addWidget(self.derivative_tol_slider, 14, 1, 1, 1)
 
-        layout.addWidget(qw.QLabel("Reference Mode"), 14, 0)
+        layout.addWidget(qw.QLabel("Reference Mode"), 15, 0)
         self.ref_freq_mode_menu = qw.QComboBox()
         if len(self.main_window.channels) > 1:
             self.ref_freq_mode_menu.addItems(main_window.ref_freq_modes)
@@ -421,29 +470,29 @@ class ProcessingMenu(QFrame):
         self.ref_freq_mode_menu.currentTextChanged.connect(
             self.on_reference_frequency_mode_changed
         )
-        layout.addWidget(self.ref_freq_mode_menu, 14, 1, 1, 1)
+        layout.addWidget(self.ref_freq_mode_menu, 15, 1, 1, 1)
 
-        layout.addWidget(qw.QLabel("Reference Frequency"), 15, 0)
+        layout.addWidget(qw.QLabel("Reference Frequency"), 16, 0)
         self.freq_box = FloatQLineEdit(parent=self, default=main_window.cur_ref_freq)
         self.freq_box.accepted_value.connect(self.on_reference_frequency_changed)
-        layout.addWidget(self.freq_box, 15, 1, 1, 1)
-        layout.addWidget(qw.QLabel("Hz"), 15, 2)
+        layout.addWidget(self.freq_box, 16, 1, 1, 1)
+        layout.addWidget(qw.QLabel("Hz"), 16, 2)
 
-        layout.addWidget(qw.QLabel("Minimum Pitch"), 16, 0)
+        layout.addWidget(qw.QLabel("Minimum Pitch"), 17, 0)
         self.pitch_min = FloatQLineEdit(
             parent=self, default=main_window.disp_pitch_lims[0]
         )
         self.pitch_min.accepted_value.connect(self.on_pitch_min_changed)
-        layout.addWidget(self.pitch_min, 16, 1, 1, 1)
-        layout.addWidget(qw.QLabel("Cents"), 16, 2)
+        layout.addWidget(self.pitch_min, 17, 1, 1, 1)
+        layout.addWidget(qw.QLabel("Cents"), 17, 2)
 
-        layout.addWidget(qw.QLabel("Maximum Pitch"), 17, 0)
+        layout.addWidget(qw.QLabel("Maximum Pitch"), 18, 0)
         self.pitch_max = FloatQLineEdit(
             parent=self, default=main_window.disp_pitch_lims[1]
         )
         self.pitch_max.accepted_value.connect(self.on_pitch_max_changed)
-        layout.addWidget(self.pitch_max, 17, 1, 1, 1)
-        layout.addWidget(qw.QLabel("Cents"), 17, 2)
+        layout.addWidget(self.pitch_max, 18, 1, 1, 1)
+        layout.addWidget(qw.QLabel("Cents"), 18, 2)
 
         settings.setLayout(layout)
         main_layout.addWidget(settings, 3, 0, 1, 2)
@@ -460,6 +509,10 @@ class ProcessingMenu(QFrame):
     def on_conf_threshold_changed(self, val):
         self.noise_thresh_label.setText(str(val / 10.0))
         self.main_window.cur_conf_threshold = val / 10.0
+
+    def on_conf_smoothing_changed(self, val):
+        self.smoothing_label.setText(str(val))
+        self.main_window.cur_smoothing_len = val
 
     def on_derivative_tol_changed(self, val):
         self.derivative_tol_label.setText(str(val))
@@ -518,8 +571,8 @@ class ChannelViews(qw.QWidget):
         for i, c_view in enumerate(self.views):
             if i == len(self.views) - 1:
                 self.h_line = QHLine()
-                self.layout.addWidget(self.h_line, 0, qc.Qt.AlignmentFlag.AlignTop)
-            self.layout.addWidget(c_view, 0, qc.Qt.AlignmentFlag.AlignTop)
+                self.layout.addWidget(self.h_line, 0)
+            self.layout.addWidget(c_view, 0)
 
         self.setLayout(self.layout)
 
@@ -630,9 +683,6 @@ class ChannelView(qw.QWidget):
             conf_update = np.mean(conf[-frames_spec:, self.ch_id])
             f0_update = np.mean(f0[-frames_spec:, self.ch_id])
 
-            if self.ch_id == 3:
-                pass
-
             if (conf_update > self.main_window.cur_conf_threshold) and (
                 lvl_update >= self.level_widget.cvals[0]
             ):
@@ -742,9 +792,9 @@ class SpectrumWidget(FigureCanvas):
         self.draw()
         self.bm = BlitManager(self.figure.canvas, [self._line, self._vline])
         if has_xlabel:
-            self.figure.tight_layout(rect=(0, 0.15, 0.95, 1))
+            self.figure.tight_layout(rect=(0.05, 0.15, 0.95, 1))
         else:
-            self.figure.tight_layout(rect=(0, 0.1, 0.95, 1))
+            self.figure.tight_layout(rect=(0.05, 0.1, 0.95, 1))
 
     def on_draw(self, data, vline=None):
         if self.main_window.cur_spec_scale_type == "log":
@@ -818,9 +868,9 @@ class SpectrogramWidget(FigureCanvas):
             self.figure.canvas, [self.img] + self.grid_lines + self.frame
         )
         if has_xlabel:
-            self.figure.tight_layout(rect=(0, 0.15, 0.95, 1))
+            self.figure.tight_layout(rect=(0.05, 0.15, 0.95, 1))
         else:
-            self.figure.tight_layout(rect=(0, 0.1, 0.95, 1))
+            self.figure.tight_layout(rect=(0.05, 0.1, 0.95, 1))
 
     def on_draw(self, data):
         if self.main_window.cur_spec_scale_type == "log":
