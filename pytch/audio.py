@@ -2,14 +2,17 @@
 # -*- coding: utf-8 -*-
 """Audio Functions"""
 import threading
-from time import sleep
+from time import sleep, time
 import numpy as np
+from numba import njit
 import logging
 import sounddevice
 import libf0
-
+from scipy.ndimage import median_filter
+from .utils import gradient_filter, f2cent
 
 _audio_lock = threading.Lock()
+_raw_lock = threading.Lock()
 _gui_lock = threading.Lock()
 logger = logging.getLogger("pytch.audio")
 
@@ -128,16 +131,18 @@ class AudioProcessor:
         channels=[0],
         device_no=None,
         f0_algorithm="YIN",
+        gui=None,
     ):
         self.fs = fs
         self.buf_len_sec = buf_len_sec
         self.fft_len = fft_len
-        self.hop_len = fft_len // 4
+        self.hop_len = 2 ** int(np.log2(fs / 25))
         self.fft_freqs = np.fft.rfftfreq(self.fft_len, 1 / self.fs)
         self.fft_win = np.hanning(self.fft_len).reshape(-1, 1)
         self.channels = channels
         self.device_no = device_no
         self.f0_algorithm = f0_algorithm
+        self.gui = gui
         self.f0_lvl_threshold = -70  # minimum level in dB to compute f0 estimates
         self.frame_rate = self.fs / self.hop_len
         self.stream = None
@@ -154,10 +159,10 @@ class AudioProcessor:
         buf_len_frm = int(
             np.floor((self.buf_len_sec * self.fs - self.fft_len) / self.hop_len)
         )
-        self.lvl_buf = RingBuffer(
+        self.raw_lvl_buf = RingBuffer(
             size=(buf_len_frm, len(self.channels)), dtype=np.float64
         )
-        self.fft_buf = RingBuffer(
+        self.raw_fft_buf = RingBuffer(
             size=(
                 buf_len_frm,
                 len(self.fft_freqs),
@@ -165,14 +170,41 @@ class AudioProcessor:
             ),
             dtype=np.float64,
         )
-        self.f0_buf = RingBuffer(
+        self.raw_f0_buf = RingBuffer(
             size=(buf_len_frm, len(self.channels)),
             dtype=np.float64,
         )
-        self.conf_buf = RingBuffer(
+        self.raw_conf_buf = RingBuffer(
             size=(buf_len_frm, len(self.channels)),
             dtype=np.float64,
         )
+
+        if gui is not None:
+            self.new_gui_data_available = False
+            self.proc_lvl = np.full(
+                (np.abs(gui.lvl_cvals[0] - gui.lvl_cvals[-1]), len(self.channels) + 1),
+                np.nan,
+            )
+            self.proc_spec = np.zeros(
+                (self.raw_fft_buf.buffer.shape[1], len(self.channels) + 1)
+            )
+            self.proc_stft = np.zeros(
+                (
+                    int(np.round(gui.disp_t_stft * self.frame_rate)),
+                    len(self.fft_freqs),
+                    len(self.channels) + 1,
+                )
+            )
+            self.proc_inst_f0 = np.full((1, len(self.channels) + 1), np.nan)
+            self.proc_f0 = np.zeros(
+                (int(np.round(gui.disp_t_f0 * self.frame_rate)), len(self.channels))
+            )
+            self.proc_diff = np.zeros(
+                (
+                    self.proc_f0.shape[0],
+                    (len(self.channels) * (len(self.channels) - 1)) // 2,
+                )
+            )
 
     def start_stream(self):
         if self.is_running:
@@ -227,11 +259,16 @@ class AudioProcessor:
             fft = self.compute_fft(audio)  # compute fft
             f0, conf = self.compute_f0(audio, lvl)  # compute f0 & confidence
 
-            with _gui_lock:
-                self.lvl_buf.write(lvl)
-                self.fft_buf.write(fft)
-                self.f0_buf.write(f0)
-                self.conf_buf.write(conf)
+            with _raw_lock:
+                self.raw_lvl_buf.write(lvl)
+                self.raw_fft_buf.write(fft)
+                self.raw_f0_buf.write(f0)
+                self.raw_conf_buf.write(conf)
+
+            # GUI pre-processing for faster updates
+            if self.gui is not None:
+                self.gui_preprocessing()
+                self.new_gui_data_available = True
 
     def recording_callback(self, data, frames, time, status):
         """receives frames from soundcard, data is of shape (frames, channels)"""
@@ -259,7 +296,7 @@ class AudioProcessor:
 
             if self.f0_algorithm == "YIN":
                 f0_tmp, _, conf_tmp = libf0.yin(
-                    audio[:, c],
+                    np.concatenate((audio[:, c][::-1], audio[:, c], audio[:, c][::-1])),
                     Fs=self.fs,
                     N=self.fft_len,
                     H=self.fft_len,
@@ -268,8 +305,8 @@ class AudioProcessor:
                     threshold=0.15,
                     verbose=False,
                 )
-                f0[:, c] = f0_tmp[1]  # take the center frame
-                conf[:, c] = 1 - conf_tmp[1]
+                f0[:, c] = np.mean(f0_tmp)  # take the center frame
+                conf[:, c] = 1 - np.mean(conf_tmp)
 
             else:
                 f0[:, c] = np.zeros(f0.shape[0])
@@ -277,13 +314,156 @@ class AudioProcessor:
 
         return f0, conf
 
-    def read_latest_frames(self, t_lvl, t_stft, t_f0, t_conf):
-        """Reads latest t seconds from buffers"""
+    def gui_preprocessing(self):
+        # get raw data
+        lvl, spec, stft, f0, conf = self.read_latest_frames(
+            self.gui.disp_t_lvl,
+            self.gui.disp_t_spec,
+            self.gui.disp_t_stft,
+            self.gui.disp_t_f0,
+            self.gui.disp_t_conf,
+        )
+
+        # preprocess level
+        tmp = np.linspace(
+            self.gui.lvl_cvals[0],
+            self.gui.lvl_cvals[-1],
+            np.abs(self.gui.lvl_cvals[0] - self.gui.lvl_cvals[-1]),
+        )
+        proc_lvl = np.full((len(tmp), len(self.channels) + 1), np.nan)
+        for ch in range(lvl.shape[1]):
+            max_lvl = np.max(lvl[:, ch])
+            lvl_clip = int(
+                np.round(
+                    np.clip(
+                        max_lvl,
+                        a_min=self.gui.lvl_cvals[0],
+                        a_max=self.gui.lvl_cvals[-1],
+                    )
+                )
+            )
+            proc_lvl[:lvl_clip, ch] = tmp[:lvl_clip]
+
+        # preprocess spectrum
+        n_spec_frames = spec.shape[0]
+        spec = np.mean(spec, axis=0)
+        proc_spec = np.zeros((spec.shape[0], spec.shape[1] + 1))
+        proc_spec[:, :-1] = spec
+        proc_spec[:, -1] = np.prod(spec, axis=1)
+        if self.gui.cur_spec_scale_type == "log":
+            proc_spec = np.log(1 + 1 * proc_spec)
+        proc_spec /= np.abs(proc_spec).max(axis=0)
+
+        # preprocess stft
+        proc_stft = np.zeros((stft.shape[0], stft.shape[1], stft.shape[2] + 1))
+        proc_stft[:, :, :-1] = stft
+        proc_stft[:, :, -1] = np.prod(stft, axis=2)
+        if self.gui.cur_spec_scale_type == "log":
+            proc_stft = np.log(1 + 1 * proc_stft)
+        proc_stft /= np.max(np.abs(proc_stft), axis=(0, 1), keepdims=True)
+
+        # preprocess f0
+        median_len = self.gui.cur_smoothing_len
+        if median_len > 0:
+            idcs = np.argwhere(f0 > 0)
+            f0[idcs] = median_filter(f0[idcs], size=median_len, axes=(0,))
+            conf[idcs] = median_filter(conf[idcs], size=median_len, axes=(0,))
+
+        inst_f0 = np.mean(f0[-n_spec_frames:, :], axis=0)
+        inst_conf = np.mean(conf[-n_spec_frames:, :], axis=0)
+        inst_f0[inst_conf < self.gui.cur_conf_threshold] = np.nan
+
+        # compute reference frequency
+        cur_ref_freq_mode = self.gui.cur_ref_freq_mode
+        ref_freq = self.gui.cur_ref_freq
+        if cur_ref_freq_mode == "fixed":
+            cur_ref_freq = ref_freq
+        elif cur_ref_freq_mode == "highest":
+            cur_ref_freq = np.max(np.mean(f0, axis=0))
+        elif cur_ref_freq_mode == "lowest":
+            cur_ref_freq = np.min(np.mean(f0, axis=0))
+        else:
+            cur_ref_freq = f0[-1, int(cur_ref_freq_mode[-2:]) - 1]
+
+        # threshold trajectories and compute intervals
+        nan_val = 999999999
+        proc_f0, proc_diff = self.f0_diff_computations(
+            f0,
+            conf,
+            self.gui.cur_conf_threshold,
+            self.gui.cur_derivative_tol,
+            cur_ref_freq,
+            nan_val,
+        )
+        proc_f0[proc_f0 == nan_val] = np.nan
+        proc_diff[proc_diff == nan_val] = np.nan
 
         with _gui_lock:
-            lvl = self.lvl_buf.read_latest(int(np.round(t_lvl * self.frame_rate)))
-            stft = self.fft_buf.read_latest(int(np.round(t_stft * self.frame_rate)))
-            f0 = self.f0_buf.read_latest(int(np.round(t_f0 * self.frame_rate)))
-            conf = self.conf_buf.read_latest(int(np.round(t_conf * self.frame_rate)))
+            self.proc_lvl[:] = proc_lvl
+            self.proc_spec[:] = proc_spec
+            self.proc_stft[:] = proc_stft
+            self.proc_f0[:] = proc_f0
+            self.proc_inst_f0[:, :-1] = inst_f0
+            self.proc_diff[:] = proc_diff
 
-        return lvl, stft, f0, conf
+    @staticmethod
+    @njit
+    def f0_diff_computations(
+        f0, conf, cur_conf_threshold, cur_derivative_tol, cur_ref_freq, nan_val
+    ):
+        proc_f0 = np.ones_like(f0) * nan_val
+
+        for i in range(f0.shape[1]):
+            # filter f0 using confidence threshold and gradient filter
+            index = np.where((conf[:, i] >= cur_conf_threshold) & (f0[:, i] > 0))[0]
+            index_grad = gradient_filter(f0[:, i], cur_derivative_tol)
+            index = np.intersect1d(index, index_grad)
+
+            proc_f0[index, i] = f2cent(f0[index, i], cur_ref_freq)
+
+        proc_diff = (
+            np.ones((f0.shape[0], (f0.shape[1] * (f0.shape[1] - 1)) // 2)) * nan_val
+        )
+        if f0.shape[1] > 1:
+            pair_num = 0
+            for ch0 in range(f0.shape[1]):
+                for ch1 in range(f0.shape[1]):
+                    if ch0 >= ch1:
+                        continue
+
+                    index = np.where(
+                        (proc_f0[:, ch0] != nan_val) & (proc_f0[:, ch1] != nan_val)
+                    )[0]
+                    proc_diff[index, pair_num] = (
+                        proc_f0[index, ch0] - proc_f0[index, ch1]
+                    )
+                    pair_num += 1
+
+        return proc_f0, proc_diff
+
+    def read_latest_frames(self, t_lvl, t_spec, t_stft, t_f0, t_conf):
+        """Reads latest t seconds from buffers"""
+
+        with _raw_lock:
+            lvl = self.raw_lvl_buf.read_latest(int(np.round(t_lvl * self.frame_rate)))
+            spec = self.raw_fft_buf.read_latest(int(np.round(t_spec * self.frame_rate)))
+            stft = self.raw_fft_buf.read_latest(int(np.round(t_stft * self.frame_rate)))
+            f0 = self.raw_f0_buf.read_latest(int(np.round(t_f0 * self.frame_rate)))
+            conf = self.raw_conf_buf.read_latest(
+                int(np.round(t_conf * self.frame_rate))
+            )
+
+        return lvl, spec, stft, f0, conf
+
+    def get_latest_gui_data(self):
+        """Reads pre-procesed data for GUI"""
+        with _gui_lock:
+            self.new_gui_data_available = False
+            return (
+                self.proc_lvl,
+                self.proc_spec,
+                self.proc_inst_f0,
+                self.proc_stft,
+                self.proc_f0,
+                self.proc_diff,
+            )

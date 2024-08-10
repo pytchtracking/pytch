@@ -7,11 +7,9 @@ import threading
 import sys
 import time
 import numpy as np
-from numba import njit
 import importlib.metadata
-from scipy.ndimage import median_filter
 
-from .utils import gradient_filter, f2cent, FloatQLineEdit, QHLine, BlitManager
+from .utils import FloatQLineEdit, QHLine, BlitManager
 from .audio import AudioProcessor, get_input_devices, get_fs_options
 
 from PyQt6 import QtCore as qc
@@ -116,7 +114,7 @@ class InputMenu(qw.QDialog):
         """Return a qw.QSlider for modifying FFT width"""
         b = qw.QComboBox()
         b.addItems([str(f * 256) for f in [1, 2, 4, 8, 16]])
-        b.setCurrentIndex(1)
+        b.setCurrentIndex(2)
         return b
 
     def on_ok_clicked(self):
@@ -169,11 +167,13 @@ class MainWindow(qw.QMainWindow):
         self.ref_freq_modes = ["fixed", "highest", "lowest"]
         self.disp_t_lvl = 1
         self.disp_t_spec = 1
-        self.disp_t_stft = 25
-        self.disp_t_f0 = 25
-        self.disp_t_conf = 25
-        self.colors = matplotlib.colormaps["Set2"].colors
-        self.colors = [self.colors[i] for i in [0, 1, 2, 5, 3, 4, 6, 7]]
+        self.disp_t_stft = 1
+        self.disp_t_f0 = 15
+        self.disp_t_conf = 15
+        self.lvl_cvals = [-80, -12, 0]
+        self.lvl_colors = ["green", "yellow", "red"]
+        self.ch_colors = matplotlib.colormaps["Set2"].colors
+        self.ch_colors = [self.ch_colors[i] for i in [0, 1, 2, 5, 3, 4, 6, 7]]
         self.cur_disp_freq_lims = [
             20,
             1000,
@@ -184,6 +184,7 @@ class MainWindow(qw.QMainWindow):
         self.cur_conf_threshold = 0.5
         self.cur_derivative_tol = 600
         self.cur_smoothing_len = 3
+        self.last_refresh = time.time()
 
         # status variables
         self.is_running = False
@@ -204,6 +205,7 @@ class MainWindow(qw.QMainWindow):
             channels=self.channels,
             device_no=self.sounddevice_idx,
             f0_algorithm=self.f0_algorithms[0],
+            gui=self,
         )
 
         # initialize GUI
@@ -252,26 +254,17 @@ class MainWindow(qw.QMainWindow):
             self.menu.play_pause_button.setText("Pause")
 
     def refresh_gui(self):
-        with _refresh_lock:
-            lvl, stft, f0, conf = self.audio_processor.read_latest_frames(
-                t_lvl=self.disp_t_lvl,
-                t_stft=self.disp_t_stft,
-                t_f0=self.disp_t_f0,
-                t_conf=self.disp_t_conf,
-            )
-
-            # median smoothing
-            if self.cur_smoothing_len > 0:
-                idcs = np.argwhere(f0 > 0)
-                f0[idcs] = median_filter(
-                    f0[idcs], size=self.cur_smoothing_len, axes=(0,)
-                )
-                conf[idcs] = median_filter(
-                    conf[idcs], size=self.cur_smoothing_len, axes=(0,)
+        with _refresh_lock:  # only update when last update has finished
+            if self.audio_processor.new_gui_data_available:
+                # get preprocessed audio data from audio processor
+                lvl, spec, inst_f0, stft, f0, diff = (
+                    self.audio_processor.get_latest_gui_data()
                 )
 
-            self.channel_views.on_draw(lvl, stft, f0, conf)
-            self.trajectory_views.on_draw(f0, conf)
+                self.channel_views.on_draw(lvl, spec, inst_f0, stft)
+                self.trajectory_views.on_draw(f0, diff)
+        # logger.info(f"Last refresh finished {time.time() - self.last_refresh}s ago")
+        self.last_refresh = time.time()
 
     def menu_toggle_button(self):
         top_bar = QHBoxLayout()
@@ -314,7 +307,7 @@ class GUIRefreshTimer(qc.QThread):
 
     def run(self):
         while 1:
-            time.sleep(1 / 60)  # ideally update with 60 fps
+            time.sleep(1 / 25)  # ideally update with 60 fps
             if self.emit_signal:
                 with _refresh_lock:  # make sure last refresh is done
                     self.refresh_signal.emit()
@@ -597,9 +590,9 @@ class ChannelViews(qw.QWidget):
         self.h_line.setVisible(show)
 
     @qc.pyqtSlot()
-    def on_draw(self, lvl, stft, f0, conf):
+    def on_draw(self, lvl, spec, inst_f0, stft):
         for view in self.views:
-            view.on_draw(lvl, stft, f0, conf)
+            view.on_draw(lvl, spec, inst_f0, stft)
 
     def sizeHint(self):
         return qc.QSize(400, 200)
@@ -629,13 +622,13 @@ class ChannelView(qw.QWidget):
         self.setLayout(qw.QHBoxLayout())
         self.main_window = main_window
 
-        self.color = "black" if ch_id is None else main_window.colors[ch_id]
+        self.color = "black" if ch_id is None else main_window.ch_colors[ch_id]
         self.is_product = is_product
         self.ch_id = ch_id
 
         channel_label = "Product" if ch_id is None else f"Channel {ch_id + 1}"
         self.level_widget = LevelWidget(
-            channel_label=channel_label, has_xlabel=has_xlabel
+            self.main_window, channel_label=channel_label, has_xlabel=has_xlabel
         )
         self.spectrogram_widget = SpectrogramWidget(
             self.main_window, self.color, has_xlabel=has_xlabel
@@ -657,42 +650,30 @@ class ChannelView(qw.QWidget):
             self.level_widget.ax.yaxis.grid(False, which="both")
 
     @qc.pyqtSlot()
-    def on_draw(self, lvl, stft, f0, conf):
+    def on_draw(self, lvl, spec, inst_f0, stft):
         if (
             np.all(lvl == 0)
+            or np.all(spec == 0)
+            or np.all(inst_f0 == 0)
             or np.all(stft == 0)
-            or np.all(f0 == 0)
-            or np.all(conf == 0)
         ):
             return
 
-        frames_spec = int(
-            self.main_window.audio_processor.frame_rate * self.main_window.disp_t_spec
-        )
-
         # prepare data
         if self.is_product:
-            lvl_update = np.nan
-            stft_update = np.prod(stft, axis=2)
-            spec_update = np.prod(np.mean(stft[-frames_spec:, :, :], axis=0), axis=1)
-            vline = np.nan
+            lvl_update = lvl[:, -1]
+            stft_update = stft[:, :, -1]
+            spec_update = spec[:, -1]
+            inst_f0_update = inst_f0[:, -1]
         else:
-            lvl_update = np.mean(lvl[:, self.ch_id])
+            lvl_update = lvl[:, self.ch_id]
             stft_update = stft[:, :, self.ch_id]
-            spec_update = np.mean(stft[-frames_spec:, :, self.ch_id], axis=0)
-            conf_update = np.mean(conf[-frames_spec:, self.ch_id])
-            f0_update = np.mean(f0[-frames_spec:, self.ch_id])
-
-            if (conf_update > self.main_window.cur_conf_threshold) and (
-                lvl_update >= self.level_widget.cvals[0]
-            ):
-                vline = f0_update
-            else:
-                vline = np.nan
+            spec_update = spec[:, self.ch_id]
+            inst_f0_update = inst_f0[:, self.ch_id]
 
         # update widgets
-        self.level_widget.on_draw(lvl_update)
-        self.spectrum_widget.on_draw(spec_update, vline=vline)
+        self.level_widget.on_draw(lvl_update.reshape(-1, 1))
+        self.spectrum_widget.on_draw(spec_update, inst_f0=inst_f0_update)
         self.spectrogram_widget.on_draw(stft_update)
 
     def show_spectrum_widget(self, show):
@@ -706,9 +687,11 @@ class ChannelView(qw.QWidget):
 
 
 class LevelWidget(FigureCanvas):
-    def __init__(self, channel_label, has_xlabel=True):
+    def __init__(self, main_window: MainWindow, channel_label, has_xlabel=True):
         self.figure = Figure(tight_layout=True)
         super(LevelWidget, self).__init__(self.figure)
+
+        self.main_window = main_window
 
         self.ax = self.figure.add_subplot(111)
         self.ax.set_title(None)
@@ -719,23 +702,23 @@ class LevelWidget(FigureCanvas):
             self.ax.set_xlabel("Level")
         self.ax.set_ylabel(f"{channel_label}", fontweight="bold")
 
-        self.cvals = [-80, -12, 0]
-        colors = ["green", "yellow", "red"]
-        norm = plt.Normalize(min(self.cvals), max(self.cvals))
-        tuples = list(zip(map(norm, self.cvals), colors))
+        norm = plt.Normalize(min(main_window.lvl_cvals), max(main_window.lvl_cvals))
+        tuples = list(zip(map(norm, main_window.lvl_cvals), main_window.lvl_colors))
         cmap = matplotlib.colors.LinearSegmentedColormap.from_list("", tuples)
         self.plot_mat_tmp = np.linspace(
-            self.cvals[0], self.cvals[-1], np.abs(self.cvals[0] - self.cvals[-1])
+            main_window.lvl_cvals[0],
+            main_window.lvl_cvals[-1],
+            np.abs(main_window.lvl_cvals[0] - main_window.lvl_cvals[-1]),
         ).reshape(-1, 1)
         self.img = self.ax.imshow(
             self.plot_mat_tmp * np.nan,
             cmap=cmap,
             aspect="auto",
             origin="lower",
-            extent=[0, 1, self.cvals[0], self.cvals[-1]],
+            extent=[0, 1, main_window.lvl_cvals[0], main_window.lvl_cvals[-1]],
         )
-        self.img.set_clim(vmin=self.cvals[0], vmax=self.cvals[-1])
-        self.ax.set_ylim((self.cvals[-1], self.cvals[0]))
+        self.img.set_clim(vmin=main_window.lvl_cvals[0], vmax=main_window.lvl_cvals[-1])
+        self.ax.set_ylim((main_window.lvl_cvals[-1], main_window.lvl_cvals[0]))
         self.ax.invert_yaxis()
         self.frame = [self.ax.spines[side] for side in self.ax.spines]
         self.draw()
@@ -746,19 +729,8 @@ class LevelWidget(FigureCanvas):
         else:
             self.figure.tight_layout(rect=(0.5, 0.1, 1, 1))
 
-    def on_draw(self, lvl):
-        if np.any(np.isnan(lvl)):
-            plot_mat = self.plot_mat_tmp.copy() * np.nan
-        else:
-            lvl_clip = int(
-                np.round(np.clip(lvl, a_min=self.cvals[0], a_max=self.cvals[-1]))
-            )
-            plot_mat = self.plot_mat_tmp.copy()
-            if lvl_clip != 0:
-                plot_mat[lvl_clip:, :] = np.nan
-
+    def on_draw(self, plot_mat):
         self.img.set_data(plot_mat)
-
         self.bm.update()
 
 
@@ -796,20 +768,14 @@ class SpectrumWidget(FigureCanvas):
         else:
             self.figure.tight_layout(rect=(0.05, 0.1, 0.95, 1))
 
-    def on_draw(self, data, vline=None):
-        if self.main_window.cur_spec_scale_type == "log":
-            data = np.log(1 + 1 * data)
-
-        data_plot = data / np.max(np.abs(data))
-
+    def on_draw(self, data_plot, inst_f0=None):
         if self.cur_disp_freq_lims != self.main_window.cur_disp_freq_lims:
             self.ax.set_xlim(self.main_window.cur_disp_freq_lims)
             self.cur_disp_freq_lims = self.main_window.cur_disp_freq_lims.copy()
             self.bm.update_bg()
 
         self._line.set_ydata(data_plot)
-        self._vline.set_xdata([vline, vline])
-
+        self._vline.set_xdata([inst_f0, inst_f0])
         self.bm.update()
 
 
@@ -872,19 +838,13 @@ class SpectrogramWidget(FigureCanvas):
         else:
             self.figure.tight_layout(rect=(0.05, 0.1, 0.95, 1))
 
-    def on_draw(self, data):
-        if self.main_window.cur_spec_scale_type == "log":
-            data = np.log(1 + 1 * data)
-
-        data_plot = data / np.max(np.abs(data))
-
+    def on_draw(self, data_plot):
         if self.cur_disp_freq_lims != self.main_window.cur_disp_freq_lims:
             self.ax.set_xlim(self.main_window.cur_disp_freq_lims)
             self.cur_disp_freq_lims = self.main_window.cur_disp_freq_lims.copy()
             self.bm.update_bg()
 
         self.img.set_data(data_plot)
-
         self.bm.update()
 
 
@@ -925,10 +885,10 @@ class TrajectoryViews(qw.QTabWidget):
         if len(main_window.channels) > 1:
             self.addTab(self.pitch_view_all_diff, "Differential")
 
-    def on_draw(self, f0, conf):
-        self.pitch_view.on_draw(f0, conf)
+    def on_draw(self, f0, diff):
+        self.pitch_view.on_draw(f0)
         if len(self.main_window.channels) > 1:
-            self.pitch_view_all_diff.on_draw(f0, conf)
+            self.pitch_view_all_diff.on_draw(diff)
 
     def show_trajectory_views(self, show):
         self.setVisible(show)
@@ -1017,52 +977,10 @@ class PitchWidget(FigureCanvas):
             )
         )
 
-    @staticmethod
-    @njit
-    def compute_trajectories(
-        f0, conf, ref_freq, conf_threshold, derivative_tol, nan_val
-    ):
-        f0_plot = np.ones_like(f0) * nan_val
-
-        for i in range(f0.shape[1]):
-            # filter f0 using confidence threshold and gradient filter
-            index = np.where((conf[:, i] >= conf_threshold) & (f0[:, i] > 0))[0]
-            index_grad = gradient_filter(f0[:, i], derivative_tol)
-            index = np.intersect1d(index, index_grad)
-
-            f0_plot[index, i] = f2cent(f0[index, i], ref_freq)
-        return f0_plot
-
     @qc.pyqtSlot()
-    def on_draw(self, f0, conf):
-        if np.all(f0 == 0) or np.all(conf == 0):
-            return
-
-        cur_ref_freq_mode = self.main_window.cur_ref_freq_mode
-        ref_freq = self.main_window.cur_ref_freq
-
-        # compute reference frequency
-        if cur_ref_freq_mode == "fixed":
-            cur_ref_freq = ref_freq
-        elif cur_ref_freq_mode == "highest":
-            cur_ref_freq = np.max(np.mean(f0, axis=0))
-        elif cur_ref_freq_mode == "lowest":
-            cur_ref_freq = np.min(np.mean(f0, axis=0))
-        else:
-            cur_ref_freq = f0[-1, int(cur_ref_freq_mode[-2:]) - 1]
-
-        nan_val = 99999
-        f0_plot = self.compute_trajectories(
-            f0,
-            conf,
-            cur_ref_freq,
-            self.main_window.cur_conf_threshold,
-            self.main_window.cur_derivative_tol,
-            nan_val,
-        )
-
-        f0_plot[f0_plot == nan_val] = np.nan
-        [self._lines[i].set_ydata(f0_plot[:, i]) for i in range(f0_plot.shape[1])]
+    def on_draw(self, f0):
+        for i in range(f0.shape[1]):
+            self._lines[i].set_ydata(f0[:, i])
 
         if self.cur_disp_pitch_lims != self.main_window.disp_pitch_lims:
             self.cur_disp_pitch_lims = self.main_window.disp_pitch_lims.copy()
@@ -1164,73 +1082,11 @@ class DifferentialPitchWidget(FigureCanvas):
             )
         )
 
-    @staticmethod
-    @njit
-    def compute_trajectories(
-        f0, conf, ref_freq, conf_threshold, derivative_tol, nan_val
-    ):
-        f0_plot = (
-            np.ones((f0.shape[0], (f0.shape[1] * (f0.shape[1] - 1)) // 2)) * nan_val
-        )
-
-        pair_num = 0
-        for ch0 in range(f0.shape[1]):
-            for ch1 in range(f0.shape[1]):
-                if ch0 >= ch1:
-                    continue
-
-                index = np.where(
-                    (conf[:, ch0] >= conf_threshold)
-                    & (conf[:, ch1] >= conf_threshold)
-                    & (f0[:, ch0] > 0)
-                    & (f0[:, ch1] > 0)
-                )[0]
-                index_grad0 = gradient_filter(f0[:, ch0], derivative_tol)
-                index_grad1 = gradient_filter(f0[:, ch1], derivative_tol)
-                index = np.intersect1d(np.intersect1d(index, index_grad0), index_grad1)
-
-                f0_plot[index, pair_num] = f2cent(f0[index, ch0], ref_freq) - f2cent(
-                    f0[index, ch1], ref_freq
-                )
-                pair_num += 1
-
-        return f0_plot
-
     @qc.pyqtSlot()
-    def on_draw(self, f0, conf):
-        if len(self.main_window.audio_processor.channels) == 1:
-            return
-
-        if np.all(f0 == 0) or np.all(conf == 0):
-            return
-
-        cur_ref_freq_mode = self.main_window.cur_ref_freq_mode
-        cur_ref_freq = self.main_window.cur_ref_freq
-
-        # compute reference frequency
-        if cur_ref_freq_mode == "fixed":
-            cur_ref_freq = cur_ref_freq
-        elif cur_ref_freq_mode == "highest":
-            cur_ref_freq = np.max(np.max(f0, axis=0))
-        elif cur_ref_freq_mode == "lowest":
-            cur_ref_freq = np.min(np.min(f0, axis=0))
-        else:
-            cur_ref_freq = f0[-1, int(cur_ref_freq_mode[-2:]) - 1]
-
-        nan_val = 99999
-        f0_plot = self.compute_trajectories(
-            f0,
-            conf,
-            cur_ref_freq,
-            self.main_window.cur_conf_threshold,
-            self.main_window.cur_derivative_tol,
-            nan_val,
-        )
-
-        f0_plot[f0_plot == nan_val] = np.nan
-        for i in range(f0_plot.shape[1]):
-            self._lines[i][0].set_ydata(f0_plot[:, i])
-            self._lines[i][1].set_ydata(f0_plot[:, i])
+    def on_draw(self, diff):
+        for i in range(diff.shape[1]):
+            self._lines[i][0].set_ydata(diff[:, i])
+            self._lines[i][1].set_ydata(diff[:, i])
 
         if self.cur_disp_pitch_lims != self.main_window.disp_pitch_lims:
             self.cur_disp_pitch_lims = self.main_window.disp_pitch_lims.copy()
