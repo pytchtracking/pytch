@@ -38,9 +38,13 @@ def start_gui():
     app = qw.QApplication(sys.argv)
     input_dialog = InputMenu()
     if input_dialog.exec() == qw.QDialog.DialogCode.Accepted:
-        device, channels, fs, fft_size = input_dialog.get_input_settings()
+        device, channels, fs, fft_size, out_path = input_dialog.get_input_settings()
         main_window = MainWindow(
-            sounddevice_idx=device, channels=channels, fs=fs, fft_size=fft_size
+            sounddevice_idx=device,
+            channels=channels,
+            fs=fs,
+            fft_size=fft_size,
+            out_path=out_path,
         )
         main_window.showMaximized()
         app.exec()
@@ -57,44 +61,52 @@ class InputMenu(qw.QDialog):
         layout = qw.QGridLayout()
         self.setLayout(layout)
 
-        layout.addWidget(qw.QLabel("Input Device"))
+        # select input device
+        layout.addWidget(qw.QLabel("Input Device:"), 0, 0, 1, 1)
         self.input_options = qw.QComboBox()
-        layout.addWidget(self.input_options)
-
-        self.input_options.clear()
+        layout.addWidget(self.input_options, 1, 0, 1, 1)
         self.devices = get_input_devices()
-
-        default_device = self.devices[0]
         for idevice, device in enumerate(self.devices):
             self.input_options.addItem("{} {}".format(idevice, device[1]["name"]))
+        self.input_options.currentIndexChanged.connect(self.update_channel_info)
 
-        # select sampling rate
-        layout.addWidget(qw.QLabel("Sampling Rate"))
-        self.fs_options = qw.QComboBox()
-        layout.addWidget(self.fs_options)
-
-        # select fft size
-        layout.addWidget(qw.QLabel("FFT Size in Samples"))
-        self.fft_size_options = self.get_nfft_box()
-        layout.addWidget(self.fft_size_options)
-
+        # select channels
+        layout.addWidget(qw.QLabel("Select Channels:"), 0, 1, 1, 1)
         self.channel_options = qw.QScrollArea()
         self.channel_options.setMaximumSize(30000, 200)
-        layout.addWidget(qw.QLabel("Select Channels"), 0, 2, 1, 1)
-        layout.addWidget(self.channel_options, 1, 2, 6, 1)
+        layout.addWidget(self.channel_options, 1, 1, 6, 1)
 
+        # select sampling rate
+        layout.addWidget(qw.QLabel("Sampling Rate:"), 2, 0, 1, 1)
+        self.fs_options = qw.QComboBox()
+        layout.addWidget(self.fs_options, 3, 0, 1, 1)
+
+        # select fft size
+        layout.addWidget(qw.QLabel("FFT Size in Samples:"), 4, 0, 1, 1)
+        self.fft_size_options = self.get_nfft_box()
+        layout.addWidget(self.fft_size_options, 5, 0, 1, 1)
+
+        # select output directory
+        layout.addWidget(qw.QLabel("Output Directory (Optional):"), 6, 0, 1, 1)
+        self.out_path = ""
+        dir_btn = QPushButton("Browse")
+        dir_btn.clicked.connect(self.open_dir_dialog)
+        self.dir_name_edit = qw.QLineEdit()
+        layout.addWidget(self.dir_name_edit, 7, 0, 1, 1)
+        layout.addWidget(dir_btn, 7, 1, 1, 1)
+
+        # OK and Cancel button
         buttons = qw.QDialogButtonBox(
             qw.QDialogButtonBox.StandardButton.Ok
             | qw.QDialogButtonBox.StandardButton.Cancel
         )
-
-        self.input_options.currentIndexChanged.connect(self.update_channel_info)
-        self.input_options.setCurrentIndex(0)
-        self.update_channel_info(0)
-
         buttons.accepted.connect(self.on_ok_clicked)
         buttons.rejected.connect(self.close)
         layout.addWidget(buttons)
+
+        # load default device
+        self.input_options.setCurrentIndex(0)
+        self.update_channel_info(0)
 
     def update_channel_info(self, menu_index):
         """Updates available channels in input menu"""
@@ -117,6 +129,12 @@ class InputMenu(qw.QDialog):
         b.setCurrentIndex(2)
         return b
 
+    def open_dir_dialog(self):
+        dir_name = qw.QFileDialog.getExistingDirectory(self, "Select a Directory")
+        if dir_name:
+            self.out_path = str(dir_name)
+            self.dir_name_edit.setText(self.out_path)
+
     def on_ok_clicked(self):
         self.accept()  # closes the window
 
@@ -125,7 +143,7 @@ class InputMenu(qw.QDialog):
         channels = self.channel_selector.get_selected_channels()
         fs = int(self.fs_options.currentText())
         fft_size = int(self.fft_size_options.currentText())
-        return sounddevice_idx, channels, fs, fft_size
+        return sounddevice_idx, channels, fs, fft_size, self.out_path
 
 
 class ChannelSelector(qw.QWidget):
@@ -148,7 +166,7 @@ class ChannelSelector(qw.QWidget):
 class MainWindow(qw.QMainWindow):
     """Main window that includes the main widget for the menu and all visualizations."""
 
-    def __init__(self, sounddevice_idx, channels, fs, fft_size):
+    def __init__(self, sounddevice_idx, channels, fs, fft_size, out_path):
         super().__init__()
 
         # default settings for the entire GUI.
@@ -157,6 +175,7 @@ class MainWindow(qw.QMainWindow):
         self.channels = channels
         self.fs = fs
         self.fft_size = fft_size
+        self.out_path = out_path
         self.f0_algorithms = ["YIN"]
         self.buf_len_sec = 30.0
         self.spec_scale_types = ["log", "linear"]
@@ -206,6 +225,7 @@ class MainWindow(qw.QMainWindow):
             device_no=self.sounddevice_idx,
             f0_algorithm=self.f0_algorithms[0],
             gui=self,
+            out_path=out_path,
         )
 
         # initialize GUI
