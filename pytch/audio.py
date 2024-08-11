@@ -7,8 +7,11 @@ import numpy as np
 from numba import njit
 import logging
 import sounddevice
+import soundfile as sf
 import libf0
 from scipy.ndimage import median_filter
+from datetime import datetime
+import csv
 from .utils import gradient_filter, f2cent
 
 _audio_lock = threading.Lock()
@@ -132,6 +135,7 @@ class AudioProcessor:
         device_no=None,
         f0_algorithm="YIN",
         gui=None,
+        out_path="",
     ):
         self.fs = fs
         self.buf_len_sec = buf_len_sec
@@ -142,6 +146,7 @@ class AudioProcessor:
         self.channels = channels
         self.device_no = device_no
         self.f0_algorithm = f0_algorithm
+        self.out_path = out_path
         self.gui = gui
         self.f0_lvl_threshold = -70  # minimum level in dB to compute f0 estimates
         self.frame_rate = self.fs / self.hop_len
@@ -153,14 +158,14 @@ class AudioProcessor:
             np.ceil(self.buf_len_sec * self.fs / self.hop_len) * self.hop_len
         )
         self.audio_buf = RingBuffer(
-            size=(buf_len_smp, len(self.channels)), dtype=np.float64
+            size=(buf_len_smp, len(self.channels)), dtype=np.float32
         )
 
         buf_len_frm = int(
             np.floor((self.buf_len_sec * self.fs - self.fft_len) / self.hop_len)
         )
         self.raw_lvl_buf = RingBuffer(
-            size=(buf_len_frm, len(self.channels)), dtype=np.float64
+            size=(buf_len_frm, len(self.channels)), dtype=np.float32
         )
         self.raw_fft_buf = RingBuffer(
             size=(
@@ -168,16 +173,30 @@ class AudioProcessor:
                 len(self.fft_freqs),
                 len(self.channels),
             ),
-            dtype=np.float64,
+            dtype=np.float32,
         )
         self.raw_f0_buf = RingBuffer(
             size=(buf_len_frm, len(self.channels)),
-            dtype=np.float64,
+            dtype=np.float32,
         )
         self.raw_conf_buf = RingBuffer(
             size=(buf_len_frm, len(self.channels)),
-            dtype=np.float64,
+            dtype=np.float32,
         )
+
+        if out_path != "":
+            start_t = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            self.audio_out_file = sf.SoundFile(
+                out_path + f"/{start_t}.wav",
+                samplerate=fs,
+                channels=len(channels),
+                subtype="PCM_16",
+                format="WAV",
+                mode="w",
+            )
+            self.traj_out_file = open(out_path + f"/{start_t}.csv", "x", newline="")
+            writer = csv.writer(self.traj_out_file)
+            writer.writerow([f"Channel {ch}" for ch in channels])
 
         if gui is not None:
             self.new_gui_data_available = False
@@ -243,6 +262,9 @@ class AudioProcessor:
         if self.stream is not None:
             self.stream.close()
             self.stream = None
+            if self.out_path != "":
+                self.audio_out_file.close()
+                self.traj_out_file.close()
 
     def worker_thread(self):
         while self.is_running:
@@ -270,13 +292,22 @@ class AudioProcessor:
                 self.gui_preprocessing()
                 self.new_gui_data_available = True
 
+            # write trajectories to disk if configured
+            if self.out_path != "":
+                writer = csv.writer(self.traj_out_file)
+                writer.writerows(f0)
+
     def recording_callback(self, data, frames, time, status):
         """receives frames from soundcard, data is of shape (frames, channels)"""
+        audio_conv = (
+            data[:, self.channels].astype(np.float32, order="C") / 32768.0
+        )  # convert int16 to float32
 
         with _audio_lock:
-            self.audio_buf.write(
-                data[:, self.channels].astype(np.float64, order="C") / 32768.0
-            )  # convert int16 to float64
+            self.audio_buf.write(audio_conv)
+
+        if self.out_path != "":
+            self.audio_out_file.write(audio_conv)
 
     def compute_level(self, audio):
         return 10 * np.log10(np.max(np.abs(audio + eps), axis=0)).reshape(1, -1)
@@ -342,7 +373,10 @@ class AudioProcessor:
                     )
                 )
             )
-            proc_lvl[:lvl_clip, ch] = tmp[:lvl_clip]
+            if lvl_clip == 0:
+                proc_lvl[:, ch] = tmp
+            else:
+                proc_lvl[:lvl_clip, ch] = tmp[:lvl_clip]
 
         # preprocess spectrum
         n_spec_frames = spec.shape[0]
@@ -386,7 +420,7 @@ class AudioProcessor:
             cur_ref_freq = f0[-1, int(cur_ref_freq_mode[-2:]) - 1]
 
         # threshold trajectories and compute intervals
-        nan_val = 999999999
+        nan_val = 99999
         proc_f0, proc_diff = self.f0_diff_computations(
             f0,
             conf,
@@ -456,7 +490,7 @@ class AudioProcessor:
         return lvl, spec, stft, f0, conf
 
     def get_latest_gui_data(self):
-        """Reads pre-procesed data for GUI"""
+        """Reads pre-processed data for GUI"""
         with _gui_lock:
             self.new_gui_data_available = False
             return (
