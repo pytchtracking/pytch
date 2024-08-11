@@ -159,10 +159,6 @@ class MainWindow(qw.QMainWindow):
         self.fft_size = fft_size
         self.f0_algorithms = ["YIN"]
         self.buf_len_sec = 30.0
-        self.disp_pitch_lims = [
-            -1500,
-            1500,
-        ]  # limits in cents for pitch trajectory view
         self.spec_scale_types = ["log", "linear"]
         self.ref_freq_modes = ["fixed", "highest", "lowest"]
         self.disp_t_lvl = 1
@@ -178,6 +174,10 @@ class MainWindow(qw.QMainWindow):
             20,
             1000,
         ]  # limits in Hz for spectrum/spectrogram view
+        self.cur_disp_pitch_lims = [
+            -1500,
+            1500,
+        ]  # limits in cents for pitch trajectory view
         self.cur_spec_scale_type = self.spec_scale_types[0]
         self.cur_ref_freq_mode = self.ref_freq_modes[0]
         self.cur_ref_freq = 220
@@ -253,6 +253,7 @@ class MainWindow(qw.QMainWindow):
             self.is_running = True
             self.menu.play_pause_button.setText("Pause")
 
+    @qc.pyqtSlot()
     def refresh_gui(self):
         with _refresh_lock:  # only update when last update has finished
             if self.audio_processor.new_gui_data_available:
@@ -260,7 +261,6 @@ class MainWindow(qw.QMainWindow):
                 lvl, spec, inst_f0, stft, f0, diff = (
                     self.audio_processor.get_latest_gui_data()
                 )
-
                 self.channel_views.on_draw(lvl, spec, inst_f0, stft)
                 self.trajectory_views.on_draw(f0, diff)
         # logger.info(f"Last refresh finished {time.time() - self.last_refresh}s ago")
@@ -307,7 +307,7 @@ class GUIRefreshTimer(qc.QThread):
 
     def run(self):
         while 1:
-            time.sleep(1 / 25)  # ideally update with 60 fps
+            time.sleep(1 / 50)  # ideally update with 60 fps
             if self.emit_signal:
                 with _refresh_lock:  # make sure last refresh is done
                     self.refresh_signal.emit()
@@ -473,7 +473,7 @@ class ProcessingMenu(QFrame):
 
         layout.addWidget(qw.QLabel("Minimum Pitch"), 17, 0)
         self.pitch_min = FloatQLineEdit(
-            parent=self, default=main_window.disp_pitch_lims[0]
+            parent=self, default=main_window.cur_disp_pitch_lims[0]
         )
         self.pitch_min.accepted_value.connect(self.on_pitch_min_changed)
         layout.addWidget(self.pitch_min, 17, 1, 1, 1)
@@ -481,7 +481,7 @@ class ProcessingMenu(QFrame):
 
         layout.addWidget(qw.QLabel("Maximum Pitch"), 18, 0)
         self.pitch_max = FloatQLineEdit(
-            parent=self, default=main_window.disp_pitch_lims[1]
+            parent=self, default=main_window.cur_disp_pitch_lims[1]
         )
         self.pitch_max.accepted_value.connect(self.on_pitch_max_changed)
         layout.addWidget(self.pitch_max, 18, 1, 1, 1)
@@ -492,9 +492,15 @@ class ProcessingMenu(QFrame):
 
     def on_min_freq_changed(self, f):
         self.main_window.cur_disp_freq_lims[0] = int(f)
+        self.main_window.channel_views.on_disp_freq_lims_changed(
+            self.main_window.cur_disp_freq_lims
+        )
 
     def on_max_freq_changed(self, f):
         self.main_window.cur_disp_freq_lims[1] = int(f)
+        self.main_window.channel_views.on_disp_freq_lims_changed(
+            self.main_window.cur_disp_freq_lims
+        )
 
     def on_algorithm_select(self, algorithm):
         self.main_window.audio_processor.f0_algorithm = algorithm
@@ -525,10 +531,16 @@ class ProcessingMenu(QFrame):
         self.main_window.cur_ref_freq = val
 
     def on_pitch_min_changed(self, val):
-        self.main_window.disp_pitch_lims[0] = int(val)
+        self.main_window.cur_disp_pitch_lims[0] = int(val)
+        self.main_window.trajectory_views.on_disp_pitch_lims_changed(
+            self.main_window.cur_disp_pitch_lims
+        )
 
     def on_pitch_max_changed(self, val):
-        self.main_window.disp_pitch_lims[1] = int(val)
+        self.main_window.cur_disp_pitch_lims[1] = int(val)
+        self.main_window.trajectory_views.on_disp_pitch_lims_changed(
+            self.main_window.cur_disp_pitch_lims
+        )
 
     def on_spectrum_type_select(self, arg):
         self.main_window.cur_spec_scale_type = arg
@@ -539,6 +551,8 @@ class ProcessingMenu(QFrame):
 
 class ChannelViews(qw.QWidget):
     """Creates and contains the channel widgets."""
+
+    refresh_signal = qc.pyqtSignal(np.ndarray, np.ndarray, np.ndarray, np.ndarray)
 
     def __init__(self, main_window: MainWindow):
         qw.QWidget.__init__(self)
@@ -566,6 +580,7 @@ class ChannelViews(qw.QWidget):
                 self.h_line = QHLine()
                 self.layout.addWidget(self.h_line, 0)
             self.layout.addWidget(c_view, 0)
+            self.refresh_signal.connect(c_view.on_draw)
 
         self.setLayout(self.layout)
 
@@ -589,10 +604,13 @@ class ChannelViews(qw.QWidget):
         self.views[-1].setVisible(show)
         self.h_line.setVisible(show)
 
+    def on_disp_freq_lims_changed(self, disp_freq_lims):
+        for view in self.views:
+            view.on_disp_freq_lims_changed(disp_freq_lims)
+
     @qc.pyqtSlot()
     def on_draw(self, lvl, spec, inst_f0, stft):
-        for view in self.views:
-            view.on_draw(lvl, spec, inst_f0, stft)
+        self.refresh_signal.emit(lvl, spec, inst_f0, stft)
 
     def sizeHint(self):
         return qc.QSize(400, 200)
@@ -608,6 +626,10 @@ class ChannelView(qw.QWidget):
     This is a per-channel container. It contains the level-view,
     spectrogram-view and the sepctrum-view of a single channel.
     """
+
+    level_refresh_signal = qc.pyqtSignal(np.ndarray)
+    spectrum_refresh_signal = qc.pyqtSignal(np.ndarray, float)
+    spectrogram_refresh_signal = qc.pyqtSignal(np.ndarray)
 
     def __init__(
         self,
@@ -637,6 +659,10 @@ class ChannelView(qw.QWidget):
             self.main_window, self.color, has_xlabel=has_xlabel
         )
 
+        self.level_refresh_signal.connect(self.level_widget.on_draw)
+        self.spectrum_refresh_signal.connect(self.spectrum_widget.on_draw)
+        self.spectrogram_refresh_signal.connect(self.spectrogram_widget.on_draw)
+
         layout = self.layout()
         layout.addWidget(self.level_widget, 1)
         layout.addWidget(self.spectrum_widget, 8)
@@ -649,16 +675,8 @@ class ChannelView(qw.QWidget):
             self.level_widget.ax.patch.set_visible(False)
             self.level_widget.ax.yaxis.grid(False, which="both")
 
-    @qc.pyqtSlot()
+    @qc.pyqtSlot(object, object, object, object)
     def on_draw(self, lvl, spec, inst_f0, stft):
-        if (
-            np.all(lvl == 0)
-            or np.all(spec == 0)
-            or np.all(inst_f0 == 0)
-            or np.all(stft == 0)
-        ):
-            return
-
         # prepare data
         if self.is_product:
             lvl_update = lvl[:, -1]
@@ -672,9 +690,9 @@ class ChannelView(qw.QWidget):
             inst_f0_update = inst_f0[:, self.ch_id]
 
         # update widgets
-        self.level_widget.on_draw(lvl_update.reshape(-1, 1))
-        self.spectrum_widget.on_draw(spec_update, inst_f0=inst_f0_update)
-        self.spectrogram_widget.on_draw(stft_update)
+        self.level_refresh_signal.emit(lvl_update.reshape(-1, 1))
+        self.spectrum_refresh_signal.emit(spec_update, inst_f0_update)
+        self.spectrogram_refresh_signal.emit(stft_update)
 
     def show_spectrum_widget(self, show):
         self.spectrum_widget.setVisible(show)
@@ -684,6 +702,10 @@ class ChannelView(qw.QWidget):
 
     def show_level_widget(self, show):
         self.level_widget.setVisible(show)
+
+    def on_disp_freq_lims_changed(self, disp_freq_lims):
+        self.spectrum_widget.on_disp_freq_lims_changed(disp_freq_lims)
+        self.spectrogram_widget.on_disp_freq_lims_changed(disp_freq_lims)
 
 
 class LevelWidget(FigureCanvas):
@@ -729,6 +751,7 @@ class LevelWidget(FigureCanvas):
         else:
             self.figure.tight_layout(rect=(0.5, 0.1, 1, 1))
 
+    @qc.pyqtSlot(object)
     def on_draw(self, plot_mat):
         self.img.set_data(plot_mat)
         self.bm.update()
@@ -758,7 +781,6 @@ class SpectrumWidget(FigureCanvas):
             self.f_axis, np.zeros_like(self.f_axis), color=self.color
         )
         self._vline = self.ax.axvline(np.nan, c=self.color, linestyle="--")
-        self.cur_disp_freq_lims = self.main_window.cur_disp_freq_lims.copy()
         self.ax.set_xlim(self.main_window.cur_disp_freq_lims)
         self.ax.set_ylim((0, 1))
         self.draw()
@@ -768,12 +790,12 @@ class SpectrumWidget(FigureCanvas):
         else:
             self.figure.tight_layout(rect=(0.05, 0.1, 0.95, 1))
 
-    def on_draw(self, data_plot, inst_f0=None):
-        if self.cur_disp_freq_lims != self.main_window.cur_disp_freq_lims:
-            self.ax.set_xlim(self.main_window.cur_disp_freq_lims)
-            self.cur_disp_freq_lims = self.main_window.cur_disp_freq_lims.copy()
-            self.bm.update_bg()
+    def on_disp_freq_lims_changed(self, disp_freq_lims):
+        self.ax.set_xlim(disp_freq_lims)
+        self.bm.update_bg()
 
+    @qc.pyqtSlot(object, float)
+    def on_draw(self, data_plot, inst_f0=None):
         self._line.set_ydata(data_plot)
         self._vline.set_xdata([inst_f0, inst_f0])
         self.bm.update()
@@ -825,7 +847,6 @@ class SpectrogramWidget(FigureCanvas):
         self.img.set_clim(vmin=0, vmax=1)
         if has_xlabel:
             self.ax.set_xlabel("Frequency [Hz]")
-        self.cur_disp_freq_lims = self.main_window.cur_disp_freq_lims.copy()
         self.ax.set_xlim(self.main_window.cur_disp_freq_lims)
         self.draw()
         self.grid_lines = [line for line in self.ax.get_xgridlines()]
@@ -838,12 +859,12 @@ class SpectrogramWidget(FigureCanvas):
         else:
             self.figure.tight_layout(rect=(0.05, 0.1, 0.95, 1))
 
-    def on_draw(self, data_plot):
-        if self.cur_disp_freq_lims != self.main_window.cur_disp_freq_lims:
-            self.ax.set_xlim(self.main_window.cur_disp_freq_lims)
-            self.cur_disp_freq_lims = self.main_window.cur_disp_freq_lims.copy()
-            self.bm.update_bg()
+    def on_disp_freq_lims_changed(self, disp_freq_lims):
+        self.ax.set_xlim(disp_freq_lims)
+        self.bm.update_bg()
 
+    @qc.pyqtSlot(object)
+    def on_draw(self, data_plot):
         self.img.set_data(data_plot)
         self.bm.update()
 
@@ -885,10 +906,15 @@ class TrajectoryViews(qw.QTabWidget):
         if len(main_window.channels) > 1:
             self.addTab(self.pitch_view_all_diff, "Differential")
 
+    @qc.pyqtSlot(object, object)
     def on_draw(self, f0, diff):
         self.pitch_view.on_draw(f0)
         if len(self.main_window.channels) > 1:
             self.pitch_view_all_diff.on_draw(diff)
+
+    def on_disp_pitch_lims_changed(self, disp_pitch_lims):
+        self.pitch_view.on_disp_pitch_lims_changed(disp_pitch_lims)
+        self.pitch_view_all_diff.on_disp_pitch_lims_changed(disp_pitch_lims)
 
     def show_trajectory_views(self, show):
         self.setVisible(show)
@@ -945,8 +971,7 @@ class PitchWidget(FigureCanvas):
                     linewidth="2",
                 )[0]
             )
-        self.cur_disp_pitch_lims = self.main_window.disp_pitch_lims.copy()
-        self.set_axes_limits()
+        self.on_disp_pitch_lims_changed(self.main_window.cur_disp_pitch_lims)
 
         pal = self.palette()
         pal.setColor(qg.QPalette.ColorRole.Window, qg.QColor("white"))
@@ -960,7 +985,7 @@ class PitchWidget(FigureCanvas):
 
         self.bm = BlitManager(self.figure.canvas, self._lines + self.grid_lines)
 
-    def set_axes_limits(self):
+    def on_disp_pitch_lims_changed(self, disp_pitch_lims):
         self.ax.set_xlim(0, len(self.t_axis))
         self.ax.set_xticks(
             np.arange(
@@ -970,22 +995,15 @@ class PitchWidget(FigureCanvas):
             )
         )
         self.ax.set_xticklabels([])
-        self.ax.set_ylim(self.cur_disp_pitch_lims)
-        self.ax.set_yticks(
-            np.arange(
-                self.cur_disp_pitch_lims[0], self.cur_disp_pitch_lims[1] + 100, 100
-            )
-        )
+        self.ax.set_ylim(disp_pitch_lims)
+        self.ax.set_yticks(np.arange(disp_pitch_lims[0], disp_pitch_lims[1] + 100, 100))
+        if hasattr(self, "bm"):
+            self.bm.update_bg()
 
-    @qc.pyqtSlot()
+    @qc.pyqtSlot(object)
     def on_draw(self, f0):
         for i in range(f0.shape[1]):
             self._lines[i].set_ydata(f0[:, i])
-
-        if self.cur_disp_pitch_lims != self.main_window.disp_pitch_lims:
-            self.cur_disp_pitch_lims = self.main_window.disp_pitch_lims.copy()
-            self.set_axes_limits()
-            self.bm.update_bg()
 
         self.bm.update()
 
@@ -1048,8 +1066,7 @@ class DifferentialPitchWidget(FigureCanvas):
 
                 self._lines.append([line1, line2])
 
-        self.cur_disp_pitch_lims = self.main_window.disp_pitch_lims.copy()
-        self.set_axes_limits()
+        self.on_disp_pitch_lims_changed(self.main_window.cur_disp_pitch_lims)
 
         pal = self.palette()
         pal.setColor(qg.QPalette.ColorRole.Window, qg.QColor("white"))
@@ -1065,7 +1082,7 @@ class DifferentialPitchWidget(FigureCanvas):
             flat_list += row
         self.bm = BlitManager(self.figure.canvas, flat_list + self.grid_lines)
 
-    def set_axes_limits(self):
+    def on_disp_pitch_lims_changed(self, disp_pitch_lims):
         self.ax.set_xlim(0, len(self.t_axis))
         self.ax.set_xticks(
             np.arange(
@@ -1075,22 +1092,15 @@ class DifferentialPitchWidget(FigureCanvas):
             )
         )
         self.ax.set_xticklabels([])
-        self.ax.set_ylim(self.cur_disp_pitch_lims)
-        self.ax.set_yticks(
-            np.arange(
-                self.cur_disp_pitch_lims[0], self.cur_disp_pitch_lims[1] + 100, 100
-            )
-        )
+        self.ax.set_ylim(disp_pitch_lims)
+        self.ax.set_yticks(np.arange(disp_pitch_lims[0], disp_pitch_lims[1] + 100, 100))
+        if hasattr(self, "bm"):
+            self.bm.update_bg()
 
-    @qc.pyqtSlot()
+    @qc.pyqtSlot(object)
     def on_draw(self, diff):
         for i in range(diff.shape[1]):
             self._lines[i][0].set_ydata(diff[:, i])
             self._lines[i][1].set_ydata(diff[:, i])
-
-        if self.cur_disp_pitch_lims != self.main_window.disp_pitch_lims:
-            self.cur_disp_pitch_lims = self.main_window.disp_pitch_lims.copy()
-            self.set_axes_limits()
-            self.bm.update_bg()
 
         self.bm.update()

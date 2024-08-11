@@ -331,12 +331,12 @@ class AudioProcessor:
             np.abs(self.gui.lvl_cvals[0] - self.gui.lvl_cvals[-1]),
         )
         proc_lvl = np.full((len(tmp), len(self.channels) + 1), np.nan)
+        max_lvl = np.max(lvl, axis=0)
         for ch in range(lvl.shape[1]):
-            max_lvl = np.max(lvl[:, ch])
             lvl_clip = int(
                 np.round(
                     np.clip(
-                        max_lvl,
+                        max_lvl[ch],
                         a_min=self.gui.lvl_cvals[0],
                         a_max=self.gui.lvl_cvals[-1],
                     )
