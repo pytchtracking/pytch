@@ -346,14 +346,14 @@ class AudioProcessor:
                 continue
 
             if self.f0_algorithm == "YIN":
-                # TODO: replace with real-time version, add real-time SWIPE
+                # TODO: replace with real-time version, add real-time SWIPE, relax min/max limits
                 f0_tmp, _, conf_tmp = libf0.yin(
                     np.concatenate((audio[:, c][::-1], audio[:, c], audio[:, c][::-1])),
                     Fs=self.fs,
                     N=self.fft_len,
                     H=self.fft_len,
-                    F_min=55.0,
-                    F_max=440.0,
+                    F_min=80.0,
+                    F_max=640.0,
                     threshold=0.15,
                     verbose=False,
                 )
