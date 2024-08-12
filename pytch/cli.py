@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""Python App"""
+"""Commandline Interface"""
 
 import argparse
 import logging
