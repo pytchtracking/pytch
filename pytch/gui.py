@@ -9,19 +9,12 @@ import time
 import numpy as np
 import importlib.metadata
 
-from .utils import FloatQLineEdit, QHLine, BlitManager
+from .gui_utils import FloatQLineEdit, QHLine, BlitManager
 from .audio import AudioProcessor, get_input_devices, get_fs_options
 
 from PyQt6 import QtCore as qc
 from PyQt6 import QtGui as qg
 from PyQt6 import QtWidgets as qw
-from PyQt6.QtWidgets import QVBoxLayout
-from PyQt6.QtWidgets import (
-    QFrame,
-    QSplitter,
-    QHBoxLayout,
-    QPushButton,
-)
 
 import matplotlib
 from matplotlib.backends.backend_qtagg import FigureCanvas
@@ -30,11 +23,11 @@ import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 
 logger = logging.getLogger("pytch.gui")
-_refresh_lock = threading.Lock()
+_refresh_lock = threading.Lock()  # lock for GUI updates
 
 
 def start_gui():
-    """Starts the GUI"""
+    """Starts the GUI, first show input menu, then open the main GUI"""
     app = qw.QApplication(sys.argv)
     input_dialog = InputMenu()
     if input_dialog.exec() == qw.QDialog.DialogCode.Accepted:
@@ -52,7 +45,7 @@ def start_gui():
 
 
 class InputMenu(qw.QDialog):
-    """Pop up menu at program start that offers user to customise basic settings"""
+    """Pop up menu at program start that offers user to customise input settings"""
 
     def __init__(self, *args, **kwargs):
         qw.QDialog.__init__(self, *args, **kwargs)
@@ -89,7 +82,7 @@ class InputMenu(qw.QDialog):
         # select output directory
         layout.addWidget(qw.QLabel("Output Directory (Optional):"), 6, 0, 1, 1)
         self.out_path = ""
-        dir_btn = QPushButton("Browse")
+        dir_btn = qw.QPushButton("Browse")
         dir_btn.clicked.connect(self.open_dir_dialog)
         self.dir_name_edit = qw.QLineEdit()
         layout.addWidget(self.dir_name_edit, 7, 0, 1, 1)
@@ -115,14 +108,15 @@ class InputMenu(qw.QDialog):
 
         sampling_rate_options = get_fs_options(sounddevice_index)
         self.channel_selector = ChannelSelector(
-            nchannels=nmax_channels, channels_enabled=[0]
+            n_channels=nmax_channels, channels_enabled=[0]
         )
 
         self.channel_options.setWidget(self.channel_selector)
         self.fs_options.clear()
         self.fs_options.addItems([str(int(v)) for v in sampling_rate_options])
 
-    def get_nfft_box(self):
+    @staticmethod
+    def get_nfft_box():
         """Return a qw.QSlider for modifying FFT width"""
         b = qw.QComboBox()
         b.addItems([str(f * 256) for f in [1, 2, 4, 8, 16]])
@@ -130,15 +124,18 @@ class InputMenu(qw.QDialog):
         return b
 
     def open_dir_dialog(self):
+        """Opens an os dialogue for selecting a directory"""
         dir_name = qw.QFileDialog.getExistingDirectory(self, "Select a Directory")
         if dir_name:
             self.out_path = str(dir_name)
             self.dir_name_edit.setText(self.out_path)
 
     def on_ok_clicked(self):
-        self.accept()  # closes the window
+        """Close the menu when the user clicks ok and signal that main GUI can be opened"""
+        self.accept()
 
     def get_input_settings(self):
+        """Returns user-configured input settings"""
         sounddevice_idx = self.devices[self.input_options.currentIndex()][0]
         channels = self.channel_selector.get_selected_channels()
         fs = int(self.fs_options.currentText())
@@ -147,12 +144,14 @@ class InputMenu(qw.QDialog):
 
 
 class ChannelSelector(qw.QWidget):
-    def __init__(self, nchannels, channels_enabled):
+    """Widget for the channel buttons on the right side of the input menu"""
+
+    def __init__(self, n_channels, channels_enabled):
         super().__init__()
         self.setLayout(qw.QVBoxLayout())
 
         self.buttons = []
-        for i in range(nchannels):
+        for i in range(n_channels):
             button = qw.QPushButton("Channel %i" % (i + 1))
             button.setCheckable(True)
             button.setChecked(i in channels_enabled)
@@ -160,6 +159,7 @@ class ChannelSelector(qw.QWidget):
             self.layout().addWidget(button)
 
     def get_selected_channels(self):
+        """Returns selected channels by the user"""
         return [i for i, button in enumerate(self.buttons) if button.isChecked()]
 
 
@@ -182,9 +182,9 @@ class MainWindow(qw.QMainWindow):
         self.ref_freq_modes = ["fixed", "highest", "lowest"]
         self.disp_t_lvl = 1
         self.disp_t_spec = 1
-        self.disp_t_stft = 1
-        self.disp_t_f0 = 15
-        self.disp_t_conf = 15
+        self.disp_t_stft = 5
+        self.disp_t_f0 = 10
+        self.disp_t_conf = 10
         self.lvl_cvals = [-80, -12, 0]
         self.lvl_colors = ["green", "yellow", "red"]
         self.ch_colors = matplotlib.colormaps["Set2"].colors
@@ -233,7 +233,7 @@ class MainWindow(qw.QMainWindow):
         central_widget = qw.QWidget()  # contains all contents
         self.setCentralWidget(central_widget)
 
-        splitter = QSplitter(
+        splitter = qw.QSplitter(
             qc.Qt.Orientation.Horizontal, central_widget
         )  # split GUI horizontally
 
@@ -250,7 +250,7 @@ class MainWindow(qw.QMainWindow):
         splitter.setStretchFactor(1, 3)
         splitter.setStretchFactor(2, 2)
 
-        layout = QVBoxLayout(central_widget)  # sets the layout of the central widget
+        layout = qw.QVBoxLayout(central_widget)  # sets the layout of the central widget
         layout.addLayout(self.menu_toggle_button())  # top bar with menu toggle button
         layout.addWidget(splitter)
 
@@ -262,6 +262,7 @@ class MainWindow(qw.QMainWindow):
         self.play_pause()  # start recording and plotting
 
     def play_pause(self):
+        """Starts or stops the GUI"""
         if self.is_running:
             self.audio_processor.stop_stream()
             self.refresh_timer.stop_emitting()
@@ -275,22 +276,27 @@ class MainWindow(qw.QMainWindow):
 
     @qc.pyqtSlot()
     def refresh_gui(self):
+        """GUI refresh function, needs to be as fast as possible"""
         with _refresh_lock:  # only update when last update has finished
             if self.audio_processor.new_gui_data_available:
                 # get preprocessed audio data from audio processor
                 lvl, spec, inst_f0, stft, f0, diff = (
                     self.audio_processor.get_latest_gui_data()
                 )
+
+                # update widgets
                 self.channel_views.on_draw(lvl, spec, inst_f0, stft)
                 self.trajectory_views.on_draw(f0, diff)
-        # logger.info(f"Last refresh finished {time.time() - self.last_refresh}s ago")
-        self.last_refresh = time.time()
+
+                # logger.info(f"Last refresh finished {time.time() - self.last_refresh}s ago")
+                self.last_refresh = time.time()
 
     def menu_toggle_button(self):
-        top_bar = QHBoxLayout()
+        """The button for toggeling the menu"""
+        top_bar = qw.QHBoxLayout()
         top_bar.setContentsMargins(0, 0, 0, 0)
         top_bar.setSpacing(0)
-        self.toggle_button = QPushButton("☰ Hide Menu")
+        self.toggle_button = qw.QPushButton("☰ Hide Menu")
         self.toggle_button.setFixedSize(100, 10)
         self.toggle_button.clicked.connect(self.toggle_menu)
         self.toggle_button.setStyleSheet("border :none")
@@ -301,6 +307,7 @@ class MainWindow(qw.QMainWindow):
         return top_bar
 
     def toggle_menu(self):
+        """Make menu appear or disappear"""
         if self.menu_visible:
             self.menu.hide()
             self.toggle_button.setText("☰ Show Menu")
@@ -310,6 +317,7 @@ class MainWindow(qw.QMainWindow):
         self.menu_visible = not self.menu_visible
 
     def closeEvent(self, a0):
+        """Clean up when GUI is closed"""
         self.refresh_timer.terminate()
         self.audio_processor.stop_stream()
         self.audio_processor.close_stream()
@@ -327,20 +335,24 @@ class GUIRefreshTimer(qc.QThread):
 
     def run(self):
         while 1:
-            time.sleep(1 / 50)  # ideally update with 60 fps
+            time.sleep(1 / 50)  # ideally update with 50 fps
             if self.emit_signal:
-                with _refresh_lock:  # make sure last refresh is done
+                with (
+                    _refresh_lock
+                ):  # make sure last refresh is done before sending next one
                     self.refresh_signal.emit()
 
     def stop_emitting(self):
+        """when user presses pause"""
         self.emit_signal = False
 
     def start_emitting(self):
+        """when user presses play"""
         self.emit_signal = True
 
 
-class ProcessingMenu(QFrame):
-    """Contains all widget of left-side panel menu"""
+class ProcessingMenu(qw.QFrame):
+    """The processing menu on the left side of the main window"""
 
     def __init__(self, main_window: MainWindow, *args, **kwargs):
         qw.QFrame.__init__(self, *args, **kwargs)
@@ -351,7 +363,7 @@ class ProcessingMenu(QFrame):
         main_layout = qw.QGridLayout()
         self.setLayout(main_layout)
 
-        # buttons
+        # play/pause button
         self.play_pause_button = qw.QPushButton("Play")
         main_layout.addWidget(self.play_pause_button, 0, 0, 1, 2)
         self.play_pause_button.clicked.connect(main_window.play_pause)
@@ -570,13 +582,13 @@ class ProcessingMenu(QFrame):
 
 
 class ChannelViews(qw.QWidget):
-    """Creates and contains the channel widgets."""
+    """The central widget of the GUI that contains all channel views"""
 
     refresh_signal = qc.pyqtSignal(np.ndarray, np.ndarray, np.ndarray, np.ndarray)
 
     def __init__(self, main_window: MainWindow):
         qw.QWidget.__init__(self)
-        self.layout = QVBoxLayout()
+        self.layout = qw.QVBoxLayout()
         self.layout.setSpacing(0)
         self.layout.setContentsMargins(0, 0, 0, 0)
 
@@ -598,8 +610,8 @@ class ChannelViews(qw.QWidget):
         for i, c_view in enumerate(self.views):
             if i == len(self.views) - 1:
                 self.h_line = QHLine()
-                self.layout.addWidget(self.h_line, 0)
-            self.layout.addWidget(c_view, 0)
+                self.layout.addWidget(self.h_line, 1)
+            self.layout.addWidget(c_view, 10)
             self.refresh_signal.connect(c_view.on_draw)
 
         self.setLayout(self.layout)
@@ -639,12 +651,31 @@ class ChannelViews(qw.QWidget):
         yield from self.views
 
 
-class ChannelView(qw.QWidget):
-    """
-    Visual representation of a Channel instance.
+class ChannelLabel(qw.QWidget):
+    """Widget that contains the vertical channel label"""
 
-    This is a per-channel container. It contains the level-view,
-    spectrogram-view and the sepctrum-view of a single channel.
+    def __init__(self, text):
+        super().__init__()
+        self.text = text
+
+    def paintEvent(self, event):
+        """Paints the label and updates it when necessary, e.g. when available space changes"""
+        painter = qg.QPainter(self)
+        painter.setFont(qg.QFont("Arial", 13, qg.QFont.Weight.Bold))
+        painter.setPen(qg.QColor("black"))
+        font_metrics = painter.fontMetrics()
+        text_rect = font_metrics.boundingRect(self.text)  # calculate text size
+        painter.translate(
+            20, (self.rect().height() * 0.85 + text_rect.width()) // 2
+        )  # vertical centering
+        painter.rotate(-90)
+        painter.drawText(0, 0, self.text)
+        painter.end()
+
+
+class ChannelView(qw.QWidget):
+    """Widget that contains a channel label, level, spectrum and spectrogram,
+    a.k.a. one row of the central GUI widget
     """
 
     level_refresh_signal = qc.pyqtSignal(np.ndarray)
@@ -661,17 +692,19 @@ class ChannelView(qw.QWidget):
         **kwargs,
     ):
         qw.QWidget.__init__(self, *args, **kwargs)
-        self.setLayout(qw.QHBoxLayout())
+        self.layout = qw.QHBoxLayout()
+        self.layout.setSpacing(0)  # keep GUI tight, remove frames around widgets
+        self.layout.setContentsMargins(0, 0, 0, 0)
         self.main_window = main_window
 
         self.color = "black" if ch_id is None else main_window.ch_colors[ch_id]
         self.is_product = is_product
         self.ch_id = ch_id
 
-        channel_label = "Product" if ch_id is None else f"Channel {ch_id + 1}"
-        self.level_widget = LevelWidget(
-            self.main_window, channel_label=channel_label, has_xlabel=has_xlabel
-        )
+        # channel label
+        label = ChannelLabel("Product" if ch_id is None else f"Channel {ch_id + 1}")
+
+        self.level_widget = LevelWidget(self.main_window, has_xlabel=has_xlabel)
         self.spectrogram_widget = SpectrogramWidget(
             self.main_window, self.color, has_xlabel=has_xlabel
         )
@@ -683,10 +716,10 @@ class ChannelView(qw.QWidget):
         self.spectrum_refresh_signal.connect(self.spectrum_widget.on_draw)
         self.spectrogram_refresh_signal.connect(self.spectrogram_widget.on_draw)
 
-        layout = self.layout()
-        layout.addWidget(self.level_widget, 1)
-        layout.addWidget(self.spectrum_widget, 8)
-        layout.addWidget(self.spectrogram_widget, 8)
+        self.layout.addWidget(label, 1)
+        self.layout.addWidget(self.level_widget, 1)
+        self.layout.addWidget(self.spectrum_widget, 10)
+        self.layout.addWidget(self.spectrogram_widget, 10)
 
         if is_product:
             self.level_widget.ax.xaxis.set_visible(False)
@@ -695,8 +728,11 @@ class ChannelView(qw.QWidget):
             self.level_widget.ax.patch.set_visible(False)
             self.level_widget.ax.yaxis.grid(False, which="both")
 
+        self.setLayout(self.layout)
+
     @qc.pyqtSlot(object, object, object, object)
     def on_draw(self, lvl, spec, inst_f0, stft):
+        """Refreshes all widgets as fast as possible"""
         # prepare data
         if self.is_product:
             lvl_update = lvl[:, -1]
@@ -729,20 +765,21 @@ class ChannelView(qw.QWidget):
 
 
 class LevelWidget(FigureCanvas):
-    def __init__(self, main_window: MainWindow, channel_label, has_xlabel=True):
+    """The level meter with color-coded dB levels"""
+
+    def __init__(self, main_window: MainWindow, has_xlabel=True):
         self.figure = Figure(tight_layout=True)
         super(LevelWidget, self).__init__(self.figure)
 
         self.main_window = main_window
 
         self.ax = self.figure.add_subplot(111)
-        self.ax.set_title(None)
+        self.ax.set_title("")
         self.ax.tick_params(axis="x", colors="white")
         self.ax.set_yticks([])
         self.ax.yaxis.grid(True, which="both")
         if has_xlabel:
             self.ax.set_xlabel("Level")
-        self.ax.set_ylabel(f"{channel_label}", fontweight="bold")
 
         norm = plt.Normalize(min(main_window.lvl_cvals), max(main_window.lvl_cvals))
         tuples = list(zip(map(norm, main_window.lvl_cvals), main_window.lvl_colors))
@@ -757,7 +794,7 @@ class LevelWidget(FigureCanvas):
             cmap=cmap,
             aspect="auto",
             origin="lower",
-            extent=[0, 1, main_window.lvl_cvals[0], main_window.lvl_cvals[-1]],
+            extent=(0, 1, main_window.lvl_cvals[0], main_window.lvl_cvals[-1]),
         )
         self.img.set_clim(vmin=main_window.lvl_cvals[0], vmax=main_window.lvl_cvals[-1])
         self.ax.set_ylim((main_window.lvl_cvals[-1], main_window.lvl_cvals[0]))
@@ -765,22 +802,19 @@ class LevelWidget(FigureCanvas):
         self.frame = [self.ax.spines[side] for side in self.ax.spines]
         self.draw()
         self.bm = BlitManager(self.figure.canvas, [self.img] + self.frame)
-        self.figure.tight_layout()
         if has_xlabel:
-            self.figure.tight_layout(rect=(0.5, 0.15, 1, 1))
+            self.figure.tight_layout(rect=(0, 0.15, 1, 1))
         else:
-            self.figure.tight_layout(rect=(0.5, 0.1, 1, 1))
+            self.figure.tight_layout(rect=(0, 0.1, 1, 1))
 
     @qc.pyqtSlot(object)
     def on_draw(self, plot_mat):
-        self.img.set_data(plot_mat)
-        self.bm.update()
+        self.img.set_data(plot_mat)  # set_data is faster than re-plotting
+        self.bm.update_artists()  # use fast blitting, only update foreground
 
 
 class SpectrumWidget(FigureCanvas):
-    """
-    Spectrum widget
-    """
+    """Spectrum plot with current fundamental frequency as dashed line"""
 
     def __init__(self, main_window: MainWindow, color, has_xlabel=True):
         self.figure = Figure(tight_layout=True)
@@ -800,11 +834,11 @@ class SpectrumWidget(FigureCanvas):
         (self._line,) = self.ax.plot(
             self.f_axis, np.zeros_like(self.f_axis), color=self.color
         )
-        self._vline = self.ax.axvline(np.nan, c=self.color, linestyle="--")
+        self._inst_f0_line = self.ax.axvline(np.nan, c=self.color, linestyle="--")
         self.ax.set_xlim(self.main_window.cur_disp_freq_lims)
         self.ax.set_ylim((0, 1))
         self.draw()
-        self.bm = BlitManager(self.figure.canvas, [self._line, self._vline])
+        self.bm = BlitManager(self.figure.canvas, [self._line, self._inst_f0_line])
         if has_xlabel:
             self.figure.tight_layout(rect=(0.05, 0.15, 0.95, 1))
         else:
@@ -812,19 +846,17 @@ class SpectrumWidget(FigureCanvas):
 
     def on_disp_freq_lims_changed(self, disp_freq_lims):
         self.ax.set_xlim(disp_freq_lims)
-        self.bm.update_bg()
+        self.bm.update_background()
 
     @qc.pyqtSlot(object, float)
     def on_draw(self, data_plot, inst_f0=None):
         self._line.set_ydata(data_plot)
-        self._vline.set_xdata([inst_f0, inst_f0])
-        self.bm.update()
+        self._inst_f0_line.set_xdata([inst_f0, inst_f0])
+        self.bm.update_artists()  # use blitting, only update lines
 
 
 class SpectrogramWidget(FigureCanvas):
-    """
-    Spectrogram widget
-    """
+    """Spectrogram widget"""
 
     def __init__(self, main_window: MainWindow, color, has_xlabel=True):
         self.figure = Figure(tight_layout=True)
@@ -881,16 +913,16 @@ class SpectrogramWidget(FigureCanvas):
 
     def on_disp_freq_lims_changed(self, disp_freq_lims):
         self.ax.set_xlim(disp_freq_lims)
-        self.bm.update_bg()
+        self.bm.update_background()
 
     @qc.pyqtSlot(object)
     def on_draw(self, data_plot):
         self.img.set_data(data_plot)
-        self.bm.update()
+        self.bm.update_artists()  # use blitting, update foreground only
 
 
 class TrajectoryViews(qw.QTabWidget):
-    """Widget for right tabs."""
+    """Right-hand widget that contains the visualization of the F0-trajectories and the differential"""
 
     def __init__(self, main_window: MainWindow, *args, **kwargs):
         qw.QTabWidget.__init__(self, *args, **kwargs)
@@ -898,12 +930,9 @@ class TrajectoryViews(qw.QTabWidget):
         self.main_window = main_window
 
         # styling
-        self.layout = QVBoxLayout()
-        self.setLayout(self.layout)
-        self.setSizePolicy(
-            qw.QSizePolicy.Policy.MinimumExpanding,
-            qw.QSizePolicy.Policy.MinimumExpanding,
-        )
+        self.layout = qw.QVBoxLayout()
+        self.layout.setSpacing(0)
+        self.layout.setContentsMargins(0, 0, 0, 0)
         self.setStyleSheet(
             """
                     QTabWidget::pane {
@@ -919,22 +948,44 @@ class TrajectoryViews(qw.QTabWidget):
         )
 
         self.pitch_view = PitchWidget(main_window)
-        self.pitch_view_all_diff = DifferentialPitchWidget(main_window)
+        self.pitch_diff_view = DifferentialPitchWidget(main_window)
 
         # remove old tabs from pitch view
         self.addTab(self.pitch_view, "Pitches")
-        if len(main_window.channels) > 1:
-            self.addTab(self.pitch_view_all_diff, "Differential")
+        if (
+            len(main_window.channels) > 1
+        ):  # can't compute differential with only one voice
+            self.addTab(self.pitch_diff_view, "Differential")
+
+        self.on_disp_pitch_lims_changed(self.main_window.cur_disp_pitch_lims)
+        self.setLayout(self.layout)
 
     @qc.pyqtSlot(object, object)
     def on_draw(self, f0, diff):
         self.pitch_view.on_draw(f0)
         if len(self.main_window.channels) > 1:
-            self.pitch_view_all_diff.on_draw(diff)
+            self.pitch_diff_view.on_draw(diff)
 
     def on_disp_pitch_lims_changed(self, disp_pitch_lims):
-        self.pitch_view.on_disp_pitch_lims_changed(disp_pitch_lims)
-        self.pitch_view_all_diff.on_disp_pitch_lims_changed(disp_pitch_lims)
+        self.change_pitch_lims(self.pitch_view, disp_pitch_lims)
+        if len(self.main_window.channels) > 1:
+            self.change_pitch_lims(self.pitch_diff_view, disp_pitch_lims)
+
+    @staticmethod
+    def change_pitch_lims(view, disp_pitch_lims):
+        view.ax.set_xlim(0, len(view.t_axis))
+        view.ax.set_xticks(
+            np.arange(
+                0,
+                len(view.t_axis),
+                view.main_window.audio_processor.frame_rate,
+            )
+        )
+        view.ax.set_xticklabels([])
+        view.ax.set_ylim(disp_pitch_lims)
+        view.ax.set_yticks(np.arange(disp_pitch_lims[0], disp_pitch_lims[1] + 100, 100))
+        if hasattr(view, "bm"):
+            view.bm.update_background()
 
     def show_trajectory_views(self, show):
         self.setVisible(show)
@@ -945,19 +996,19 @@ class TrajectoryViews(qw.QTabWidget):
 
 
 class PitchWidget(FigureCanvas):
-    """Pitches of each trace as discrete samples."""
+    """Visualization of the F0-trajectories of each channel"""
 
     low_pitch_changed = qc.pyqtSignal(np.ndarray)
 
     def __init__(self, main_window: MainWindow, *args, **kwargs):
         self.figure = Figure(tight_layout=True)
-        super(PitchWidget, self).__init__(self.figure)
+        super(PitchWidget, self).__init__(self.figure, *args, **kwargs)
 
         self.main_window = main_window
         self.channel_views = main_window.channel_views.views[:-1]
 
         self.ax = self.figure.add_subplot(111, position=[0, 0, 0, 0])
-        self.ax.set_title(None)
+        self.ax.set_title("")
         self.ax.set_ylabel("Relative Pitch [Cents]")
         self.ax.set_xlabel("Time")
         self.ax.yaxis.grid(True, which="both")
@@ -991,7 +1042,6 @@ class PitchWidget(FigureCanvas):
                     linewidth="2",
                 )[0]
             )
-        self.on_disp_pitch_lims_changed(self.main_window.cur_disp_pitch_lims)
 
         pal = self.palette()
         pal.setColor(qg.QPalette.ColorRole.Window, qg.QColor("white"))
@@ -1005,40 +1055,25 @@ class PitchWidget(FigureCanvas):
 
         self.bm = BlitManager(self.figure.canvas, self._lines + self.grid_lines)
 
-    def on_disp_pitch_lims_changed(self, disp_pitch_lims):
-        self.ax.set_xlim(0, len(self.t_axis))
-        self.ax.set_xticks(
-            np.arange(
-                0,
-                len(self.t_axis),
-                self.main_window.audio_processor.frame_rate,
-            )
-        )
-        self.ax.set_xticklabels([])
-        self.ax.set_ylim(disp_pitch_lims)
-        self.ax.set_yticks(np.arange(disp_pitch_lims[0], disp_pitch_lims[1] + 100, 100))
-        if hasattr(self, "bm"):
-            self.bm.update_bg()
-
     @qc.pyqtSlot(object)
     def on_draw(self, f0):
         for i in range(f0.shape[1]):
             self._lines[i].set_ydata(f0[:, i])
 
-        self.bm.update()
+        self.bm.update_artists()  # use blitting, only update lines
 
 
 class DifferentialPitchWidget(FigureCanvas):
-    """Diffs as line"""
+    """Visualization of the pair-wise F0-differences"""
 
     def __init__(self, main_window: MainWindow, *args, **kwargs):
         self.figure = Figure(tight_layout=True)
-        super(DifferentialPitchWidget, self).__init__(self.figure)
+        super(DifferentialPitchWidget, self).__init__(self.figure, *args, **kwargs)
         self.main_window = main_window
         self.channel_views = main_window.channel_views.views[:-1]
 
         self.ax = self.figure.add_subplot(111, position=[0, 0, 0, 0])
-        self.ax.set_title(None)
+        self.ax.set_title("")
         self.ax.set_ylabel("Pitch Difference [Cents]")
         self.ax.set_xlabel("Time")
         self.ax.yaxis.grid(True, which="both")
@@ -1068,6 +1103,7 @@ class DifferentialPitchWidget(FigureCanvas):
                 if ch0 >= ch1:
                     continue
 
+                # matplotlib hack: use two lines to create a color-alternating line
                 (line1,) = self.ax.plot(
                     self.t_axis,
                     self.f0_tmp,
@@ -1086,8 +1122,6 @@ class DifferentialPitchWidget(FigureCanvas):
 
                 self._lines.append([line1, line2])
 
-        self.on_disp_pitch_lims_changed(self.main_window.cur_disp_pitch_lims)
-
         pal = self.palette()
         pal.setColor(qg.QPalette.ColorRole.Window, qg.QColor("white"))
         self.setPalette(pal)
@@ -1102,25 +1136,10 @@ class DifferentialPitchWidget(FigureCanvas):
             flat_list += row
         self.bm = BlitManager(self.figure.canvas, flat_list + self.grid_lines)
 
-    def on_disp_pitch_lims_changed(self, disp_pitch_lims):
-        self.ax.set_xlim(0, len(self.t_axis))
-        self.ax.set_xticks(
-            np.arange(
-                0,
-                len(self.t_axis),
-                self.main_window.audio_processor.frame_rate,
-            )
-        )
-        self.ax.set_xticklabels([])
-        self.ax.set_ylim(disp_pitch_lims)
-        self.ax.set_yticks(np.arange(disp_pitch_lims[0], disp_pitch_lims[1] + 100, 100))
-        if hasattr(self, "bm"):
-            self.bm.update_bg()
-
     @qc.pyqtSlot(object)
     def on_draw(self, diff):
         for i in range(diff.shape[1]):
             self._lines[i][0].set_ydata(diff[:, i])
             self._lines[i][1].set_ydata(diff[:, i])
 
-        self.bm.update()
+        self.bm.update_artists()  # use blitting, only update lines

@@ -1,18 +1,18 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""GUI Utility Functions"""
 import logging
-import numpy as np
-from numba import njit
 
 from PyQt6 import QtCore as qc
 from PyQt6 import QtGui as qg
 from PyQt6 import QtWidgets as qw
-from PyQt6.QtWidgets import QFrame, QSizePolicy
 
-logger = logging.getLogger("pytch.util")
-
-eps = np.finfo(float).eps
+logger = logging.getLogger("pytch.gui_utils")
 
 
 class FloatQLineEdit(qw.QLineEdit):
+    """A text field that accepts floating point numbers"""
+
     accepted_value = qc.pyqtSignal(float)
 
     def __init__(self, default=None, *args, **kwargs):
@@ -32,47 +32,40 @@ class FloatQLineEdit(qw.QLineEdit):
         self.accepted_value.emit(val)
 
 
-class QHLine(QFrame):
-    """
-    a horizontal separation line
-    """
+class QHLine(qw.QFrame):
+    """A horizontal separation line"""
 
     def __init__(self):
         super().__init__()
         self.setMinimumWidth(1)
-        self.setFixedHeight(20)
-        self.setFrameShape(QFrame.Shape.HLine)
-        self.setFrameShadow(QFrame.Shadow.Sunken)
-        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
+        self.setFixedHeight(10)
+        self.setFrameShape(qw.QFrame.Shape.HLine)
+        self.setFrameShadow(qw.QFrame.Shadow.Sunken)
+        self.setSizePolicy(
+            qw.QSizePolicy.Policy.Preferred, qw.QSizePolicy.Policy.Minimum
+        )
 
 
-class QVLine(QFrame):
-    """
-    a vertical separation line
-    """
+class QVLine(qw.QFrame):
+    """A vertical separation line"""
 
     def __init__(self):
         super().__init__()
         self.setMinimumHeight(1)
         self.setFixedWidth(20)
-        self.setFrameShape(QFrame.Shape.VLine)
-        self.setFrameShadow(QFrame.Shadow.Sunken)
-        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
+        self.setFrameShape(qw.QFrame.Shape.VLine)
+        self.setFrameShadow(qw.QFrame.Shadow.Sunken)
+        self.setSizePolicy(
+            qw.QSizePolicy.Policy.Preferred, qw.QSizePolicy.Policy.Minimum
+        )
 
 
 class BlitManager:
-    def __init__(self, canvas, animated_artists=()):
-        """
-        Parameters
-        ----------
-        canvas : FigureCanvasAgg
-            The canvas to work with, this only works for subclasses of the Agg
-            canvas which have the `~FigureCanvasAgg.copy_from_bbox` and
-            `~FigureCanvasAgg.restore_region` methods.
+    """Manages blitting in matplotlib GUIs. Inspired by:
+    https://matplotlib.org/stable/users/explain/animations/blitting.html
+    """
 
-        animated_artists : Iterable[Artist]
-            List of the artists to manage
-        """
+    def __init__(self, canvas, animated_artists=()):
         self.canvas = canvas
         self._bg = None
         self._artists = []
@@ -83,7 +76,7 @@ class BlitManager:
         self.cid = canvas.mpl_connect("draw_event", self.on_draw)
 
     def on_draw(self, event):
-        """Callback to register with 'draw_event'."""
+        """Callback to register with event."""
         cv = self.canvas
         if event is not None:
             if event.canvas != cv:
@@ -92,34 +85,24 @@ class BlitManager:
         self._draw_animated()
 
     def add_artist(self, art):
-        """
-        Add an artist to be managed.
-
-        Parameters
-        ----------
-        art : Artist
-
-            The artist to be added.  Will be set to 'animated' (just
-            to be safe).  *art* must be in the figure associated with
-            the canvas this class is managing.
-
-        """
+        """Adds artist to the list of artsts to be animated"""
         if art.figure != self.canvas.figure:
             raise RuntimeError
         art.set_animated(True)
         self._artists.append(art)
 
     def _draw_animated(self):
-        """Draw all of the animated artists."""
+        """Draw all the animated artists"""
         fig = self.canvas.figure
         for a in self._artists:
             fig.draw_artist(a)
 
-    def update_bg(self):
+    def update_background(self):
+        """Update background"""
         self.canvas.draw()
 
-    def update(self):
-        """Update the screen with animated artists."""
+    def update_artists(self):
+        """Update the screen with animated artists"""
         cv = self.canvas
         fig = cv.figure
         # paranoia in case we missed the draw event,
@@ -128,29 +111,9 @@ class BlitManager:
         else:
             # restore the background
             cv.restore_region(self._bg)
-            # draw all of the animated artists
+            # draw all the animated artists
             self._draw_animated()
             # update the GUI state
             cv.blit(fig.bbox)
         # let the GUI event loop process anything it has to do
         cv.flush_events()
-
-
-@njit
-def f2cent(f, standard_frequency=440.0):
-    return 1200.0 * np.log2(np.abs(f) / standard_frequency + eps)
-
-
-@njit
-def cent2f(p, standard_frequency=440.0):
-    return np.exp2(p / 1200.0) * standard_frequency
-
-
-def consecutive(arr):
-    return np.split(arr, np.where(np.diff(arr) != 1)[0] + 1)
-
-
-@njit
-def gradient_filter(y, max_gradient):
-    """Get index where the abs gradient of x, y is < max_gradient."""
-    return np.where(np.abs(np.diff(f2cent(y))) < max_gradient)[0]
