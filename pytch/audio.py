@@ -12,11 +12,10 @@ import libf0
 from scipy.ndimage import median_filter
 from datetime import datetime
 import csv
-from .utils import gradient_filter, f2cent
 
-_audio_lock = threading.Lock()
-_raw_lock = threading.Lock()
-_gui_lock = threading.Lock()
+_audio_lock = threading.Lock()  # lock for raw audio buffer
+_feat_lock = threading.Lock()  # lock for feature buffers
+_gui_lock = threading.Lock()  # lock for communication with GUI
 logger = logging.getLogger("pytch.audio")
 
 eps = np.finfo(float).eps
@@ -61,10 +60,20 @@ def check_fs(device_index, fs):
         return valid
 
 
+@njit
+def f2cent(f, standard_frequency=440.0):
+    """Convert from Hz to Cents"""
+    return 1200.0 * np.log2(np.abs(f) / standard_frequency + eps)
+
+
+@njit
+def gradient_filter(y, max_gradient):
+    """Get index where the abs gradient of x, y is < max_gradient."""
+    return np.where(np.abs(np.diff(f2cent(y))) < max_gradient)[0]
+
+
 class RingBuffer:
-    """
-    Generic ring buffer for n-dimensional data
-    """
+    """Generic ring buffer for n-dimensional data"""
 
     def __init__(self, size, dtype):
         """Initialize buffer, size should be of format (n_frames, ..., n_channels)"""
@@ -122,16 +131,14 @@ class RingBuffer:
 
 
 class AudioProcessor:
-    """
-    Class for recording and processing of multichannel audio
-    """
+    """Class for recording and processing of multichannel audio"""
 
     def __init__(
         self,
         fs=8000,
         buf_len_sec=30.0,
         fft_len=512,
-        channels=[0],
+        channels=None,
         device_no=None,
         f0_algorithm="YIN",
         gui=None,
@@ -143,7 +150,7 @@ class AudioProcessor:
         self.hop_len = 2 ** int(np.log2(fs / 25))
         self.fft_freqs = np.fft.rfftfreq(self.fft_len, 1 / self.fs)
         self.fft_win = np.hanning(self.fft_len).reshape(-1, 1)
-        self.channels = channels
+        self.channels = [0] if channels is None else channels
         self.device_no = device_no
         self.f0_algorithm = f0_algorithm
         self.out_path = out_path
@@ -184,6 +191,7 @@ class AudioProcessor:
             dtype=np.float32,
         )
 
+        # initialize output files
         if out_path != "":
             start_t = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             self.audio_out_file = sf.SoundFile(
@@ -196,8 +204,12 @@ class AudioProcessor:
             )
             self.traj_out_file = open(out_path + f"/{start_t}.csv", "x", newline="")
             writer = csv.writer(self.traj_out_file)
-            writer.writerow([f"Channel {ch}" for ch in channels])
+            writer.writerow(
+                [f"F0 Channel {ch}" for ch in channels]
+                + [f"Confidence Channel {ch}" for ch in channels]
+            )
 
+        # initialise output buffers that are read by GUI
         if gui is not None:
             self.new_gui_data_available = False
             self.proc_lvl = np.full(
@@ -226,6 +238,7 @@ class AudioProcessor:
             )
 
     def start_stream(self):
+        """Start recording and processing"""
         if self.is_running:
             self.stop_stream()
 
@@ -253,12 +266,14 @@ class AudioProcessor:
         self.worker.start()
 
     def stop_stream(self):
+        """Stop recording and processing"""
         if self.is_running:
             self.is_running = False
             self.worker.join()
             self.stream.stop()
 
     def close_stream(self):
+        """Close stream, processing thread and files"""
         if self.stream is not None:
             self.stream.close()
             self.stream = None
@@ -267,6 +282,7 @@ class AudioProcessor:
                 self.traj_out_file.close()
 
     def worker_thread(self):
+        """The thread that does all the audio processing"""
         while self.is_running:
             with _audio_lock:
                 audio = self.audio_buf.read_next(
@@ -281,7 +297,7 @@ class AudioProcessor:
             fft = self.compute_fft(audio)  # compute fft
             f0, conf = self.compute_f0(audio, lvl)  # compute f0 & confidence
 
-            with _raw_lock:
+            with _feat_lock:
                 self.raw_lvl_buf.write(lvl)
                 self.raw_fft_buf.write(fft)
                 self.raw_f0_buf.write(f0)
@@ -295,10 +311,10 @@ class AudioProcessor:
             # write trajectories to disk if configured
             if self.out_path != "":
                 writer = csv.writer(self.traj_out_file)
-                writer.writerows(f0)
+                writer.writerow(np.concatenate((f0[0, :], conf[0, :])))
 
     def recording_callback(self, data, frames, time, status):
-        """receives frames from soundcard, data is of shape (frames, channels)"""
+        """Receives and stores frames from soundcard, data is of shape (frames, channels)"""
         audio_conv = (
             data[:, self.channels].astype(np.float32, order="C") / 32768.0
         )  # convert int16 to float32
@@ -309,15 +325,19 @@ class AudioProcessor:
         if self.out_path != "":
             self.audio_out_file.write(audio_conv)
 
-    def compute_level(self, audio):
+    @staticmethod
+    def compute_level(audio):
+        """Peak level in dB"""
         return 10 * np.log10(np.max(np.abs(audio + eps), axis=0)).reshape(1, -1)
 
     def compute_fft(self, audio):
+        """FFT"""
         return np.abs(np.fft.rfft(audio * self.fft_win, self.fft_len, axis=0))[
             np.newaxis, :, :
         ]
 
     def compute_f0(self, audio, lvl):
+        """Fundamental frequency estimation"""
         f0 = np.zeros((1, audio.shape[1]))
         conf = np.zeros((1, audio.shape[1]))
 
@@ -326,6 +346,7 @@ class AudioProcessor:
                 continue
 
             if self.f0_algorithm == "YIN":
+                # TODO: replace with real-time version, add real-time SWIPE
                 f0_tmp, _, conf_tmp = libf0.yin(
                     np.concatenate((audio[:, c][::-1], audio[:, c], audio[:, c][::-1])),
                     Fs=self.fs,
@@ -346,6 +367,7 @@ class AudioProcessor:
         return f0, conf
 
     def gui_preprocessing(self):
+        """Prepares computed features for display in GUI which speeds up everything"""
         # get raw data
         lvl, spec, stft, f0, conf = self.read_latest_frames(
             self.gui.disp_t_lvl,
@@ -445,6 +467,7 @@ class AudioProcessor:
     def f0_diff_computations(
         f0, conf, cur_conf_threshold, cur_derivative_tol, cur_ref_freq, nan_val
     ):
+        """Computes pair-wise differences between F0-trajectories, speed-up using jit-compilation"""
         proc_f0 = np.ones_like(f0) * nan_val
 
         for i in range(f0.shape[1]):
@@ -478,7 +501,7 @@ class AudioProcessor:
     def read_latest_frames(self, t_lvl, t_spec, t_stft, t_f0, t_conf):
         """Reads latest t seconds from buffers"""
 
-        with _raw_lock:
+        with _feat_lock:
             lvl = self.raw_lvl_buf.read_latest(int(np.round(t_lvl * self.frame_rate)))
             spec = self.raw_fft_buf.read_latest(int(np.round(t_spec * self.frame_rate)))
             stft = self.raw_fft_buf.read_latest(int(np.round(t_stft * self.frame_rate)))
