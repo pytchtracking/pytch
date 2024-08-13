@@ -1,5 +1,7 @@
-Pytch Vocal Trainer
+Pytch - A Real-Time Pitch Analysis Tool For Polyphonic Music
 ===============
+
+[![Tests](https://github.com/pytchtracking/pytch/actions/workflows/python-app.yml/badge.svg)](https://github.com/pytchtracking/pytch/actions/workflows/python-app.yml)
 
 ![screenshot](pictures/screenshot.png)
 
