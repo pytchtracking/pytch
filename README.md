@@ -1,6 +1,8 @@
 Pytch Vocal Trainer
 ===============
 
+![screenshot](pictures/screenshot.png)
+
 ## Download and Installation
 
 Clone the project
@@ -14,9 +16,9 @@ Install pytch:
 pip3 install .
 ```
 
-For development purposes, install pytch with:
+On Linux, make sure the portaudio library is installed:
 ```
-pip3 install -e .
+sudo apt install libportaudio2
 ```
 
 ## Run
