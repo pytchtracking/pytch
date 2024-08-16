@@ -15,7 +15,7 @@ cd pytch
 
 Install pytch:
 ```
-pip3 install .
+pip install .
 ```
 
 On Linux, make sure the portaudio library is installed:
@@ -36,6 +36,6 @@ Every contribution is welcome. To ensure consistent style we use [black](https:/
 You can add automated style checks at commit time using [pre-commit](https://pre-commit.com/)
 
 ```bash
-pip3 install pre-commit
+pip install pre-commit
 pre-commit install
 ```
