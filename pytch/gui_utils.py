@@ -7,6 +7,8 @@ from PyQt6 import QtCore as qc
 from PyQt6 import QtGui as qg
 from PyQt6 import QtWidgets as qw
 
+import pyqtgraph as pg
+
 logger = logging.getLogger("pytch.gui_utils")
 
 
