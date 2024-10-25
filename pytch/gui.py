@@ -9,18 +9,14 @@ import time
 import numpy as np
 import importlib.metadata
 
-from .gui_utils import FloatQLineEdit, QHLine, BlitManager
+from .gui_utils import FloatQLineEdit, QHLine, disable_interactivity
 from .audio import AudioProcessor, get_input_devices, get_fs_options
 
 from PyQt6 import QtCore as qc
 from PyQt6 import QtGui as qg
 from PyQt6 import QtWidgets as qw
 
-import matplotlib
-from matplotlib.backends.backend_qtagg import FigureCanvas
-from matplotlib.figure import Figure
-import matplotlib.colors as mcolors
-import matplotlib.pyplot as plt
+import pyqtgraph as pg
 
 logger = logging.getLogger("pytch.gui")
 _refresh_lock = threading.Lock()  # lock for GUI updates
@@ -187,8 +183,10 @@ class MainWindow(qw.QMainWindow):
         self.disp_t_conf = 10
         self.lvl_cvals = [-80, -12, 0]
         self.lvl_colors = ["green", "yellow", "red"]
-        self.ch_colors = matplotlib.colormaps["Set2"].colors
-        self.ch_colors = [self.ch_colors[i] for i in [0, 1, 2, 5, 3, 4, 6, 7]]
+        self.ch_colors = pg.colormap.get("Set2", source="matplotlib", skipCache=True)
+        self.ch_colors = [
+            self.ch_colors.getColors()[i][:-1] for i in [0, 1, 2, 5, 3, 4, 6, 7]
+        ]
         self.cur_disp_freq_lims = [
             20,
             1000,
@@ -210,7 +208,6 @@ class MainWindow(qw.QMainWindow):
         self.menu_visible = True
 
         # styling
-        matplotlib.rcParams.update({"font.size": 9})
         pal = self.palette()
         self.setAutoFillBackground(True)
         pal.setColor(qg.QPalette.ColorRole.Window, qg.QColor("white"))
@@ -722,11 +719,8 @@ class ChannelView(qw.QWidget):
         self.layout.addWidget(self.spectrogram_widget, 10)
 
         if is_product:
-            self.level_widget.ax.xaxis.set_visible(False)
-            plt.setp(self.level_widget.ax.spines.values(), visible=False)
-            self.level_widget.ax.tick_params(left=False, labelleft=False)
-            self.level_widget.ax.patch.set_visible(False)
-            self.level_widget.ax.yaxis.grid(False, which="both")
+            self.level_widget.clear()
+            self.level_widget.setBackground(None)
 
         self.setLayout(self.layout)
 
@@ -764,114 +758,127 @@ class ChannelView(qw.QWidget):
         self.spectrogram_widget.on_disp_freq_lims_changed(disp_freq_lims)
 
 
-class LevelWidget(FigureCanvas):
+class LevelWidget(pg.GraphicsLayoutWidget):
     """The level meter with color-coded dB levels"""
 
     def __init__(self, main_window: MainWindow, has_xlabel=True):
-        self.figure = Figure(tight_layout=True)
-        super(LevelWidget, self).__init__(self.figure)
+        super(LevelWidget, self).__init__()
 
         self.main_window = main_window
 
-        self.ax = self.figure.add_subplot(111)
-        self.ax.set_title("")
-        self.ax.tick_params(axis="x", colors="white")
-        self.ax.set_yticks([])
-        self.ax.yaxis.grid(True, which="both")
-        if has_xlabel:
-            self.ax.set_xlabel("Level")
+        # Create the plot item
+        self.plot_item = self.addPlot(
+            title="", axisItems={"left": pg.AxisItem(orientation="left")}
+        )
+        self.plot_item.showGrid(x=True, y=True)
+        self.plot_item.setYRange(main_window.lvl_cvals[-1], main_window.lvl_cvals[0])
 
-        norm = plt.Normalize(min(main_window.lvl_cvals), max(main_window.lvl_cvals))
-        tuples = list(zip(map(norm, main_window.lvl_cvals), main_window.lvl_colors))
-        cmap = matplotlib.colors.LinearSegmentedColormap.from_list("", tuples)
+        if has_xlabel:
+            self.plot_item.setLabel("bottom", "Level")
+
+        # Create the colormap
+        color_map = pg.ColorMap(
+            np.linspace(
+                min(main_window.lvl_cvals),
+                max(main_window.lvl_cvals),
+                len(main_window.lvl_colors),
+            ),
+            main_window.lvl_colors,
+        )
+
+        # Initialize the image item
+        self.img = pg.ImageItem()
+        self.plot_item.addItem(self.img)
+
+        # Set up initial empty data
         self.plot_mat_tmp = np.linspace(
             main_window.lvl_cvals[0],
             main_window.lvl_cvals[-1],
             np.abs(main_window.lvl_cvals[0] - main_window.lvl_cvals[-1]),
         ).reshape(-1, 1)
-        self.img = self.ax.imshow(
-            self.plot_mat_tmp * np.nan,
-            cmap=cmap,
-            aspect="auto",
-            origin="lower",
-            extent=(0, 1, main_window.lvl_cvals[0], main_window.lvl_cvals[-1]),
-        )
-        self.img.set_clim(vmin=main_window.lvl_cvals[0], vmax=main_window.lvl_cvals[-1])
-        self.ax.set_ylim((main_window.lvl_cvals[-1], main_window.lvl_cvals[0]))
-        self.ax.invert_yaxis()
-        self.frame = [self.ax.spines[side] for side in self.ax.spines]
-        self.draw()
-        self.bm = BlitManager(self.figure.canvas, [self.img] + self.frame)
-        if has_xlabel:
-            self.figure.tight_layout(rect=(0, 0.15, 1, 1))
-        else:
-            self.figure.tight_layout(rect=(0, 0.1, 1, 1))
+        self.img.setImage(np.nan * np.zeros_like(self.plot_mat_tmp), autoLevels=False)
+
+        # Set the colormap
+        self.img.setLookupTable(color_map.getLookupTable(0.0, 1.0, 256))
+        self.setBackground("w")
+
+        disable_interactivity(self.plot_item)
 
     @qc.pyqtSlot(object)
     def on_draw(self, plot_mat):
-        self.img.set_data(plot_mat)  # set_data is faster than re-plotting
-        self.bm.update_artists()  # use fast blitting, only update foreground
+        """Updates the image with new data."""
+        self.img.setImage(plot_mat, autoLevels=False)
 
 
-class SpectrumWidget(FigureCanvas):
+class SpectrumWidget(pg.GraphicsLayoutWidget):
     """Spectrum plot with current fundamental frequency as dashed line"""
 
     def __init__(self, main_window: MainWindow, color, has_xlabel=True):
-        self.figure = Figure(tight_layout=True)
-        super(SpectrumWidget, self).__init__(self.figure)
+        super(SpectrumWidget, self).__init__()
 
         self.main_window = main_window
         self.color = color
         self.f_axis = self.main_window.audio_processor.fft_freqs
-        self.ax = self.figure.add_subplot(111)
-        self.ax.set_title("")
+
+        # Create the plot item
+        self.plot_item = self.addPlot(title="")
         if has_xlabel:
-            self.ax.set_xlabel("Frequency [Hz]")
-        self.ax.set_ylabel("Magnitude")
-        self.ax.get_yaxis().set_visible(False)
-        self.ax.xaxis.grid(True, which="major")
-        self.ax.xaxis.minorticks_on()
-        (self._line,) = self.ax.plot(
-            self.f_axis, np.zeros_like(self.f_axis), color=self.color
+            self.plot_item.setLabel("bottom", "Frequency [Hz]")
+        self.plot_item.setLabel("left", "Magnitude")
+        self.plot_item.getAxis("left").setVisible(False)
+        self.plot_item.setDefaultPadding(0)
+        self.plot_item.showGrid(x=True, y=True)
+        self.plot_item.setXRange(*self.main_window.cur_disp_freq_lims)
+        self.plot_item.setYRange(0, 1)
+
+        # Create the line for the spectrum
+        self._line = pg.PlotDataItem(
+            self.f_axis, np.zeros_like(self.f_axis), pen=self.color
         )
-        self._inst_f0_line = self.ax.axvline(np.nan, c=self.color, linestyle="--")
-        self.ax.set_xlim(self.main_window.cur_disp_freq_lims)
-        self.ax.set_ylim((0, 1))
-        self.draw()
-        self.bm = BlitManager(self.figure.canvas, [self._line, self._inst_f0_line])
-        if has_xlabel:
-            self.figure.tight_layout(rect=(0.05, 0.15, 0.95, 1))
-        else:
-            self.figure.tight_layout(rect=(0.05, 0.1, 0.95, 1))
+        self.plot_item.addItem(self._line)
+
+        # Create the line for the fundamental frequency
+        self._inst_f0_line = pg.InfiniteLine(
+            angle=90, pen=pg.mkPen(self.color, style=pg.QtCore.Qt.PenStyle.DashLine)
+        )
+        self.plot_item.addItem(self._inst_f0_line)
+        self.setBackground("w")
+
+        disable_interactivity(self.plot_item)
 
     def on_disp_freq_lims_changed(self, disp_freq_lims):
-        self.ax.set_xlim(disp_freq_lims)
-        self.bm.update_background()
+        self.plot_item.setXRange(*disp_freq_lims)
 
     @qc.pyqtSlot(object, float)
     def on_draw(self, data_plot, inst_f0=None):
-        self._line.set_ydata(data_plot)
-        self._inst_f0_line.set_xdata([inst_f0, inst_f0])
-        self.bm.update_artists()  # use blitting, only update lines
+        """Updates the spectrum and the fundamental frequency line."""
+        self._line.setData(self.f_axis, data_plot)  # Update the spectrum line
+        if inst_f0 is not None:
+            self._inst_f0_line.setPos(inst_f0)  # Update the fundamental frequency line
 
 
-class SpectrogramWidget(FigureCanvas):
+class SpectrogramWidget(pg.GraphicsLayoutWidget):
     """Spectrogram widget"""
 
     def __init__(self, main_window: MainWindow, color, has_xlabel=True):
-        self.figure = Figure(tight_layout=True)
-        super(SpectrogramWidget, self).__init__(self.figure)
+        super().__init__()
 
         self.main_window = main_window
-        # custom colormap or viridis
-        self.cmap = mcolors.LinearSegmentedColormap.from_list(
-            "custom_cmap", list(zip([0, 1], ["w", color]))
-        )
-        self.ax = self.figure.add_subplot(111)
-        self.ax.set_title("")
-        self.ax.set_ylabel("Time")
-        self.ax.get_yaxis().set_visible(False)
-        self.ax.xaxis.minorticks_on()
+
+        # Initialize the plot
+        self.plot_item = self.addPlot(title="")
+        if has_xlabel:
+            self.plot_item.setLabel("bottom", "Frequency [Hz]")
+        self.plot_item.setLabel("left", "Magnitude")
+        self.plot_item.getAxis("left").setVisible(False)
+        self.plot_item.showGrid(x=True, y=True)
+        self.plot_item.setDefaultPadding(0)
+
+        # Create an ImageItem to display the spectrogram
+        self.img = pg.ImageItem()
+        self.plot_item.addItem(self.img)
+
+        # Initialize the default spectrogram data
         self.default_spec = np.zeros(
             (
                 len(self.main_window.audio_processor.fft_freqs),
@@ -882,43 +889,42 @@ class SpectrogramWidget(FigureCanvas):
                     )
                 ),
             )
-        )
-        self.img = self.ax.imshow(
-            self.default_spec,
-            origin="lower",
-            aspect="auto",
-            cmap=self.cmap,
-            extent=(
+        ).T
+        self.img.setImage(self.default_spec)
+        self.img.setRect(
+            qc.QRectF(
                 0,
-                self.main_window.audio_processor.fs // 2,
                 0,
-                self.main_window.disp_t_spec,
-            ),
+                self.main_window.audio_processor.fft_freqs[-1],
+                self.default_spec.shape[0],
+            )
         )
-        self.ax.xaxis.grid(True, "major")
-        self.img.set_clim(vmin=0, vmax=1)
-        if has_xlabel:
-            self.ax.set_xlabel("Frequency [Hz]")
-        self.ax.set_xlim(self.main_window.cur_disp_freq_lims)
-        self.draw()
-        self.grid_lines = [line for line in self.ax.get_xgridlines()]
-        self.frame = [self.ax.spines[side] for side in self.ax.spines]
-        self.bm = BlitManager(
-            self.figure.canvas, [self.img] + self.grid_lines + self.frame
-        )
-        if has_xlabel:
-            self.figure.tight_layout(rect=(0.05, 0.15, 0.95, 1))
-        else:
-            self.figure.tight_layout(rect=(0.05, 0.1, 0.95, 1))
+        self.plot_item.setXRange(*self.main_window.cur_disp_freq_lims)
+
+        # Apply custom colormap to ImageItem
+        self.cmap = pg.ColorMap(pos=[0, 1], color=[(255, 255, 255), color])
+        lut = self.cmap.getLookupTable(nPts=256)
+        self.img.setLookupTable(lut)
+        self.img.setLevels([0, 1])
+        self.setBackground("w")
+
+        disable_interactivity(self.plot_item)
 
     def on_disp_freq_lims_changed(self, disp_freq_lims):
-        self.ax.set_xlim(disp_freq_lims)
-        self.bm.update_background()
+        self.plot_item.setXRange(*disp_freq_lims)
 
     @qc.pyqtSlot(object)
     def on_draw(self, data_plot):
-        self.img.set_data(data_plot)
-        self.bm.update_artists()  # use blitting, update foreground only
+        """Updates the spectrogram with new data."""
+        self.img.setImage(data_plot.T, autoLevels=False)
+        self.img.setRect(
+            qc.QRectF(
+                0,
+                0,
+                self.main_window.audio_processor.fft_freqs[-1],
+                self.default_spec.shape[0],
+            )
+        )
 
 
 class TrajectoryViews(qw.QTabWidget):
@@ -973,19 +979,15 @@ class TrajectoryViews(qw.QTabWidget):
 
     @staticmethod
     def change_pitch_lims(view, disp_pitch_lims):
-        view.ax.set_xlim(0, len(view.t_axis))
-        view.ax.set_xticks(
-            np.arange(
-                0,
-                len(view.t_axis),
-                view.main_window.audio_processor.frame_rate,
-            )
-        )
-        view.ax.set_xticklabels([])
-        view.ax.set_ylim(disp_pitch_lims)
-        view.ax.set_yticks(np.arange(disp_pitch_lims[0], disp_pitch_lims[1] + 100, 100))
-        if hasattr(view, "bm"):
-            view.bm.update_background()
+        # Set the x-axis range
+        view.plot_item.setXRange(0, len(view.t_axis))
+
+        # Set y-axis range
+        view.plot_item.setYRange(disp_pitch_lims[0], disp_pitch_lims[1])
+
+        # Set y-ticks with labels
+        y_ticks = np.arange(disp_pitch_lims[0], disp_pitch_lims[1] + 100, 100)
+        view.plot_item.getAxis("left").setTicks([[(y, str(y)) for y in y_ticks]])
 
     def show_trajectory_views(self, show):
         self.setVisible(show)
@@ -995,34 +997,25 @@ class TrajectoryViews(qw.QTabWidget):
         return qc.QSize(500, 200)
 
 
-class PitchWidget(FigureCanvas):
+class PitchWidget(pg.GraphicsLayoutWidget):
     """Visualization of the F0-trajectories of each channel"""
 
     low_pitch_changed = qc.pyqtSignal(np.ndarray)
 
     def __init__(self, main_window: MainWindow, *args, **kwargs):
-        self.figure = Figure(tight_layout=True)
-        super(PitchWidget, self).__init__(self.figure, *args, **kwargs)
+        super(PitchWidget, self).__init__(*args, **kwargs)
 
         self.main_window = main_window
         self.channel_views = main_window.channel_views.views[:-1]
 
-        self.ax = self.figure.add_subplot(111, position=[0, 0, 0, 0])
-        self.ax.set_title("")
-        self.ax.set_ylabel("Relative Pitch [Cents]")
-        self.ax.set_xlabel("Time")
-        self.ax.yaxis.grid(True, which="both")
-        self.ax.xaxis.grid(True, which="major")
-        self.ax.tick_params(
-            labelbottom=True,
-            labeltop=False,
-            labelleft=True,
-            labelright=True,
-            bottom=True,
-            top=False,
-            left=True,
-            right=True,
-        )
+        # Create the plot item
+        self.plot_item = self.addPlot(title="")
+        self.plot_item.setLabel("left", "Relative Pitch [Cents]")
+        self.plot_item.setLabel("bottom", "Time")
+        self.plot_item.showGrid(x=True, y=True)
+        self.plot_item.setDefaultPadding(0)
+        self.plot_item.setYRange(*main_window.cur_disp_pitch_lims)
+
         self.t_axis = np.arange(
             int(
                 np.round(
@@ -1032,62 +1025,48 @@ class PitchWidget(FigureCanvas):
             )
         )
         self.f0_tmp = np.full(len(self.t_axis), np.nan)
+
+        # Create lines for each channel
         self._lines = []
-        for i in range(len(self.channel_views)):
-            self._lines.append(
-                self.ax.plot(
-                    self.t_axis,
-                    self.f0_tmp,
-                    color=self.channel_views[i].color,
-                    linewidth="2",
-                )[0]
+        for channel_view in self.channel_views:
+            line = pg.PlotDataItem(
+                self.t_axis, self.f0_tmp, pen=pg.mkPen(channel_view.color, width=2)
             )
+            self.plot_item.addItem(line)
+            self._lines.append(line)
 
-        pal = self.palette()
-        pal.setColor(qg.QPalette.ColorRole.Window, qg.QColor("white"))
-        self.setPalette(pal)
+        # Set empty x-ticks
+        x_ticks = np.arange(0, len(self.t_axis), main_window.audio_processor.frame_rate)
+        self.plot_item.getAxis("bottom").setTicks([[(x, "") for x in x_ticks]])
 
-        self.draw()
+        # Set background color
+        self.setBackground("w")
 
-        self.grid_lines = [line for line in self.ax.get_xgridlines()] + [
-            line for line in self.ax.get_ygridlines()
-        ]
-
-        self.bm = BlitManager(self.figure.canvas, self._lines + self.grid_lines)
+        disable_interactivity(self.plot_item)
 
     @qc.pyqtSlot(object)
     def on_draw(self, f0):
+        """Updates the F0 trajectories for each channel."""
         for i in range(f0.shape[1]):
-            self._lines[i].set_ydata(f0[:, i])
-
-        self.bm.update_artists()  # use blitting, only update lines
+            self._lines[i].setData(self.t_axis, f0[:, i])  # Update the line data
 
 
-class DifferentialPitchWidget(FigureCanvas):
+class DifferentialPitchWidget(pg.GraphicsLayoutWidget):
     """Visualization of the pair-wise F0-differences"""
 
     def __init__(self, main_window: MainWindow, *args, **kwargs):
-        self.figure = Figure(tight_layout=True)
-        super(DifferentialPitchWidget, self).__init__(self.figure, *args, **kwargs)
+        super(DifferentialPitchWidget, self).__init__(*args, **kwargs)
         self.main_window = main_window
         self.channel_views = main_window.channel_views.views[:-1]
 
-        self.ax = self.figure.add_subplot(111, position=[0, 0, 0, 0])
-        self.ax.set_title("")
-        self.ax.set_ylabel("Pitch Difference [Cents]")
-        self.ax.set_xlabel("Time")
-        self.ax.yaxis.grid(True, which="both")
-        self.ax.xaxis.grid(True, which="major")
-        self.ax.tick_params(
-            labelbottom=True,
-            labeltop=False,
-            labelleft=True,
-            labelright=True,
-            bottom=True,
-            top=False,
-            left=True,
-            right=True,
-        )
+        # Create the plot item
+        self.plot_item = self.addPlot(title="")
+        self.plot_item.setLabel("left", "Pitch Difference [Cents]")
+        self.plot_item.setLabel("bottom", "Time")
+        self.plot_item.showGrid(x=True, y=True)
+        self.plot_item.setDefaultPadding(0)
+        self.plot_item.setYRange(*main_window.cur_disp_pitch_lims)
+
         self.t_axis = np.arange(
             int(
                 np.round(
@@ -1098,48 +1077,44 @@ class DifferentialPitchWidget(FigureCanvas):
         )
         self.f0_tmp = np.full(len(self.t_axis), np.nan)
         self._lines = []
+
         for ch0, cv0 in enumerate(self.channel_views):
             for ch1, cv1 in enumerate(self.channel_views):
                 if ch0 >= ch1:
                     continue
 
-                # matplotlib hack: use two lines to create a color-alternating line
-                (line1,) = self.ax.plot(
+                # Create two lines for alternating colors
+                line1 = pg.PlotDataItem(
                     self.t_axis,
                     self.f0_tmp,
-                    color=cv0.color,
-                    linewidth="2",
-                    linestyle="-",
+                    pen=pg.mkPen(
+                        cv0.color, width=2, style=pg.QtCore.Qt.PenStyle.SolidLine
+                    ),
                 )
-
-                (line2,) = self.ax.plot(
+                line2 = pg.PlotDataItem(
                     self.t_axis,
                     self.f0_tmp,
-                    color=cv1.color,
-                    linewidth="2",
-                    linestyle=":",
+                    pen=pg.mkPen(
+                        cv1.color, width=2, style=pg.QtCore.Qt.PenStyle.DashLine
+                    ),
                 )
 
+                self.plot_item.addItem(line1)
+                self.plot_item.addItem(line2)
                 self._lines.append([line1, line2])
 
-        pal = self.palette()
-        pal.setColor(qg.QPalette.ColorRole.Window, qg.QColor("white"))
-        self.setPalette(pal)
+        # Set empty x-ticks
+        x_ticks = np.arange(0, len(self.t_axis), main_window.audio_processor.frame_rate)
+        self.plot_item.getAxis("bottom").setTicks([[(x, "") for x in x_ticks]])
 
-        self.draw()
+        # Set background color
+        self.setBackground("w")
 
-        self.grid_lines = [line for line in self.ax.get_xgridlines()] + [
-            line for line in self.ax.get_ygridlines()
-        ]
-        flat_list = []
-        for row in self._lines:
-            flat_list += row
-        self.bm = BlitManager(self.figure.canvas, flat_list + self.grid_lines)
+        disable_interactivity(self.plot_item)
 
     @qc.pyqtSlot(object)
     def on_draw(self, diff):
+        """Updates the pitch differences for each channel pair."""
         for i in range(diff.shape[1]):
-            self._lines[i][0].set_ydata(diff[:, i])
-            self._lines[i][1].set_ydata(diff[:, i])
-
-        self.bm.update_artists()  # use blitting, only update lines
+            self._lines[i][0].setData(self.t_axis, diff[:, i])  # Update the solid line
+            self._lines[i][1].setData(self.t_axis, diff[:, i])  # Update the dashed line
