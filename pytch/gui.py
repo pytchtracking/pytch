@@ -213,6 +213,10 @@ class MainWindow(qw.QMainWindow):
         pal.setColor(qg.QPalette.ColorRole.Window, qg.QColor("white"))
         self.setPalette(pal)
 
+        pg.setConfigOption("background", "w")  # Set background to white
+        pg.setConfigOption("foreground", "k")  # Set foreground to black (text)
+        pg.mkPen("k")  # Set pen color to black
+
         # initialize and start audio processor
         self.audio_processor = AudioProcessor(
             fs=self.fs,
@@ -675,7 +679,7 @@ class ChannelView(qw.QWidget):
     a.k.a. one row of the central GUI widget
     """
 
-    level_refresh_signal = qc.pyqtSignal(np.ndarray)
+    level_refresh_signal = qc.pyqtSignal(float)
     spectrum_refresh_signal = qc.pyqtSignal(np.ndarray, float)
     spectrogram_refresh_signal = qc.pyqtSignal(np.ndarray)
 
@@ -729,18 +733,18 @@ class ChannelView(qw.QWidget):
         """Refreshes all widgets as fast as possible"""
         # prepare data
         if self.is_product:
-            lvl_update = lvl[:, -1]
+            lvl_update = lvl[-1]
             stft_update = stft[:, :, -1]
             spec_update = spec[:, -1]
             inst_f0_update = inst_f0[:, -1]
         else:
-            lvl_update = lvl[:, self.ch_id]
+            lvl_update = lvl[self.ch_id]
             stft_update = stft[:, :, self.ch_id]
             spec_update = spec[:, self.ch_id]
             inst_f0_update = inst_f0[:, self.ch_id]
 
         # update widgets
-        self.level_refresh_signal.emit(lvl_update.reshape(-1, 1))
+        self.level_refresh_signal.emit(lvl_update)
         self.spectrum_refresh_signal.emit(spec_update, inst_f0_update)
         self.spectrogram_refresh_signal.emit(stft_update)
 
@@ -770,44 +774,50 @@ class LevelWidget(pg.GraphicsLayoutWidget):
         self.plot_item = self.addPlot(
             title="", axisItems={"left": pg.AxisItem(orientation="left")}
         )
-        self.plot_item.showGrid(x=True, y=True)
-        self.plot_item.setYRange(main_window.lvl_cvals[-1], main_window.lvl_cvals[0])
-
+        self.plot_item.setDefaultPadding(0)
+        self.plot_item.getAxis("left").setVisible(False)
+        self.plot_item.getAxis("bottom").setTicks([[(0, ""), (1, "not visible")]])
+        self.plot_item.showGrid(x=False, y=False)
         if has_xlabel:
             self.plot_item.setLabel("bottom", "Level")
-
-        # Create the colormap
-        color_map = pg.ColorMap(
-            np.linspace(
-                min(main_window.lvl_cvals),
-                max(main_window.lvl_cvals),
-                len(main_window.lvl_colors),
-            ),
-            main_window.lvl_colors,
-        )
 
         # Initialize the image item
         self.img = pg.ImageItem()
         self.plot_item.addItem(self.img)
 
+        # Set the colormap
+        self.lvl_converter = lambda x: (x - self.main_window.lvl_cvals[0]) / np.abs(
+            self.main_window.lvl_cvals[0]
+        )
+        color_map = pg.ColorMap(
+            pos=self.lvl_converter(np.array(main_window.lvl_cvals)),
+            color=main_window.lvl_colors,
+        )
+        self.img.setLevels([0, 1])
+        self.img.setLookupTable(color_map.getLookupTable(nPts=256, alpha=False))
+
         # Set up initial empty data
         self.plot_mat_tmp = np.linspace(
-            main_window.lvl_cvals[0],
-            main_window.lvl_cvals[-1],
-            np.abs(main_window.lvl_cvals[0] - main_window.lvl_cvals[-1]),
+            0,
+            1,
+            80,
         ).reshape(-1, 1)
-        self.img.setImage(np.nan * np.zeros_like(self.plot_mat_tmp), autoLevels=False)
-
-        # Set the colormap
-        self.img.setLookupTable(color_map.getLookupTable(0.0, 1.0, 256))
-        self.setBackground("w")
+        self.img.setImage(self.plot_mat_tmp.T)
+        self.plot_item.setXRange(0, self.plot_mat_tmp.shape[1])
+        self.plot_item.setYRange(0, self.plot_mat_tmp.shape[0])
 
         disable_interactivity(self.plot_item)
 
-    @qc.pyqtSlot(object)
-    def on_draw(self, plot_mat):
+    @qc.pyqtSlot(float)
+    def on_draw(self, lvl):
         """Updates the image with new data."""
-        self.img.setImage(plot_mat, autoLevels=False)
+        lvl_conv = self.lvl_converter(lvl)
+        self.img.setImage(
+            np.linspace(
+                0, lvl_conv, int(lvl_conv * np.abs(self.main_window.lvl_cvals[0]))
+            ).reshape(1, -1)
+        )
+        self.img.setLevels([0, 1])
 
 
 class SpectrumWidget(pg.GraphicsLayoutWidget):
@@ -842,7 +852,6 @@ class SpectrumWidget(pg.GraphicsLayoutWidget):
             angle=90, pen=pg.mkPen(self.color, style=pg.QtCore.Qt.PenStyle.DashLine)
         )
         self.plot_item.addItem(self._inst_f0_line)
-        self.setBackground("w")
 
         disable_interactivity(self.plot_item)
 
@@ -906,7 +915,6 @@ class SpectrogramWidget(pg.GraphicsLayoutWidget):
         lut = self.cmap.getLookupTable(nPts=256)
         self.img.setLookupTable(lut)
         self.img.setLevels([0, 1])
-        self.setBackground("w")
 
         disable_interactivity(self.plot_item)
 
@@ -1039,9 +1047,6 @@ class PitchWidget(pg.GraphicsLayoutWidget):
         x_ticks = np.arange(0, len(self.t_axis), main_window.audio_processor.frame_rate)
         self.plot_item.getAxis("bottom").setTicks([[(x, "") for x in x_ticks]])
 
-        # Set background color
-        self.setBackground("w")
-
         disable_interactivity(self.plot_item)
 
     @qc.pyqtSlot(object)
@@ -1106,9 +1111,6 @@ class DifferentialPitchWidget(pg.GraphicsLayoutWidget):
         # Set empty x-ticks
         x_ticks = np.arange(0, len(self.t_axis), main_window.audio_processor.frame_rate)
         self.plot_item.getAxis("bottom").setTicks([[(x, "") for x in x_ticks]])
-
-        # Set background color
-        self.setBackground("w")
 
         disable_interactivity(self.plot_item)
 

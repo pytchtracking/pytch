@@ -212,10 +212,7 @@ class AudioProcessor:
         # initialise output buffers that are read by GUI
         if gui is not None:
             self.new_gui_data_available = False
-            self.proc_lvl = np.full(
-                (np.abs(gui.lvl_cvals[0] - gui.lvl_cvals[-1]), len(self.channels) + 1),
-                np.nan,
-            )
+            self.proc_lvl = gui.lvl_cvals[0]
             self.proc_spec = np.zeros(
                 (self.raw_fft_buf.buffer.shape[1], len(self.channels) + 1)
             )
@@ -377,28 +374,12 @@ class AudioProcessor:
             self.gui.disp_t_conf,
         )
 
-        # preprocess level
-        tmp = np.linspace(
-            self.gui.lvl_cvals[0],
-            self.gui.lvl_cvals[-1],
-            np.abs(self.gui.lvl_cvals[0] - self.gui.lvl_cvals[-1]),
+        # compute max level and clip
+        proc_lvl = np.clip(
+            np.max(lvl, axis=0),
+            a_min=self.gui.lvl_cvals[0],
+            a_max=self.gui.lvl_cvals[-1],
         )
-        proc_lvl = np.full((len(tmp), len(self.channels) + 1), np.nan)
-        max_lvl = np.max(lvl, axis=0)
-        for ch in range(lvl.shape[1]):
-            lvl_clip = int(
-                np.round(
-                    np.clip(
-                        max_lvl[ch],
-                        a_min=self.gui.lvl_cvals[0],
-                        a_max=self.gui.lvl_cvals[-1],
-                    )
-                )
-            )
-            if lvl_clip == 0:
-                proc_lvl[:, ch] = tmp
-            else:
-                proc_lvl[:lvl_clip, ch] = tmp[:lvl_clip]
 
         # preprocess spectrum
         n_spec_frames = spec.shape[0]
@@ -455,7 +436,7 @@ class AudioProcessor:
         proc_diff[proc_diff == nan_val] = np.nan
 
         with _gui_lock:
-            self.proc_lvl[:] = proc_lvl
+            self.proc_lvl = proc_lvl
             self.proc_spec[:] = proc_spec
             self.proc_stft[:] = proc_stft
             self.proc_f0[:] = proc_f0
