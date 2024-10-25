@@ -60,60 +60,14 @@ class QVLine(qw.QFrame):
         )
 
 
-class BlitManager:
-    """Manages blitting in matplotlib GUIs. Inspired by:
-    https://matplotlib.org/stable/users/explain/animations/blitting.html
-    """
+def disable_interactivity(plot_item):
+    plot_item.setMouseEnabled(x=False, y=False)  # Disable mouse panning & zooming
+    plot_item.hideButtons()  # Disable corner auto-scale button
+    plot_item.setMenuEnabled(False)  # Disable right-click context menu
 
-    def __init__(self, canvas, animated_artists=()):
-        self.canvas = canvas
-        self._bg = None
-        self._artists = []
-
-        for a in animated_artists:
-            self.add_artist(a)
-        # grab the background on every draw
-        self.cid = canvas.mpl_connect("draw_event", self.on_draw)
-
-    def on_draw(self, event):
-        """Callback to register with event."""
-        cv = self.canvas
-        if event is not None:
-            if event.canvas != cv:
-                raise RuntimeError
-        self._bg = cv.copy_from_bbox(cv.figure.bbox)
-        self._draw_animated()
-
-    def add_artist(self, art):
-        """Adds artist to the list of artsts to be animated"""
-        if art.figure != self.canvas.figure:
-            raise RuntimeError
-        art.set_animated(True)
-        self._artists.append(art)
-
-    def _draw_animated(self):
-        """Draw all the animated artists"""
-        fig = self.canvas.figure
-        for a in self._artists:
-            fig.draw_artist(a)
-
-    def update_background(self):
-        """Update background"""
-        self.canvas.draw()
-
-    def update_artists(self):
-        """Update the screen with animated artists"""
-        cv = self.canvas
-        fig = cv.figure
-        # paranoia in case we missed the draw event,
-        if self._bg is None:
-            self.on_draw(None)
-        else:
-            # restore the background
-            cv.restore_region(self._bg)
-            # draw all the animated artists
-            self._draw_animated()
-            # update the GUI state
-            cv.blit(fig.bbox)
-        # let the GUI event loop process anything it has to do
-        cv.flush_events()
+    legend = plot_item.addLegend()  # This doesn't disable legend interaction
+    # Override both methods responsible for mouse events
+    legend.mouseDragEvent = lambda *args, **kwargs: None
+    legend.hoverEvent = lambda *args, **kwargs: None
+    # disable show / hide event of legend click
+    legend.sampleType.mouseClickEvent = lambda *args, **kwargs: None
