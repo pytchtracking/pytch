@@ -17,7 +17,7 @@ colors = [
     (166, 216, 84),
     (229, 196, 148),
     (179, 179, 179),
-]
+]  # from matplotlib's "Set2" colormap
 
 
 class FloatQLineEdit(qw.QLineEdit):
