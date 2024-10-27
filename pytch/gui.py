@@ -9,7 +9,7 @@ import time
 import numpy as np
 import importlib.metadata
 
-from .gui_utils import FloatQLineEdit, QHLine, disable_interactivity
+from .gui_utils import FloatQLineEdit, QHLine, disable_interactivity, colors
 from .audio import AudioProcessor, get_input_devices, get_fs_options
 
 from PyQt6 import QtCore as qc
@@ -183,10 +183,7 @@ class MainWindow(qw.QMainWindow):
         self.disp_t_conf = 10
         self.lvl_cvals = [-80, -12, 0]
         self.lvl_colors = ["green", "yellow", "red"]
-        self.ch_colors = pg.colormap.get("Set2", source="matplotlib", skipCache=True)
-        self.ch_colors = [
-            self.ch_colors.getColors()[i][:-1] for i in [0, 1, 2, 5, 3, 4, 6, 7]
-        ]
+        self.ch_colors = colors
         self.cur_disp_freq_lims = [
             20,
             1000,
@@ -1063,7 +1060,7 @@ class PitchWidget(pg.GraphicsLayoutWidget):
             line = pg.PlotDataItem(
                 self.t_axis,
                 self.f0_tmp,
-                pen=pg.mkPen(channel_view.color, width=main_window.line_width),
+                pen=pg.mkPen(channel_view.color, width=main_window.line_width + 2),
             )
             self.plot_item.addItem(line)
             self._lines.append(line)
@@ -1125,7 +1122,7 @@ class DifferentialPitchWidget(pg.GraphicsLayoutWidget):
                     self.f0_tmp,
                     pen=pg.mkPen(
                         cv0.color,
-                        width=main_window.line_width,
+                        width=main_window.line_width + 2,
                         style=pg.QtCore.Qt.PenStyle.SolidLine,
                     ),
                 )
@@ -1134,7 +1131,7 @@ class DifferentialPitchWidget(pg.GraphicsLayoutWidget):
                     self.f0_tmp,
                     pen=pg.mkPen(
                         cv1.color,
-                        width=main_window.line_width,
+                        width=main_window.line_width + 2,
                         style=pg.QtCore.Qt.PenStyle.DashLine,
                     ),
                 )
