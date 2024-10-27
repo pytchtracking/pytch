@@ -7,9 +7,17 @@ from PyQt6 import QtCore as qc
 from PyQt6 import QtGui as qg
 from PyQt6 import QtWidgets as qw
 
-import pyqtgraph as pg
-
 logger = logging.getLogger("pytch.gui_utils")
+colors = [
+    (102, 194, 165),
+    (252, 141, 98),
+    (141, 160, 203),
+    (255, 217, 47),
+    (231, 138, 195),
+    (166, 216, 84),
+    (229, 196, 148),
+    (179, 179, 179),
+]
 
 
 class FloatQLineEdit(qw.QLineEdit):

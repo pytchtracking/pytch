@@ -16,7 +16,6 @@ dependencies = [
     "pyqt6>=6.7.0",
     "libf0>=1.0.2",
     "sounddevice>=0.4.7",
-    "matplotlib>=3.7.2",
     "pyqtgraph>=0.13.1"
 ]
 requires-python = ">=3.11"
