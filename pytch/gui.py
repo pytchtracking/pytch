@@ -216,6 +216,7 @@ class MainWindow(qw.QMainWindow):
         pg.setConfigOption("background", "w")  # Set background to white
         pg.setConfigOption("foreground", "k")  # Set foreground to black (text)
         pg.mkPen("k")  # Set pen color to black
+        self.line_width = 4
 
         # initialize and start audio processor
         self.audio_processor = AudioProcessor(
@@ -667,7 +668,7 @@ class ChannelLabel(qw.QWidget):
         font_metrics = painter.fontMetrics()
         text_rect = font_metrics.boundingRect(self.text)  # calculate text size
         painter.translate(
-            20, (self.rect().height() * 0.85 + text_rect.width()) // 2
+            20, (self.rect().height() + text_rect.width()) // 2
         )  # vertical centering
         painter.rotate(-90)
         painter.drawText(0, 0, self.text)
@@ -771,12 +772,14 @@ class LevelWidget(pg.GraphicsLayoutWidget):
         self.main_window = main_window
 
         # Create the plot item
-        self.plot_item = self.addPlot(
-            title="", axisItems={"left": pg.AxisItem(orientation="left")}
-        )
+        self.plot_item = self.addPlot()
         self.plot_item.setDefaultPadding(0)
-        self.plot_item.getAxis("left").setVisible(False)
-        self.plot_item.getAxis("bottom").setTicks([[(0, ""), (1, "not visible")]])
+        self.plot_item.getAxis("left").setVisible(True)
+        self.plot_item.getAxis("left").setTicks([])
+        self.plot_item.getAxis("right").setVisible(True)
+        self.plot_item.getAxis("top").setVisible(True)
+        self.plot_item.getAxis("top").setTicks([])
+        self.plot_item.getAxis("bottom").setTicks([[(0, ""), (1, "invisible")]])
         self.plot_item.showGrid(x=False, y=False)
         if has_xlabel:
             self.plot_item.setLabel("bottom", "Level")
@@ -797,14 +800,9 @@ class LevelWidget(pg.GraphicsLayoutWidget):
         self.img.setLookupTable(color_map.getLookupTable(nPts=256, alpha=False))
 
         # Set up initial empty data
-        self.plot_mat_tmp = np.linspace(
-            0,
-            1,
-            80,
-        ).reshape(-1, 1)
-        self.img.setImage(self.plot_mat_tmp.T)
-        self.plot_item.setXRange(0, self.plot_mat_tmp.shape[1])
-        self.plot_item.setYRange(0, self.plot_mat_tmp.shape[0])
+        self.img.setImage(np.zeros((1, 1)))
+        self.plot_item.setXRange(0, 1)
+        self.plot_item.setYRange(0, np.abs(main_window.lvl_cvals[0]))
 
         disable_interactivity(self.plot_item)
 
@@ -831,11 +829,15 @@ class SpectrumWidget(pg.GraphicsLayoutWidget):
         self.f_axis = self.main_window.audio_processor.fft_freqs
 
         # Create the plot item
-        self.plot_item = self.addPlot(title="")
+        self.plot_item = self.addPlot()
         if has_xlabel:
             self.plot_item.setLabel("bottom", "Frequency [Hz]")
-        self.plot_item.setLabel("left", "Magnitude")
-        self.plot_item.getAxis("left").setVisible(False)
+        self.plot_item.getAxis("left").setVisible(True)
+        self.plot_item.getAxis("left").setTicks([])
+        self.plot_item.getAxis("right").setVisible(True)
+        self.plot_item.getAxis("right").setTicks([])
+        self.plot_item.getAxis("top").setVisible(True)
+        self.plot_item.getAxis("top").setTicks([])
         self.plot_item.setDefaultPadding(0)
         self.plot_item.showGrid(x=True, y=True)
         self.plot_item.setXRange(*self.main_window.cur_disp_freq_lims)
@@ -843,13 +845,24 @@ class SpectrumWidget(pg.GraphicsLayoutWidget):
 
         # Create the line for the spectrum
         self._line = pg.PlotDataItem(
-            self.f_axis, np.zeros_like(self.f_axis), pen=self.color
+            self.f_axis,
+            np.zeros_like(self.f_axis),
+            pen=pg.mkPen(
+                self.color,
+                width=main_window.line_width,
+                style=pg.QtCore.Qt.PenStyle.SolidLine,
+            ),
         )
         self.plot_item.addItem(self._line)
 
         # Create the line for the fundamental frequency
         self._inst_f0_line = pg.InfiniteLine(
-            angle=90, pen=pg.mkPen(self.color, style=pg.QtCore.Qt.PenStyle.DashLine)
+            angle=90,
+            pen=pg.mkPen(
+                self.color,
+                style=pg.QtCore.Qt.PenStyle.DashLine,
+                width=main_window.line_width,
+            ),
         )
         self.plot_item.addItem(self._inst_f0_line)
 
@@ -875,11 +888,15 @@ class SpectrogramWidget(pg.GraphicsLayoutWidget):
         self.main_window = main_window
 
         # Initialize the plot
-        self.plot_item = self.addPlot(title="")
+        self.plot_item = self.addPlot()
         if has_xlabel:
             self.plot_item.setLabel("bottom", "Frequency [Hz]")
-        self.plot_item.setLabel("left", "Magnitude")
-        self.plot_item.getAxis("left").setVisible(False)
+        self.plot_item.getAxis("left").setVisible(True)
+        self.plot_item.getAxis("left").setTicks([])
+        self.plot_item.getAxis("right").setVisible(True)
+        self.plot_item.getAxis("right").setTicks([])
+        self.plot_item.getAxis("top").setVisible(True)
+        self.plot_item.getAxis("top").setTicks([])
         self.plot_item.showGrid(x=True, y=True)
         self.plot_item.setDefaultPadding(0)
 
@@ -1002,7 +1019,7 @@ class TrajectoryViews(qw.QTabWidget):
 
     def sizeHint(self):
         """Makes sure the widget is show with the right aspect."""
-        return qc.QSize(500, 200)
+        return qc.QSize(500, 800)
 
 
 class PitchWidget(pg.GraphicsLayoutWidget):
@@ -1015,11 +1032,17 @@ class PitchWidget(pg.GraphicsLayoutWidget):
 
         self.main_window = main_window
         self.channel_views = main_window.channel_views.views[:-1]
+        self.ci.layout.setContentsMargins(0, 0, 0, 0)
+        self.ci.layout.setSpacing(0)
 
         # Create the plot item
-        self.plot_item = self.addPlot(title="")
+        self.plot_item = self.addPlot()
         self.plot_item.setLabel("left", "Relative Pitch [Cents]")
         self.plot_item.setLabel("bottom", "Time")
+        self.plot_item.getAxis("right").setVisible(True)
+        self.plot_item.getAxis("right").setTicks([])
+        self.plot_item.getAxis("top").setVisible(True)
+        self.plot_item.getAxis("top").setTicks([])
         self.plot_item.showGrid(x=True, y=True)
         self.plot_item.setDefaultPadding(0)
         self.plot_item.setYRange(*main_window.cur_disp_pitch_lims)
@@ -1038,7 +1061,9 @@ class PitchWidget(pg.GraphicsLayoutWidget):
         self._lines = []
         for channel_view in self.channel_views:
             line = pg.PlotDataItem(
-                self.t_axis, self.f0_tmp, pen=pg.mkPen(channel_view.color, width=2)
+                self.t_axis,
+                self.f0_tmp,
+                pen=pg.mkPen(channel_view.color, width=main_window.line_width),
             )
             self.plot_item.addItem(line)
             self._lines.append(line)
@@ -1063,11 +1088,17 @@ class DifferentialPitchWidget(pg.GraphicsLayoutWidget):
         super(DifferentialPitchWidget, self).__init__(*args, **kwargs)
         self.main_window = main_window
         self.channel_views = main_window.channel_views.views[:-1]
+        self.ci.layout.setContentsMargins(0, 0, 0, 0)
+        self.ci.layout.setSpacing(0)
 
         # Create the plot item
-        self.plot_item = self.addPlot(title="")
+        self.plot_item = self.addPlot()
         self.plot_item.setLabel("left", "Pitch Difference [Cents]")
         self.plot_item.setLabel("bottom", "Time")
+        self.plot_item.getAxis("right").setVisible(True)
+        self.plot_item.getAxis("right").setTicks([])
+        self.plot_item.getAxis("top").setVisible(True)
+        self.plot_item.getAxis("top").setTicks([])
         self.plot_item.showGrid(x=True, y=True)
         self.plot_item.setDefaultPadding(0)
         self.plot_item.setYRange(*main_window.cur_disp_pitch_lims)
@@ -1093,14 +1124,18 @@ class DifferentialPitchWidget(pg.GraphicsLayoutWidget):
                     self.t_axis,
                     self.f0_tmp,
                     pen=pg.mkPen(
-                        cv0.color, width=2, style=pg.QtCore.Qt.PenStyle.SolidLine
+                        cv0.color,
+                        width=main_window.line_width,
+                        style=pg.QtCore.Qt.PenStyle.SolidLine,
                     ),
                 )
                 line2 = pg.PlotDataItem(
                     self.t_axis,
                     self.f0_tmp,
                     pen=pg.mkPen(
-                        cv1.color, width=2, style=pg.QtCore.Qt.PenStyle.DashLine
+                        cv1.color,
+                        width=main_window.line_width,
+                        style=pg.QtCore.Qt.PenStyle.DashLine,
                     ),
                 )
 
