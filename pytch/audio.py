@@ -197,7 +197,7 @@ class AudioProcessor:
             self.audio_out_file = sf.SoundFile(
                 out_path + f"/{start_t}.wav",
                 samplerate=fs,
-                channels=len(channels),
+                channels=np.max(channels) + 1,
                 subtype="PCM_16",
                 format="WAV",
                 mode="w",

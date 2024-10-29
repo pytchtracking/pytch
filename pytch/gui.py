@@ -147,16 +147,29 @@ class ChannelSelector(qw.QWidget):
         self.setLayout(qw.QVBoxLayout())
 
         self.buttons = []
+        self.press_order = []
         for i in range(n_channels):
             button = qw.QPushButton("Channel %i" % (i + 1))
             button.setCheckable(True)
             button.setChecked(i in channels_enabled)
+            if i in channels_enabled:
+                self.track_button_press(i)
+            button.clicked.connect(
+                lambda checked, index=i: self.track_button_press(index)
+            )
             self.buttons.append(button)
             self.layout().addWidget(button)
 
     def get_selected_channels(self):
-        """Returns selected channels by the user"""
-        return [i for i, button in enumerate(self.buttons) if button.isChecked()]
+        """Returns selected channels by the user in order"""
+        return self.press_order
+
+    def track_button_press(self, index):
+        """Tracks the order of button presses"""
+        if index in self.press_order:
+            self.press_order.remove(index)
+        else:
+            self.press_order.append(index)
 
 
 class MainWindow(qw.QMainWindow):
