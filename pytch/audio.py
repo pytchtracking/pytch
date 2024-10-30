@@ -197,7 +197,7 @@ class AudioProcessor:
             self.audio_out_file = sf.SoundFile(
                 out_path + f"/{start_t}.wav",
                 samplerate=fs,
-                channels=np.max(channels) + 1,
+                channels=len(channels),
                 subtype="PCM_16",
                 format="WAV",
                 mode="w",
@@ -389,7 +389,8 @@ class AudioProcessor:
         proc_spec[:, -1] = np.prod(spec, axis=1)
         if self.gui.cur_spec_scale_type == "log":
             proc_spec = np.log(1 + 1 * proc_spec)
-        proc_spec /= np.abs(proc_spec).max(axis=0)
+        max_values = np.abs(proc_spec).max(axis=0)
+        proc_spec /= np.where(max_values != 0, max_values, 1)
 
         # preprocess stft
         proc_stft = np.zeros((stft.shape[0], stft.shape[1], stft.shape[2] + 1))
@@ -397,7 +398,8 @@ class AudioProcessor:
         proc_stft[:, :, -1] = np.prod(stft, axis=2)
         if self.gui.cur_spec_scale_type == "log":
             proc_stft = np.log(1 + 1 * proc_stft)
-        proc_stft /= np.max(np.abs(proc_stft), axis=(0, 1), keepdims=True)
+        max_values = np.max(np.abs(proc_stft), axis=(0, 1), keepdims=True)
+        proc_stft /= np.where(max_values != 0, max_values, 1)
 
         # preprocess f0
         median_len = self.gui.cur_smoothing_len
