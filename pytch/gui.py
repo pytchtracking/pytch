@@ -89,6 +89,7 @@ class InputMenu(qw.QDialog):
             qw.QDialogButtonBox.StandardButton.Ok
             | qw.QDialogButtonBox.StandardButton.Cancel
         )
+        self.buttons.button(qw.QDialogButtonBox.StandardButton.Ok).setEnabled(False)
         self.buttons.accepted.connect(self.on_ok_clicked)
         self.buttons.rejected.connect(self.close)
         layout.addWidget(self.buttons)
@@ -110,6 +111,7 @@ class InputMenu(qw.QDialog):
         self.channel_options.setWidget(self.channel_selector)
         self.fs_options.clear()
         self.fs_options.addItems([str(int(v)) for v in sampling_rate_options])
+        self.buttons.button(qw.QDialogButtonBox.StandardButton.Ok).setEnabled(False)
 
     @staticmethod
     def get_nfft_box():
@@ -152,9 +154,6 @@ class ChannelSelector(qw.QWidget):
         for i in range(n_channels):
             button = qw.QPushButton("Channel %i" % (i + 1))
             button.setCheckable(True)
-            button.setChecked(i in channels_enabled)
-            if i in channels_enabled:
-                self.track_button_press(i)
             button.clicked.connect(
                 lambda checked, index=i: self.track_button_press(index)
             )
