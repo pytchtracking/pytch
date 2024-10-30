@@ -347,7 +347,7 @@ class GUIRefreshTimer(qc.QThread):
 
     def run(self):
         while 1:
-            time.sleep(1 / 50)  # ideally update with 50 fps
+            time.sleep(1 / 24)  # ideally update with 24 fps
             if self.emit_signal:
                 with (
                     _refresh_lock
@@ -605,11 +605,12 @@ class ChannelViews(qw.QWidget):
         self.layout.setContentsMargins(0, 0, 0, 0)
 
         self.views = []
-        for ch_id in range(len(main_window.channels)):
+        for ch_id, orig_ch in enumerate(main_window.channels):
             self.views.append(
                 ChannelView(
                     main_window=main_window,
                     ch_id=ch_id,
+                    orig_ch=orig_ch + 1,
                     is_product=False,
                     has_xlabel=False,
                 )
@@ -698,6 +699,7 @@ class ChannelView(qw.QWidget):
         self,
         main_window: MainWindow,
         ch_id=None,
+        orig_ch=None,
         is_product=False,
         has_xlabel=True,
         *args,
@@ -714,7 +716,7 @@ class ChannelView(qw.QWidget):
         self.ch_id = ch_id
 
         # channel label
-        label = ChannelLabel("Product" if ch_id is None else f"Channel {ch_id + 1}")
+        label = ChannelLabel("Product" if ch_id is None else f"Channel {orig_ch}")
 
         self.level_widget = LevelWidget(self.main_window, has_xlabel=has_xlabel)
         self.spectrogram_widget = SpectrogramWidget(
@@ -787,6 +789,7 @@ class LevelWidget(pg.GraphicsLayoutWidget):
         self.plot_item.getAxis("left").setVisible(True)
         self.plot_item.getAxis("left").setTicks([])
         self.plot_item.getAxis("right").setVisible(True)
+        self.plot_item.getAxis("right").setTicks([])
         self.plot_item.getAxis("top").setVisible(True)
         self.plot_item.getAxis("top").setTicks([])
         self.plot_item.getAxis("bottom").setTicks([[(0, ""), (1, "invisible")]])
@@ -820,11 +823,14 @@ class LevelWidget(pg.GraphicsLayoutWidget):
     def on_draw(self, lvl):
         """Updates the image with new data."""
         lvl_conv = self.lvl_converter(lvl)
-        self.img.setImage(
-            np.linspace(
-                0, lvl_conv, int(lvl_conv * np.abs(self.main_window.lvl_cvals[0]))
-            ).reshape(1, -1)
-        )
+        plot_array = np.linspace(
+            0, lvl_conv, int(lvl_conv * np.abs(self.main_window.lvl_cvals[0]))
+        ).reshape(1, -1)
+
+        if not plot_array.size:
+            plot_array = np.zeros((1, 1))
+
+        self.img.setImage(plot_array)
         self.img.setLevels([0, 1])
 
 
