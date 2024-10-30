@@ -85,13 +85,13 @@ class InputMenu(qw.QDialog):
         layout.addWidget(dir_btn, 7, 1, 1, 1)
 
         # OK and Cancel button
-        buttons = qw.QDialogButtonBox(
+        self.buttons = qw.QDialogButtonBox(
             qw.QDialogButtonBox.StandardButton.Ok
             | qw.QDialogButtonBox.StandardButton.Cancel
         )
-        buttons.accepted.connect(self.on_ok_clicked)
-        buttons.rejected.connect(self.close)
-        layout.addWidget(buttons)
+        self.buttons.accepted.connect(self.on_ok_clicked)
+        self.buttons.rejected.connect(self.close)
+        layout.addWidget(self.buttons)
 
         # load default device
         self.input_options.setCurrentIndex(0)
@@ -104,7 +104,7 @@ class InputMenu(qw.QDialog):
 
         sampling_rate_options = get_fs_options(sounddevice_index)
         self.channel_selector = ChannelSelector(
-            n_channels=nmax_channels, channels_enabled=[0]
+            n_channels=nmax_channels, channels_enabled=[0], menu_buttons=self.buttons
         )
 
         self.channel_options.setWidget(self.channel_selector)
@@ -142,11 +142,12 @@ class InputMenu(qw.QDialog):
 class ChannelSelector(qw.QWidget):
     """Widget for the channel buttons on the right side of the input menu"""
 
-    def __init__(self, n_channels, channels_enabled):
+    def __init__(self, n_channels, channels_enabled, menu_buttons):
         super().__init__()
         self.setLayout(qw.QVBoxLayout())
 
-        self.buttons = []
+        self.menu_buttons = menu_buttons
+        self.ch_buttons = []
         self.press_order = []
         for i in range(n_channels):
             button = qw.QPushButton("Channel %i" % (i + 1))
@@ -157,7 +158,7 @@ class ChannelSelector(qw.QWidget):
             button.clicked.connect(
                 lambda checked, index=i: self.track_button_press(index)
             )
-            self.buttons.append(button)
+            self.ch_buttons.append(button)
             self.layout().addWidget(button)
 
     def get_selected_channels(self):
@@ -170,6 +171,10 @@ class ChannelSelector(qw.QWidget):
             self.press_order.remove(index)
         else:
             self.press_order.append(index)
+
+        self.menu_buttons.button(qw.QDialogButtonBox.StandardButton.Ok).setEnabled(
+            len(self.press_order) > 0
+        )
 
 
 class MainWindow(qw.QMainWindow):
