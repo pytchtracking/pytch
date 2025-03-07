@@ -46,7 +46,7 @@ affiliations:
    index: 3
  - name: Independent Researcher, Berlin, Germany
    index: 4
- - name: Tantive GmbH, Nürnberg Germany
+ - name: Tantive GmbH, Nürnberg, Germany
    index: 5
 date: 7 March 2025
 bibliography: paper.bib
@@ -55,7 +55,7 @@ bibliography: paper.bib
 # Summary
 
 # Graphical User Interface (GUI)
-![`pytch` GUI.\label{fig:GUI}](pictures/screenshot.png){ width=90% }
+![`pytch` GUI.\label{fig:GUI}](../pictures/screenshot.png){ width=90% }
 
 A screenshot of the main GUI is shown in Figure \autoref{fig:GUI}.
 
@@ -63,9 +63,7 @@ A screenshot of the main GUI is shown in Figure \autoref{fig:GUI}.
 
 # Statement of Need
 
-- `@author:2001`  ->  "Author et al. (2001)"
-- `[@author:2001]` -> "(Author et al., 2001)"
-- `[@author1:2001; @author2:2001]` -> "(Author1 et al., 2001; Author2 et al., 2002)"
+[@Binney:2008]
 
 # Acknowledgements
 
