@@ -1,5 +1,5 @@
 ---
-title: '`pytch`: A Real-Time Pitch Analysis Tool For Polyphonic Music'
+title: '`pytch`: A Real-Time Pitch Analysis Tool For Polyphonic Vocal Music'
 tags:
   - Python
   - Audio Processing
@@ -19,14 +19,6 @@ authors:
     orcid:
     corresponding: false
     affiliation: 5
-  - name: Peter Meier
-    orcid: 0000-0002-3094-1931
-    corresponding: false
-    affiliation: 2
-  - name: Sebastian Strahl
-    orcid: 0009-0007-9654-7762
-    corresponding: false
-    affiliation: 2
   - name: Frank Scherbaum
     orcid: 0000-0002-5050-7331
     corresponding: false
