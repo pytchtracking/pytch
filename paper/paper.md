@@ -51,7 +51,7 @@ To support the monitoring of polyphonic singing performances, we developed `pytc
 [^1]: <https://www.pyqtgraph.org>
 
 # Statement of Need
-Software for assessing a singing voice performance
+There exist a wide range of software for assessing a singing voice performances. Most prominently, Karaoke applications like Let's Sing or Rock Bands, which compare the singing voice to a score representation of the singing part.
 Various tools for singing performance analysis exist, ranging from open-source research platforms like Praat [@Boersma01_Praat_GI], Sonic Visualiser [@CannamLS10_SonicVisualizer_ICMC], and Tarsos [@SixCL13_Tarsos_JNMR], to commercial applications such as Singstar[^2] or Singing Carrots [^3]. However, these tools face several limitations when applied to polyphonic singing. Most notably, many tools can only process a single voice at a time, which is problematic for analyzing the interactions between voices in a group performance. Additionally, real-time feedback is often missing, preventing an effective feedback loop between singers and their tool. Furthermore, tools that rely on a score as a reference pose challenges for a cappella performances, where singers may drift together in pitch over time while maintaining relative harmony, or in orally-transmitted traditions that may lack a formal score altogether [@ScherbaumMRM19_MultimediaRecordings_FMA]. To address these challenges, we developed `pytch`. Unlike existing tools, `pytch` enables monitoring multiple voices simultaneously in real time
 
 
