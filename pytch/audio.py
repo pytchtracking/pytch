@@ -342,10 +342,12 @@ class AudioProcessor:
             if lvl[0, c] < self.f0_lvl_threshold:
                 continue
 
+            audio_tmp = np.concatenate(
+                (audio[:, c][::-1], audio[:, c], audio[:, c][::-1])
+            )
             if self.f0_algorithm == "YIN":
-                # TODO: replace with real-time version, add real-time SWIPE, relax min/max limits
                 f0_tmp, _, conf_tmp = libf0.yin(
-                    np.concatenate((audio[:, c][::-1], audio[:, c], audio[:, c][::-1])),
+                    audio_tmp,
                     Fs=self.fs,
                     N=self.fft_len,
                     H=self.fft_len,
@@ -356,7 +358,13 @@ class AudioProcessor:
                 )
                 f0[:, c] = np.mean(f0_tmp)  # take the center frame
                 conf[:, c] = 1 - np.mean(conf_tmp)
-
+            elif self.f0_algorithm == "SWIPE":
+                # TODO: replace with real-time version when available
+                f0_tmp, _, conf_tmp = libf0.swipe(
+                    audio[:, c], Fs=self.fs, H=self.fft_len, F_min=80.0, F_max=640.0
+                )
+                f0[:, c] = np.mean(f0_tmp)
+                conf[:, c] = 1 - np.mean(conf_tmp)
             else:
                 f0[:, c] = np.zeros(f0.shape[0])
                 conf[:, c] = np.zeros(f0.shape[0])

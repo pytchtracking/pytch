@@ -189,7 +189,7 @@ class MainWindow(qw.QMainWindow):
         self.fs = fs
         self.fft_size = fft_size
         self.out_path = out_path
-        self.f0_algorithms = ["YIN"]
+        self.f0_algorithms = ["YIN", "SWIPE"]
         self.buf_len_sec = 30.0
         self.spec_scale_types = ["log", "linear"]
         self.ref_freq_modes = ["fixed", "highest", "lowest"]
