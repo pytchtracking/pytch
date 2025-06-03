@@ -76,9 +76,13 @@ For each channel, the analysis stage computes the audio level in dBFS, a time--f
 
 
 # Graphical User Interface (GUI)
-In this section, we provide a step-by-step explanation of the `pytch` GUI implemented in the file `gui.py`. Right after the program start, a startup menu opens in which the user is asked to specify the soundcard, input channels, sampling rate, and window size for processing. Furthermore, the user can choose to store the recorded audio and the F0 trajectories on disk. These configuration choices are required to initialize the audio processing module and the main GUI, which is loaded when the user clicks "ok". A screenshot of the main GUI which opens after successful initialization is shown in Figure \autoref{fig:GUI}.
+In this section, we provide a step-by-step explanation of the `pytch` GUI implemented in the file `gui.py`. Right after the program start, a startup menu opens in which the user is asked to specify the soundcard, input channels, sampling rate, and window size for processing (see Figure \autoref{fig:menu}). Furthermore, the user can choose to store the recorded audio and the F0 trajectories on disk.
 
-![`pytch` GUI monitoring three singing voices.\label{fig:GUI}](../pictures/screenshot.png){ width=90% }
+![`pytch` startup menu.\label{fig:menu}](../pictures/menu.png){ width=50% }
+
+These configuration choices are required to initialize the audio processing module and the main GUI, which is loaded when the user clicks "ok". A screenshot of the main GUI which opens after successful initialization is shown in Figure \autoref{fig:GUI}.
+
+![`pytch` GUI monitoring three singing voices.\label{fig:GUI}](../pictures/screenshot.png){ width=100% }
 
 The main GUI is organized into three horizontal sections. On the left, a control panel provides a start/stop button and allows users to adjust both the visual layout and algorithmic parameters. The central section displays "channel views"--one for each input channel--color-coded for clarity. Each view includes a microphone level meter, a real-time spectrum display with a vertical line marking the current F0 estimate, and a scrolling spectrogram with a 5 second time context. Channels are listed from top to bottom in the order they were selected during setup. Optionally, the bottommost view can display a product signal from all channels.
 
