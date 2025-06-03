@@ -5,6 +5,10 @@ Pytch - A Real-Time Pitch Analysis Tool For Polyphonic Music
 
 ![screenshot](pictures/screenshot.png)
 
+## Demo
+
+If you want to see `pytch` in action, watch our [demo video](https://youtu.be/LPt83Wqf2e4).
+
 ## Download and Installation
 
 Clone the project
