@@ -85,6 +85,6 @@ The main GUI is organized into three horizontal sections. On the left, a control
 The right section, referred to as the "trajectory view," provides time-based visualizations of either the F0 trajectories ("pitches" tab) or the harmonic intervals between voices ("differential" tab) with a 10 second time context. Using the controls in the left-side menu, the user can select the F0 estimation algorithm and improve the real-time visualization by adjusting the confidence threshold, the median filter length for smoothing, and the tolerance of the gradient filter. F0 and interval trajectories can be displayed with respect to a fixed reference frequency or a dynamic one derived from a selected channel, the lowest, or highest detected voice. Axis limits for this section can also be manually set.
 
 # Acknowledgements
-We would like to thank all the singers who contributed to testing `pytch` during its development.
+We would like to thank Peter Meier and Sebastian Strahl for their help with integrating the real-time F0 algorithms, and all the singers who contributed to testing `pytch` during its development.
 
 # References
