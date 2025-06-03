@@ -41,7 +41,7 @@ Our tool builds upon a late-breaking demo in [@KriegerowskiS_Pytch_2017], which 
 
 [^1]: <https://www.pyqtgraph.org>
 [^2]: <https://www.uni-potsdam.de/de/soundscapelab/computational-ethnomusicology/the-benefit-of-body-vibration-recordings/real-time-analysis-of-larynx-microphone-recordings>
-[^3]: <https://youtu.be/MrjSgv5kxc0>
+[^3]: <https://youtu.be/LPt83Wqf2e4>
 
 
 # Statement of Need
@@ -63,7 +63,7 @@ To fully leverage the capabilities of `pytch`, it is essential to record each si
 
 One way to reduce cross-talk is to increase the physical distance between singers or to record them in isolation. However, this is not always feasible, as singers need to hear one another to maintain accurate tuning. An effective workaround is the use of contact microphones, such as throat microphones, which capture vocal fold vibrations directly from the skin of the throat. This method offers a significant advantage: the recorded signals are largely immune to interference from other singers, resulting in much cleaner, more isolated recordings. Throat microphones have successfully been used to record vocal ensembles in several past studies [@Scherbaum16_LarynxMicrophones_IWFMA].
 
-In addition to live monitoring, `pytch` can also be used to analyze pre-recorded multitrack singing performances. By playing back individual vocal tracks in a digital audio workstation (DAW) and using virtual audio routing tools such as Loopback[^7] (macOS) or BlackHole[^8], these tracks can be streamed into `pytch` as if they were live microphone inputs. This setup allows users to benefit from `pytch`’s real-time visualization and analysis features during evaluation of rehearsals, performances, or field recordings.
+In addition to live monitoring, `pytch` can also be used to analyze pre-recorded multitrack singing performances. By playing back individual vocal tracks in a digital audio workstation (DAW) and using virtual audio routing tools such as Loopback[^7] (macOS) or BlackHole[^8], these tracks can be streamed into `pytch` as if they were live microphone inputs. This setup, which was also used in the demo video[^3], allows users to benefit from `pytch`’s real-time visualization and analysis features during evaluation of rehearsals, performances, or field recordings.
 
 [^7]: <https://rogueamoeba.com/loopback/>
 [^8]: <https://existential.audio/blackhole/>
