@@ -12,6 +12,6 @@ def test_ring_buffer():
     )
     buf.write(test_data)
     assert np.all(buf.read_latest(20) == test_data)
-    assert np.all(buf.read(10, 10) == test_data[:10, :, :][::-1, :, :])
-    assert np.all(buf.read(10, 10) == test_data[10:20, :, :][::-1, :, :])
-    assert buf.read(10, 10).size == 0
+    assert np.all(buf.read_next(10, 10) == test_data[:10, :, :][::-1, :, :])
+    assert np.all(buf.read_next(10, 10) == test_data[10:20, :, :][::-1, :, :])
+    assert buf.read_next(10, 10).size == 0

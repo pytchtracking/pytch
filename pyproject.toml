@@ -26,5 +26,8 @@ include-package-data = false
 [tool.setuptools.packages.find]
 include = ["pytch*"]
 
+[tool.poetry.extras]
+test = ["pytest"]
+
 [project.scripts]
 pytch = "pytch.cli:main"
