@@ -26,8 +26,6 @@ def main():
     else:
         logger.setLevel(logging.INFO)
 
-    logger.debug("starting app...")
-
     start_gui()
 
 

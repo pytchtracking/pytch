@@ -6,6 +6,7 @@ import logging
 import sys
 import numpy as np
 import importlib.metadata
+from time import time
 
 from .gui_utils import FloatQLineEdit, QHLine, disable_interactivity, colors
 from .audio import AudioProcessor, get_input_devices, get_fs_options
@@ -298,12 +299,12 @@ class MainWindow(qw.QMainWindow):
             disp_t_f0=self.disp_t_f0,
             disp_t_conf=self.disp_t_conf,
             lvl_cvals=self.lvl_cvals,
-            cur_spec_scale_type=self.cur_spec_scale_type,
-            cur_smoothing_len=self.cur_smoothing_len,
-            cur_conf_threshold=self.cur_conf_threshold,
-            cur_ref_freq_mode=self.cur_ref_freq_mode,
-            cur_ref_freq=self.cur_ref_freq,
-            cur_derivative_tol=self.cur_derivative_tol,
+            spec_scale_type=self.cur_spec_scale_type,
+            smoothing_len=self.cur_smoothing_len,
+            conf_threshold=self.cur_conf_threshold,
+            ref_freq_mode=self.cur_ref_freq_mode,
+            ref_freq=self.cur_ref_freq,
+            gradient_tol=self.cur_derivative_tol,
         )
 
         # update widgets
@@ -729,7 +730,7 @@ class ChannelView(qw.QWidget):
         if len(lvl) > 0 and not self.is_product:
             self.level_refresh_signal.emit(lvl[idx])
 
-        if len(spec) > 0:
+        if len(spec) > 0 and len(inst_f0) > 0:
             self.spectrum_refresh_signal.emit(spec[:, idx], inst_f0[idx])
 
         if len(stft) > 0:
@@ -796,6 +797,7 @@ class LevelWidget(pg.GraphicsLayoutWidget):
     @qc.pyqtSlot(float)
     def on_draw(self, lvl):
         """Updates the image with new data."""
+        start_t = time()
         lvl_conv = self.lvl_converter(lvl)
         plot_array = np.linspace(
             0, lvl_conv, int(lvl_conv * np.abs(self.main_window.lvl_cvals[0]))
@@ -806,6 +808,7 @@ class LevelWidget(pg.GraphicsLayoutWidget):
 
         self.img.setImage(plot_array)
         self.img.setLevels([0, 1])
+        logger.debug(f"Lvl update took {time()-start_t:.4f}s.")
 
 
 class SpectrumWidget(pg.GraphicsLayoutWidget):
@@ -864,10 +867,12 @@ class SpectrumWidget(pg.GraphicsLayoutWidget):
     @qc.pyqtSlot(object, float)
     def on_draw(self, data_plot, inst_f0=None):
         """Updates the spectrum and the fundamental frequency line."""
+        start_t = time()
         self._line.setData(x=self.f_axis, y=data_plot)  # Update the spectrum line
 
         if inst_f0 is not None:
             self._inst_f0_line.setPos(inst_f0)  # Update the fundamental frequency line
+        logger.debug(f"Spectrum update took {time() - start_t:.4f}s.")
 
 
 class SpectrogramWidget(pg.GraphicsLayoutWidget):
@@ -932,6 +937,7 @@ class SpectrogramWidget(pg.GraphicsLayoutWidget):
     @qc.pyqtSlot(object)
     def on_draw(self, data_plot):
         """Updates the spectrogram with new data."""
+        start_t = time()
         self.img.setImage(data_plot.T, autoLevels=False)
         self.img.setRect(
             qc.QRectF(
@@ -941,6 +947,7 @@ class SpectrogramWidget(pg.GraphicsLayoutWidget):
                 self.default_spec.shape[0],
             )
         )
+        logger.debug(f"Spectrogram update took {time() - start_t:.4f}s.")
 
 
 class TrajectoryViews(qw.QTabWidget):
@@ -984,11 +991,14 @@ class TrajectoryViews(qw.QTabWidget):
 
     @qc.pyqtSlot(object, object)
     def on_draw(self, f0, diff):
+        start_t = time()
         if len(f0) > 0:
             self.pitch_view.on_draw(f0)
 
         if len(self.main_window.channels) > 1 and len(diff) > 0:
             self.pitch_diff_view.on_draw(diff)
+
+        logger.debug(f"Trajectory view update took {time() - start_t:.4f}s.")
 
     def on_disp_pitch_lims_changed(self, disp_pitch_lims):
         self.change_pitch_lims(self.pitch_view, disp_pitch_lims)

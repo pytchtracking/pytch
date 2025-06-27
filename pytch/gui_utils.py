@@ -26,7 +26,13 @@ class FloatQLineEdit(qw.QLineEdit):
     accepted_value = qc.pyqtSignal(float)
 
     def __init__(self, default=None, *args, **kwargs):
-        qw.QLineEdit.__init__(self, *args, **kwargs)
+        """Initialization.
+
+        Args:
+            default: Default value.
+
+        """
+        qw.QLineEdit.__init__(self)
         self.setValidator(qg.QDoubleValidator())
         self.setFocusPolicy(qc.Qt.FocusPolicy.ClickFocus | qc.Qt.FocusPolicy.TabFocus)
         self.returnPressed.connect(self.do_check)
@@ -57,6 +63,12 @@ class QHLine(qw.QFrame):
 
 
 def disable_interactivity(plot_item):
+    """Disables interactive elements, like zooming or context menus, for given plot.
+
+    Args:
+        plot_item: PyQt PlotItem.
+
+    """
     plot_item.setMouseEnabled(x=False, y=False)  # Disable mouse panning & zooming
     plot_item.hideButtons()  # Disable corner auto-scale button
     plot_item.setMenuEnabled(False)  # Disable right-click context menu
