@@ -37,9 +37,9 @@ pytch
 ```
 hit return and sing!
 
-## Contribution
+## Contributing
 
-Every contribution is welcome. To ensure consistent style we use [black](https://github.com/psf/black).
+Every contribution is welcome. Please feel free to open and issue or a pull request. To ensure consistent style we use [black](https://github.com/psf/black).
 You can add automated style checks at commit time using [pre-commit](https://pre-commit.com/)
 
 ```bash
