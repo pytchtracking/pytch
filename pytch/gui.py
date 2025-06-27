@@ -3,9 +3,7 @@
 """GUI Functions"""
 
 import logging
-import threading
 import sys
-import time
 import numpy as np
 import importlib.metadata
 
@@ -19,7 +17,6 @@ from PyQt6 import QtWidgets as qw
 import pyqtgraph as pg
 
 logger = logging.getLogger("pytch.gui")
-_refresh_lock = threading.Lock()  # lock for GUI updates
 
 
 def start_gui():
@@ -105,7 +102,7 @@ class InputMenu(qw.QDialog):
 
         sampling_rate_options = get_fs_options(sounddevice_index)
         self.channel_selector = ChannelSelector(
-            n_channels=nmax_channels, channels_enabled=[0], menu_buttons=self.buttons
+            n_channels=nmax_channels, menu_buttons=self.buttons
         )
 
         self.channel_options.setWidget(self.channel_selector)
@@ -144,7 +141,7 @@ class InputMenu(qw.QDialog):
 class ChannelSelector(qw.QWidget):
     """Widget for the channel buttons on the right side of the input menu"""
 
-    def __init__(self, n_channels, channels_enabled, menu_buttons):
+    def __init__(self, n_channels, menu_buttons):
         super().__init__()
         self.setLayout(qw.QVBoxLayout())
 
@@ -189,7 +186,7 @@ class MainWindow(qw.QMainWindow):
         self.fs = fs
         self.fft_size = fft_size
         self.out_path = out_path
-        self.f0_algorithms = ["YIN", "SWIPE"]
+        self.f0_algorithms = ["YIN"]
         self.buf_len_sec = 30.0
         self.spec_scale_types = ["log", "linear"]
         self.ref_freq_modes = ["fixed", "highest", "lowest"]
@@ -215,7 +212,7 @@ class MainWindow(qw.QMainWindow):
         self.cur_conf_threshold = 0.5
         self.cur_derivative_tol = 600
         self.cur_smoothing_len = 3
-        self.last_refresh = time.time()
+        self.gui_refresh_ms = int(np.round(1000 / 60))  # 60 fps
 
         # status variables
         self.is_running = False
@@ -240,7 +237,6 @@ class MainWindow(qw.QMainWindow):
             channels=self.channels,
             device_no=self.sounddevice_idx,
             f0_algorithm=self.f0_algorithms[0],
-            gui=self,
             out_path=out_path,
         )
 
@@ -271,9 +267,9 @@ class MainWindow(qw.QMainWindow):
         layout.addWidget(splitter)
 
         # refresh timer
-        self.refresh_timer = GUIRefreshTimer()
-        self.refresh_timer.refresh_signal.connect(self.refresh_gui)
-        self.refresh_timer.start()
+        self.refresh_timer = qc.QTimer()
+        self.refresh_timer.timeout.connect(self.refresh_gui)
+        self.refresh_timer.start(self.gui_refresh_ms)
 
         self.play_pause()  # start recording and plotting
 
@@ -281,31 +277,38 @@ class MainWindow(qw.QMainWindow):
         """Starts or stops the GUI"""
         if self.is_running:
             self.audio_processor.stop_stream()
-            self.refresh_timer.stop_emitting()
+            self.refresh_timer.stop()
             self.is_running = False
             self.menu.play_pause_button.setText("Play")
         else:
             self.audio_processor.start_stream()
-            self.refresh_timer.start_emitting()
+            self.refresh_timer.start(self.gui_refresh_ms)
             self.is_running = True
             self.menu.play_pause_button.setText("Pause")
 
     @qc.pyqtSlot()
     def refresh_gui(self):
         """GUI refresh function, needs to be as fast as possible"""
-        with _refresh_lock:  # only update when last update has finished
-            if self.audio_processor.new_gui_data_available:
-                # get preprocessed audio data from audio processor
-                lvl, spec, inst_f0, stft, f0, diff = (
-                    self.audio_processor.get_latest_gui_data()
-                )
 
-                # update widgets
-                self.channel_views.on_draw(lvl, spec, inst_f0, stft)
-                self.trajectory_views.on_draw(f0, diff)
+        # get preprocessed audio data from audio processor
+        lvl, spec, inst_f0, stft, f0, diff = self.audio_processor.get_gui_data(
+            disp_t_lvl=self.disp_t_lvl,
+            disp_t_spec=self.disp_t_spec,
+            disp_t_stft=self.disp_t_stft,
+            disp_t_f0=self.disp_t_f0,
+            disp_t_conf=self.disp_t_conf,
+            lvl_cvals=self.lvl_cvals,
+            cur_spec_scale_type=self.cur_spec_scale_type,
+            cur_smoothing_len=self.cur_smoothing_len,
+            cur_conf_threshold=self.cur_conf_threshold,
+            cur_ref_freq_mode=self.cur_ref_freq_mode,
+            cur_ref_freq=self.cur_ref_freq,
+            cur_derivative_tol=self.cur_derivative_tol,
+        )
 
-                # logger.info(f"Last refresh finished {time.time() - self.last_refresh}s ago")
-                self.last_refresh = time.time()
+        # update widgets
+        self.channel_views.on_draw(lvl, spec, inst_f0, stft)
+        self.trajectory_views.on_draw(f0, diff)
 
     def menu_toggle_button(self):
         """The button for toggeling the menu"""
@@ -334,37 +337,10 @@ class MainWindow(qw.QMainWindow):
 
     def closeEvent(self, a0):
         """Clean up when GUI is closed"""
-        self.refresh_timer.terminate()
+        self.refresh_timer.stop()
         self.audio_processor.stop_stream()
         self.audio_processor.close_stream()
         sys.exit()
-
-
-class GUIRefreshTimer(qc.QThread):
-    """Timer for GUI refreshes"""
-
-    refresh_signal = qc.pyqtSignal()
-
-    def __init__(self):
-        super().__init__()
-        self.emit_signal = True
-
-    def run(self):
-        while 1:
-            time.sleep(1 / 24)  # ideally update with 24 fps
-            if self.emit_signal:
-                with (
-                    _refresh_lock
-                ):  # make sure last refresh is done before sending next one
-                    self.refresh_signal.emit()
-
-    def stop_emitting(self):
-        """when user presses pause"""
-        self.emit_signal = False
-
-    def start_emitting(self):
-        """when user presses play"""
-        self.emit_signal = True
 
 
 class ProcessingMenu(qw.QFrame):
@@ -748,22 +724,16 @@ class ChannelView(qw.QWidget):
     @qc.pyqtSlot(object, object, object, object)
     def on_draw(self, lvl, spec, inst_f0, stft):
         """Refreshes all widgets as fast as possible"""
-        # prepare data
-        if self.is_product:
-            lvl_update = lvl[-1]
-            stft_update = stft[:, :, -1]
-            spec_update = spec[:, -1]
-            inst_f0_update = inst_f0[:, -1]
-        else:
-            lvl_update = lvl[self.ch_id]
-            stft_update = stft[:, :, self.ch_id]
-            spec_update = spec[:, self.ch_id]
-            inst_f0_update = inst_f0[:, self.ch_id]
+        idx = -1 if self.is_product else self.ch_id
 
-        # update widgets
-        self.level_refresh_signal.emit(lvl_update)
-        self.spectrum_refresh_signal.emit(spec_update, inst_f0_update)
-        self.spectrogram_refresh_signal.emit(stft_update)
+        if len(lvl) > 0 and not self.is_product:
+            self.level_refresh_signal.emit(lvl[idx])
+
+        if len(spec) > 0:
+            self.spectrum_refresh_signal.emit(spec[:, idx], inst_f0[idx])
+
+        if len(stft) > 0:
+            self.spectrogram_refresh_signal.emit(stft[:, :, idx])
 
     def show_spectrum_widget(self, show):
         self.spectrum_widget.setVisible(show)
@@ -894,7 +864,8 @@ class SpectrumWidget(pg.GraphicsLayoutWidget):
     @qc.pyqtSlot(object, float)
     def on_draw(self, data_plot, inst_f0=None):
         """Updates the spectrum and the fundamental frequency line."""
-        self._line.setData(self.f_axis, data_plot)  # Update the spectrum line
+        self._line.setData(x=self.f_axis, y=data_plot)  # Update the spectrum line
+
         if inst_f0 is not None:
             self._inst_f0_line.setPos(inst_f0)  # Update the fundamental frequency line
 
@@ -1013,8 +984,10 @@ class TrajectoryViews(qw.QTabWidget):
 
     @qc.pyqtSlot(object, object)
     def on_draw(self, f0, diff):
-        self.pitch_view.on_draw(f0)
-        if len(self.main_window.channels) > 1:
+        if len(f0) > 0:
+            self.pitch_view.on_draw(f0)
+
+        if len(self.main_window.channels) > 1 and len(diff) > 0:
             self.pitch_diff_view.on_draw(diff)
 
     def on_disp_pitch_lims_changed(self, disp_pitch_lims):
@@ -1097,8 +1070,9 @@ class PitchWidget(pg.GraphicsLayoutWidget):
     @qc.pyqtSlot(object)
     def on_draw(self, f0):
         """Updates the F0 trajectories for each channel."""
-        for i in range(f0.shape[1]):
-            self._lines[i].setData(self.t_axis, f0[:, i])  # Update the line data
+        if len(f0) > 0:
+            for i in range(f0.shape[1]):
+                self._lines[i].setData(self.t_axis, f0[:, i])  # Update the line data
 
 
 class DifferentialPitchWidget(pg.GraphicsLayoutWidget):
@@ -1172,6 +1146,11 @@ class DifferentialPitchWidget(pg.GraphicsLayoutWidget):
     @qc.pyqtSlot(object)
     def on_draw(self, diff):
         """Updates the pitch differences for each channel pair."""
-        for i in range(diff.shape[1]):
-            self._lines[i][0].setData(self.t_axis, diff[:, i])  # Update the solid line
-            self._lines[i][1].setData(self.t_axis, diff[:, i])  # Update the dashed line
+        if len(diff) > 0:
+            for i in range(diff.shape[1]):
+                self._lines[i][0].setData(
+                    self.t_axis, diff[:, i]
+                )  # Update the solid line
+                self._lines[i][1].setData(
+                    self.t_axis, diff[:, i]
+                )  # Update the dashed line

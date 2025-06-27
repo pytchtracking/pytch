@@ -56,20 +56,6 @@ class QHLine(qw.QFrame):
         )
 
 
-class QVLine(qw.QFrame):
-    """A vertical separation line"""
-
-    def __init__(self):
-        super().__init__()
-        self.setMinimumHeight(1)
-        self.setFixedWidth(20)
-        self.setFrameShape(qw.QFrame.Shape.VLine)
-        self.setFrameShadow(qw.QFrame.Shadow.Sunken)
-        self.setSizePolicy(
-            qw.QSizePolicy.Policy.Preferred, qw.QSizePolicy.Policy.Minimum
-        )
-
-
 def disable_interactivity(plot_item):
     plot_item.setMouseEnabled(x=False, y=False)  # Disable mouse panning & zooming
     plot_item.hideButtons()  # Disable corner auto-scale button
