@@ -363,7 +363,7 @@ class AudioProcessor:
                 writer.writerow(np.concatenate((f0[0, :], conf[0, :])))
 
     def recording_callback(self, data, frames, time, status):
-        """Receives and stores frames from soundcard, data is of shape (frames, channels)"""
+        """Receives frames from soundcard and stores them in buffer, data is of shape (frames, channels)"""
         audio_conv = (
             data[:, self.channels].astype(np.float32, order="C") / 32768.0
         )  # convert int16 to float32
