@@ -21,7 +21,7 @@ logger = logging.getLogger("pytch.gui")
 
 
 def start_gui():
-    """Starts the GUI, first show input menu, then open the main GUI"""
+    """Starts the GUI, first show input menu, then open the main GUI."""
     app = qw.QApplication(sys.argv)
     input_dialog = InputMenu()
     if input_dialog.exec() == qw.QDialog.DialogCode.Accepted:
@@ -39,10 +39,10 @@ def start_gui():
 
 
 class InputMenu(qw.QDialog):
-    """Pop up menu at program start that offers user to customise input settings"""
+    """Pop up menu at program start that offers user to customise input settings."""
 
-    def __init__(self, *args, **kwargs):
-        qw.QDialog.__init__(self, *args, **kwargs)
+    def __init__(self):
+        qw.QDialog.__init__(self)
         self.setModal(True)
 
         layout = qw.QGridLayout()
@@ -97,7 +97,7 @@ class InputMenu(qw.QDialog):
         self.update_channel_info(0)
 
     def update_channel_info(self, menu_index):
-        """Updates available channels in input menu"""
+        """Updates available channels in input menu."""
         sounddevice_index, device = self.devices[menu_index]
         nmax_channels = device["max_input_channels"]
 
@@ -113,25 +113,39 @@ class InputMenu(qw.QDialog):
 
     @staticmethod
     def get_nfft_box():
-        """Return a qw.QSlider for modifying FFT width"""
+        """Menu for choosing the FFT length.
+
+        Returns:
+            FFT qw.QSlider.
+
+        """
         b = qw.QComboBox()
         b.addItems([str(f * 256) for f in [1, 2, 4, 8, 16]])
         b.setCurrentIndex(2)
         return b
 
     def open_dir_dialog(self):
-        """Opens an os dialogue for selecting a directory"""
+        """Opens an os dialogue for selecting a directory."""
         dir_name = qw.QFileDialog.getExistingDirectory(self, "Select a Directory")
         if dir_name:
             self.out_path = str(dir_name)
             self.dir_name_edit.setText(self.out_path)
 
     def on_ok_clicked(self):
-        """Close the menu when the user clicks ok and signal that main GUI can be opened"""
+        """Close the menu when the user clicks ok and signal that main GUI can be opened."""
         self.accept()
 
     def get_input_settings(self):
-        """Returns user-configured input settings"""
+        """Collects and returns user-configured input settings.
+
+        Returns:
+            sounddevice_idx: Index of the chosen sounddevice.
+            channels: List of selected channels.
+            fs: Chosen sampling rate.
+            fft_size: Chosen FFt size.
+            out_path: Chosen output path.
+
+        """
         sounddevice_idx = self.devices[self.input_options.currentIndex()][0]
         channels = self.channel_selector.get_selected_channels()
         fs = int(self.fs_options.currentText())
@@ -140,9 +154,15 @@ class InputMenu(qw.QDialog):
 
 
 class ChannelSelector(qw.QWidget):
-    """Widget for the channel buttons on the right side of the input menu"""
+    """Widget for the channel buttons on the right side of the input menu."""
 
     def __init__(self, n_channels, menu_buttons):
+        """Initialization function.
+
+        Args:
+            n_channels: Number of channels to choose from.
+            menu_buttons: Buttons of the main menu.
+        """
         super().__init__()
         self.setLayout(qw.QVBoxLayout())
 
@@ -159,7 +179,12 @@ class ChannelSelector(qw.QWidget):
             self.layout().addWidget(button)
 
     def get_selected_channels(self):
-        """Returns selected channels by the user in order"""
+        """Returns user-selected channels in order of selection.
+
+        Returns:
+            Selected channels.
+
+        """
         return self.press_order
 
     def track_button_press(self, index):
@@ -178,6 +203,15 @@ class MainWindow(qw.QMainWindow):
     """Main window that includes the main widget for the menu and all visualizations."""
 
     def __init__(self, sounddevice_idx, channels, fs, fft_size, out_path):
+        """Initialization.
+
+        Args:
+            sounddevice_idx: Index of the chosen sound device.
+            channels: List of chosen channels.
+            fs: Chosen sampling rate.
+            fft_size: Chosen FFT size.
+            out_path: Chosen output path.
+        """
         super().__init__()
 
         # default settings for the entire GUI.
@@ -188,15 +222,15 @@ class MainWindow(qw.QMainWindow):
         self.fft_size = fft_size
         self.out_path = out_path
         self.f0_algorithms = ["YIN"]
-        self.buf_len_sec = 30.0
+        self.buf_len_sec = 30.0  # sec
         self.spec_scale_types = ["log", "linear"]
         self.ref_freq_modes = ["fixed", "highest", "lowest"]
-        self.disp_t_lvl = 1
-        self.disp_t_spec = 1
-        self.disp_t_stft = 5
-        self.disp_t_f0 = 10
-        self.disp_t_conf = 10
-        self.lvl_cvals = [-80, -12, 0]
+        self.disp_t_lvl = 1  # sec
+        self.disp_t_spec = 1  # sec
+        self.disp_t_stft = 5  # sec
+        self.disp_t_f0 = 10  # sec
+        self.disp_t_conf = 10  # sec
+        self.lvl_cvals = [-80, -12, 0]  # dBFS
         self.lvl_colors = ["green", "yellow", "red"]
         self.ch_colors = colors
         self.cur_disp_freq_lims = [
@@ -209,10 +243,10 @@ class MainWindow(qw.QMainWindow):
         ]  # limits in cents for pitch trajectory view
         self.cur_spec_scale_type = self.spec_scale_types[0]
         self.cur_ref_freq_mode = self.ref_freq_modes[0]
-        self.cur_ref_freq = 220
+        self.cur_ref_freq = 220  # Hz
         self.cur_conf_threshold = 0.5
-        self.cur_derivative_tol = 600
-        self.cur_smoothing_len = 3
+        self.cur_gradient_tol = 600  # Cents
+        self.cur_smoothing_len = 3  # bins
         self.gui_refresh_ms = int(np.round(1000 / 60))  # 60 fps
 
         # status variables
@@ -275,7 +309,7 @@ class MainWindow(qw.QMainWindow):
         self.play_pause()  # start recording and plotting
 
     def play_pause(self):
-        """Starts or stops the GUI"""
+        """Starts or stops the GUI."""
         if self.is_running:
             self.audio_processor.stop_stream()
             self.refresh_timer.stop()
@@ -289,7 +323,7 @@ class MainWindow(qw.QMainWindow):
 
     @qc.pyqtSlot()
     def refresh_gui(self):
-        """GUI refresh function, needs to be as fast as possible"""
+        """GUI refresh function, needs to be as fast as possible."""
 
         # get preprocessed audio data from audio processor
         lvl, spec, inst_f0, stft, f0, diff = self.audio_processor.get_gui_data(
@@ -304,7 +338,7 @@ class MainWindow(qw.QMainWindow):
             conf_threshold=self.cur_conf_threshold,
             ref_freq_mode=self.cur_ref_freq_mode,
             ref_freq=self.cur_ref_freq,
-            gradient_tol=self.cur_derivative_tol,
+            gradient_tol=self.cur_gradient_tol,
         )
 
         # update widgets
@@ -312,7 +346,7 @@ class MainWindow(qw.QMainWindow):
         self.trajectory_views.on_draw(f0, diff)
 
     def menu_toggle_button(self):
-        """The button for toggeling the menu"""
+        """The button for toggeling the menu."""
         top_bar = qw.QHBoxLayout()
         top_bar.setContentsMargins(0, 0, 0, 0)
         top_bar.setSpacing(0)
@@ -327,7 +361,7 @@ class MainWindow(qw.QMainWindow):
         return top_bar
 
     def toggle_menu(self):
-        """Make menu appear or disappear"""
+        """Make menu appear or disappear."""
         if self.menu_visible:
             self.menu.hide()
             self.toggle_button.setText("☰ Show Menu")
@@ -337,7 +371,7 @@ class MainWindow(qw.QMainWindow):
         self.menu_visible = not self.menu_visible
 
     def closeEvent(self, a0):
-        """Clean up when GUI is closed"""
+        """Clean up when GUI is closed."""
         self.refresh_timer.stop()
         self.audio_processor.stop_stream()
         self.audio_processor.close_stream()
@@ -345,10 +379,16 @@ class MainWindow(qw.QMainWindow):
 
 
 class ProcessingMenu(qw.QFrame):
-    """The processing menu on the left side of the main window"""
+    """The processing menu on the left side of the main window."""
 
-    def __init__(self, main_window: MainWindow, *args, **kwargs):
-        qw.QFrame.__init__(self, *args, **kwargs)
+    def __init__(self, main_window: MainWindow):
+        """Initialization.
+
+        Args:
+            main_window: qw.QMainWindow instance.
+
+        """
+        qw.QFrame.__init__(self)
 
         self.main_window = main_window
 
@@ -403,17 +443,13 @@ class ProcessingMenu(qw.QFrame):
         layout.addWidget(self.box_show_products, 4, 1, 1, 1)
 
         layout.addWidget(qw.QLabel("Minimum Frequency"), 5, 0)
-        self.freq_min = FloatQLineEdit(
-            parent=self, default=main_window.cur_disp_freq_lims[0]
-        )
+        self.freq_min = FloatQLineEdit(default=main_window.cur_disp_freq_lims[0])
         layout.addWidget(self.freq_min, 5, 1, 1, 1)
         self.freq_min.accepted_value.connect(self.on_min_freq_changed)
         layout.addWidget(qw.QLabel("Hz"), 5, 2)
 
         layout.addWidget(qw.QLabel("Maximum Frequency"), 6, 0)
-        self.freq_max = FloatQLineEdit(
-            parent=self, default=main_window.cur_disp_freq_lims[1]
-        )
+        self.freq_max = FloatQLineEdit(default=main_window.cur_disp_freq_lims[1])
         layout.addWidget(self.freq_max, 6, 1, 1, 1)
         self.freq_max.accepted_value.connect(self.on_max_freq_changed)
         layout.addWidget(qw.QLabel("Hz"), 6, 2)
@@ -469,14 +505,14 @@ class ProcessingMenu(qw.QFrame):
         layout.addWidget(self.smoothing_label, 13, 2)
 
         layout.addWidget(qw.QLabel("Pitchslide Tolerance [Cents]"), 14, 0)
-        self.derivative_tol_slider = qw.QSlider()
-        self.derivative_tol_slider.setRange(0, 1200)
-        self.derivative_tol_slider.setValue(main_window.cur_derivative_tol)
-        self.derivative_tol_slider.setOrientation(qc.Qt.Orientation.Horizontal)
-        self.derivative_tol_label = qw.QLabel(f"{self.derivative_tol_slider.value()}")
-        self.derivative_tol_slider.valueChanged.connect(self.on_derivative_tol_changed)
-        layout.addWidget(self.derivative_tol_label, 14, 2)
-        layout.addWidget(self.derivative_tol_slider, 14, 1, 1, 1)
+        self.gradient_tol_slider = qw.QSlider()
+        self.gradient_tol_slider.setRange(0, 1200)
+        self.gradient_tol_slider.setValue(main_window.cur_gradient_tol)
+        self.gradient_tol_slider.setOrientation(qc.Qt.Orientation.Horizontal)
+        self.gradient_tol_label = qw.QLabel(f"{self.gradient_tol_slider.value()}")
+        self.gradient_tol_slider.valueChanged.connect(self.on_gradient_tol_changed)
+        layout.addWidget(self.gradient_tol_label, 14, 2)
+        layout.addWidget(self.gradient_tol_slider, 14, 1, 1, 1)
 
         layout.addWidget(qw.QLabel("Reference Mode"), 15, 0)
         self.ref_freq_mode_menu = qw.QComboBox()
@@ -491,23 +527,19 @@ class ProcessingMenu(qw.QFrame):
         layout.addWidget(self.ref_freq_mode_menu, 15, 1, 1, 1)
 
         layout.addWidget(qw.QLabel("Reference Frequency"), 16, 0)
-        self.freq_box = FloatQLineEdit(parent=self, default=main_window.cur_ref_freq)
+        self.freq_box = FloatQLineEdit(default=main_window.cur_ref_freq)
         self.freq_box.accepted_value.connect(self.on_reference_frequency_changed)
         layout.addWidget(self.freq_box, 16, 1, 1, 1)
         layout.addWidget(qw.QLabel("Hz"), 16, 2)
 
         layout.addWidget(qw.QLabel("Minimum Pitch"), 17, 0)
-        self.pitch_min = FloatQLineEdit(
-            parent=self, default=main_window.cur_disp_pitch_lims[0]
-        )
+        self.pitch_min = FloatQLineEdit(default=main_window.cur_disp_pitch_lims[0])
         self.pitch_min.accepted_value.connect(self.on_pitch_min_changed)
         layout.addWidget(self.pitch_min, 17, 1, 1, 1)
         layout.addWidget(qw.QLabel("Cents"), 17, 2)
 
         layout.addWidget(qw.QLabel("Maximum Pitch"), 18, 0)
-        self.pitch_max = FloatQLineEdit(
-            parent=self, default=main_window.cur_disp_pitch_lims[1]
-        )
+        self.pitch_max = FloatQLineEdit(default=main_window.cur_disp_pitch_lims[1])
         self.pitch_max.accepted_value.connect(self.on_pitch_max_changed)
         layout.addWidget(self.pitch_max, 18, 1, 1, 1)
         layout.addWidget(qw.QLabel("Cents"), 18, 2)
@@ -516,33 +548,40 @@ class ProcessingMenu(qw.QFrame):
         main_layout.addWidget(settings, 3, 0, 1, 2)
 
     def on_min_freq_changed(self, f):
+        """Update function for minimum frequency on user interaction."""
         self.main_window.cur_disp_freq_lims[0] = int(f)
         self.main_window.channel_views.on_disp_freq_lims_changed(
             self.main_window.cur_disp_freq_lims
         )
 
     def on_max_freq_changed(self, f):
+        """Update function for maximum frequency on user interaction."""
         self.main_window.cur_disp_freq_lims[1] = int(f)
         self.main_window.channel_views.on_disp_freq_lims_changed(
             self.main_window.cur_disp_freq_lims
         )
 
     def on_algorithm_select(self, algorithm):
+        """Update function for F0 algorithm on user interaction."""
         self.main_window.audio_processor.f0_algorithm = algorithm
 
     def on_conf_threshold_changed(self, val):
+        """Update function for confidence threshold on user interaction."""
         self.noise_thresh_label.setText(str(val / 10.0))
         self.main_window.cur_conf_threshold = val / 10.0
 
     def on_conf_smoothing_changed(self, val):
+        """Update function for smoothing filter length on user interaction."""
         self.smoothing_label.setText(str(val))
         self.main_window.cur_smoothing_len = val
 
-    def on_derivative_tol_changed(self, val):
-        self.derivative_tol_label.setText(str(val))
-        self.main_window.cur_derivative_tol = val
+    def on_gradient_tol_changed(self, val):
+        """Update function for gradient filter tolerance on user interaction."""
+        self.gradient_tol_label.setText(str(val))
+        self.main_window.cur_gradient_tol = val
 
     def on_reference_frequency_mode_changed(self, text):
+        """Update function for reference frequency mode on user interaction."""
         if (text == "Highest") or (text == "Lowest") or ("Channel" in text):
             self.freq_box.setReadOnly(True)
         else:
@@ -553,33 +592,43 @@ class ProcessingMenu(qw.QFrame):
         self.main_window.cur_ref_freq_mode = text
 
     def on_reference_frequency_changed(self, val):
+        """Update function for reference frequency on user interaction."""
         self.main_window.cur_ref_freq = val
 
     def on_pitch_min_changed(self, val):
+        """Update function for minimum pitch limit on user interaction."""
         self.main_window.cur_disp_pitch_lims[0] = int(val)
         self.main_window.trajectory_views.on_disp_pitch_lims_changed(
             self.main_window.cur_disp_pitch_lims
         )
 
     def on_pitch_max_changed(self, val):
+        """Update function for maximum pitch limit on user interaction."""
         self.main_window.cur_disp_pitch_lims[1] = int(val)
         self.main_window.trajectory_views.on_disp_pitch_lims_changed(
             self.main_window.cur_disp_pitch_lims
         )
 
     def on_spectrum_type_select(self, arg):
+        """Update function for spectrum type on user interaction."""
         self.main_window.cur_spec_scale_type = arg
 
     def sizeHint(self):
+        """Size hint."""
         return qc.QSize(100, 200)
 
 
 class ChannelViews(qw.QWidget):
-    """The central widget of the GUI that contains all channel views"""
+    """The central widget of the GUI that contains all channel views."""
 
     refresh_signal = qc.pyqtSignal(np.ndarray, np.ndarray, np.ndarray, np.ndarray)
 
     def __init__(self, main_window: MainWindow):
+        """Initialization.
+
+        Args:
+            main_window: qw.QMainWindow instance.
+        """
         qw.QWidget.__init__(self)
         self.layout = qw.QVBoxLayout()
         self.layout.setSpacing(0)
@@ -590,8 +639,8 @@ class ChannelViews(qw.QWidget):
             self.views.append(
                 ChannelView(
                     main_window=main_window,
-                    ch_id=ch_id,
-                    orig_ch=orig_ch + 1,
+                    soundcard_ch_id=ch_id,
+                    disp_channel_id=orig_ch + 1,
                     is_product=False,
                     has_xlabel=False,
                 )
@@ -615,45 +664,91 @@ class ChannelViews(qw.QWidget):
         self.show_spectrogram_widgets(True)
 
     def show_level_widgets(self, show):
+        """Change visibility of level widgets.
+
+        Args:
+            show: True for visible, False for invisible.
+        """
         for view in self.views:
             view.show_level_widget(show)
 
     def show_spectrum_widgets(self, show):
+        """Change visibility of spectrum widgets.
+
+        Args:
+            show: True for visible, False for invisible.
+        """
         for view in self.views:
             view.show_spectrum_widget(show)
 
     def show_spectrogram_widgets(self, show):
+        """Change visibility of spectrogram widgets.
+
+        Args:
+            show: True for visible, False for invisible.
+        """
         for view in self.views:
             view.show_spectrogram_widget(show)
 
     def show_product_widgets(self, show):
+        """Change visibility of product widgets.
+
+        Args:
+            show: True for visible, False for invisible.
+        """
         self.views[-1].setVisible(show)
         self.h_line.setVisible(show)
 
     def on_disp_freq_lims_changed(self, disp_freq_lims):
+        """Changes frequency limits.
+
+        Args:
+            disp_freq_lims: New frequency limits.
+        """
         for view in self.views:
             view.on_disp_freq_lims_changed(disp_freq_lims)
 
     @qc.pyqtSlot()
     def on_draw(self, lvl, spec, inst_f0, stft):
+        """Trigger channel views refresh.
+
+        Args:
+            lvl: New level.
+            spec: New spectrum.
+            inst_f0: New instantaneous frequency.
+            stft: New spectrogram.
+
+        """
         self.refresh_signal.emit(lvl, spec, inst_f0, stft)
 
     def sizeHint(self):
+        """Size hint."""
         return qc.QSize(400, 200)
 
     def __iter__(self):
+        """Helper to enable iteration through channel views."""
         yield from self.views
 
 
 class ChannelLabel(qw.QWidget):
-    """Widget that contains the vertical channel label"""
+    """Widget that contains the vertical channel label."""
 
     def __init__(self, text):
+        """Initialization.
+
+        Args:
+            text: The channel name.
+        """
         super().__init__()
         self.text = text
 
     def paintEvent(self, event):
-        """Paints the label and updates it when necessary, e.g. when available space changes"""
+        """Paints the label and updates it when necessary, e.g. when available space changes.
+
+        Args:
+            event: Trigger event.
+
+        """
         painter = qg.QPainter(self)
         painter.setFont(qg.QFont("Arial", 13, qg.QFont.Weight.Bold))
         painter.setPen(qg.QColor("black"))
@@ -669,7 +764,7 @@ class ChannelLabel(qw.QWidget):
 
 class ChannelView(qw.QWidget):
     """Widget that contains a channel label, level, spectrum and spectrogram,
-    a.k.a. one row of the central GUI widget
+    a.k.a. one row of the central GUI widget.
     """
 
     level_refresh_signal = qc.pyqtSignal(float)
@@ -679,25 +774,38 @@ class ChannelView(qw.QWidget):
     def __init__(
         self,
         main_window: MainWindow,
-        ch_id=None,
-        orig_ch=None,
+        soundcard_ch_id=None,
+        disp_channel_id=None,
         is_product=False,
         has_xlabel=True,
-        *args,
-        **kwargs,
     ):
-        qw.QWidget.__init__(self, *args, **kwargs)
+        """Initialization.
+
+        Args:
+            main_window: Main pytch window.
+            soundcard_ch_id: Soundcard channel ID or None.
+            disp_channel_id: Display channel ID or None.
+            is_product: Bool that indicates whether channel view is for the product channel.
+            has_xlabel: Bool that indicates whether channel view should have x labels on plots.
+        """
+        qw.QWidget.__init__(self)
         self.layout = qw.QHBoxLayout()
         self.layout.setSpacing(0)  # keep GUI tight, remove frames around widgets
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.main_window = main_window
 
-        self.color = "black" if ch_id is None else main_window.ch_colors[ch_id]
+        self.color = (
+            "black"
+            if soundcard_ch_id is None
+            else main_window.ch_colors[soundcard_ch_id]
+        )
         self.is_product = is_product
-        self.ch_id = ch_id
+        self.ch_id = soundcard_ch_id
 
         # channel label
-        label = ChannelLabel("Product" if ch_id is None else f"Channel {orig_ch}")
+        label = ChannelLabel(
+            "Product" if soundcard_ch_id is None else f"Channel {disp_channel_id}"
+        )
 
         self.level_widget = LevelWidget(self.main_window, has_xlabel=has_xlabel)
         self.spectrogram_widget = SpectrogramWidget(
@@ -724,7 +832,15 @@ class ChannelView(qw.QWidget):
 
     @qc.pyqtSlot(object, object, object, object)
     def on_draw(self, lvl, spec, inst_f0, stft):
-        """Refreshes all widgets as fast as possible"""
+        """Refreshes all widgets with new data.
+
+        Args:
+            lvl: New level data.
+            spec: New spectrum data.
+            inst_f0: New instantaneous frequency data.
+            stft:  New spectrogram data.
+
+        """
         idx = -1 if self.is_product else self.ch_id
 
         if len(lvl) > 0 and not self.is_product:
@@ -737,15 +853,36 @@ class ChannelView(qw.QWidget):
             self.spectrogram_refresh_signal.emit(stft[:, :, idx])
 
     def show_spectrum_widget(self, show):
+        """Change visibility of spectrum widget.
+
+        Args:
+            show: True for visible, False for invisible.
+        """
         self.spectrum_widget.setVisible(show)
 
     def show_spectrogram_widget(self, show):
+        """Change visibility of spectrogram widget.
+
+        Args:
+            show: True for visible, False for invisible.
+        """
         self.spectrogram_widget.setVisible(show)
 
     def show_level_widget(self, show):
+        """Change visibility of level widget.
+
+        Args:
+            show: True for visible, False for invisible.
+        """
         self.level_widget.setVisible(show)
 
     def on_disp_freq_lims_changed(self, disp_freq_lims):
+        """Change frequency axis limits of spectrum and spectrogram.
+
+        Args:
+            disp_freq_lims: New frequency limits.
+
+        """
         self.spectrum_widget.on_disp_freq_lims_changed(disp_freq_lims)
         self.spectrogram_widget.on_disp_freq_lims_changed(disp_freq_lims)
 
@@ -754,6 +891,12 @@ class LevelWidget(pg.GraphicsLayoutWidget):
     """The level meter with color-coded dB levels"""
 
     def __init__(self, main_window: MainWindow, has_xlabel=True):
+        """Initialization.
+
+        Args:
+            main_window: Main pytch window.
+            has_xlabel: Bool that indicates whether plot has x label.
+        """
         super(LevelWidget, self).__init__()
 
         self.main_window = main_window
@@ -796,7 +939,12 @@ class LevelWidget(pg.GraphicsLayoutWidget):
 
     @qc.pyqtSlot(float)
     def on_draw(self, lvl):
-        """Updates the image with new data."""
+        """Updates the image with new data.
+
+        Args:
+            lvl: New audio level.
+
+        """
         start_t = time()
         lvl_conv = self.lvl_converter(lvl)
         plot_array = np.linspace(
@@ -812,9 +960,17 @@ class LevelWidget(pg.GraphicsLayoutWidget):
 
 
 class SpectrumWidget(pg.GraphicsLayoutWidget):
-    """Spectrum plot with current fundamental frequency as dashed line"""
+    """Spectrum plot with current fundamental frequency as dashed line."""
 
     def __init__(self, main_window: MainWindow, color, has_xlabel=True):
+        """Initialization.
+
+        Args:
+            main_window: Main pytch window.
+            color: Color to use for this widget.
+            has_xlabel: Bool that indicates whether plot has x label.
+
+        """
         super(SpectrumWidget, self).__init__()
 
         self.main_window = main_window
@@ -879,6 +1035,14 @@ class SpectrogramWidget(pg.GraphicsLayoutWidget):
     """Spectrogram widget"""
 
     def __init__(self, main_window: MainWindow, color, has_xlabel=True):
+        """Initialization.
+
+        Args:
+            main_window: Main pytch window.
+            color: Color to use for this widget.
+            has_xlabel: Bool that indicates whether plot has x label.
+
+        """
         super().__init__()
 
         self.main_window = main_window
@@ -936,7 +1100,12 @@ class SpectrogramWidget(pg.GraphicsLayoutWidget):
 
     @qc.pyqtSlot(object)
     def on_draw(self, data_plot):
-        """Updates the spectrogram with new data."""
+        """Updates the spectrogram data.
+
+        Args:
+            data_plot: New spectrogram.
+
+        """
         start_t = time()
         self.img.setImage(data_plot.T, autoLevels=False)
         self.img.setRect(
@@ -951,10 +1120,15 @@ class SpectrogramWidget(pg.GraphicsLayoutWidget):
 
 
 class TrajectoryViews(qw.QTabWidget):
-    """Right-hand widget that contains the visualization of the F0-trajectories and the differential"""
+    """Right-hand widget that contains the visualization of the F0-trajectories and the differential."""
 
-    def __init__(self, main_window: MainWindow, *args, **kwargs):
-        qw.QTabWidget.__init__(self, *args, **kwargs)
+    def __init__(self, main_window: MainWindow):
+        """Initialization.
+
+        Args:
+            main_window: Main pytch window.
+        """
+        qw.QTabWidget.__init__(self)
 
         self.main_window = main_window
 
@@ -991,22 +1165,46 @@ class TrajectoryViews(qw.QTabWidget):
 
     @qc.pyqtSlot(object, object)
     def on_draw(self, f0, diff):
+        """Update pitch and pitch differences view. Only update selected.
+
+        Args:
+            f0: New F0 trajectories.
+            diff: New pitch differences.
+
+        """
         start_t = time()
-        if len(f0) > 0:
+        if len(f0) > 0 and self.currentIndex() == 0:
             self.pitch_view.on_draw(f0)
 
-        if len(self.main_window.channels) > 1 and len(diff) > 0:
+        if (
+            len(self.main_window.channels) > 1
+            and len(diff) > 0
+            and self.currentIndex() == 1
+        ):
             self.pitch_diff_view.on_draw(diff)
 
         logger.debug(f"Trajectory view update took {time() - start_t:.4f}s.")
 
     def on_disp_pitch_lims_changed(self, disp_pitch_lims):
+        """Update pitch limits on user interaction.
+
+        Args:
+            disp_pitch_lims: New pitch limits.
+
+        """
         self.change_pitch_lims(self.pitch_view, disp_pitch_lims)
         if len(self.main_window.channels) > 1:
             self.change_pitch_lims(self.pitch_diff_view, disp_pitch_lims)
 
     @staticmethod
     def change_pitch_lims(view, disp_pitch_lims):
+        """Update pitch limits of given view.
+
+        Args:
+            view: Pitch or Differences view.
+            disp_pitch_lims: New pitch limits.
+
+        """
         # Set the x-axis range
         view.plot_item.setXRange(0, len(view.t_axis))
 
@@ -1018,6 +1216,12 @@ class TrajectoryViews(qw.QTabWidget):
         view.plot_item.getAxis("left").setTicks([[(y, str(y)) for y in y_ticks]])
 
     def show_trajectory_views(self, show):
+        """Change visibility of trajectory views.
+
+        Args:
+            show: Bool, True indicates visible, False invisible.
+
+        """
         self.setVisible(show)
 
     def sizeHint(self):
@@ -1026,12 +1230,18 @@ class TrajectoryViews(qw.QTabWidget):
 
 
 class PitchWidget(pg.GraphicsLayoutWidget):
-    """Visualization of the F0-trajectories of each channel"""
+    """Visualization of the F0-trajectories of each channel."""
 
     low_pitch_changed = qc.pyqtSignal(np.ndarray)
 
-    def __init__(self, main_window: MainWindow, *args, **kwargs):
-        super(PitchWidget, self).__init__(*args, **kwargs)
+    def __init__(self, main_window: MainWindow):
+        """Initialization.
+
+        Args:
+            main_window: Main pytch window.
+
+        """
+        super(PitchWidget, self).__init__()
 
         self.main_window = main_window
         self.channel_views = main_window.channel_views.views[:-1]
@@ -1079,17 +1289,28 @@ class PitchWidget(pg.GraphicsLayoutWidget):
 
     @qc.pyqtSlot(object)
     def on_draw(self, f0):
-        """Updates the F0 trajectories for each channel."""
+        """Updates the F0 trajectories for each channel.
+
+        Args:
+            f0: New F0 trajectories.
+
+        """
         if len(f0) > 0:
             for i in range(f0.shape[1]):
                 self._lines[i].setData(self.t_axis, f0[:, i])  # Update the line data
 
 
 class DifferentialPitchWidget(pg.GraphicsLayoutWidget):
-    """Visualization of the pair-wise F0-differences"""
+    """Visualization of the pair-wise F0 differences."""
 
-    def __init__(self, main_window: MainWindow, *args, **kwargs):
-        super(DifferentialPitchWidget, self).__init__(*args, **kwargs)
+    def __init__(self, main_window: MainWindow):
+        """Initialization.
+
+        Args:
+            main_window: Main pytch window.
+
+        """
+        super(DifferentialPitchWidget, self).__init__()
         self.main_window = main_window
         self.channel_views = main_window.channel_views.views[:-1]
         self.ci.layout.setContentsMargins(0, 0, 0, 0)
@@ -1155,7 +1376,12 @@ class DifferentialPitchWidget(pg.GraphicsLayoutWidget):
 
     @qc.pyqtSlot(object)
     def on_draw(self, diff):
-        """Updates the pitch differences for each channel pair."""
+        """Updates the pitch differences for each channel pair.
+
+        Args:
+            diff: New pitch differences.
+
+        """
         if len(diff) > 0:
             for i in range(diff.shape[1]):
                 self._lines[i][0].setData(

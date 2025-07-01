@@ -25,7 +25,7 @@ class FloatQLineEdit(qw.QLineEdit):
 
     accepted_value = qc.pyqtSignal(float)
 
-    def __init__(self, default=None, *args, **kwargs):
+    def __init__(self, default=None):
         """Initialization.
 
         Args:

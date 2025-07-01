@@ -9,6 +9,7 @@ from pytch.gui import start_gui
 
 
 def main():
+    """Parses commandline arguments and starts pytch."""
     parser = argparse.ArgumentParser("pytch")
     parser.add_argument(
         "--debug",
