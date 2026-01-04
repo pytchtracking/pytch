@@ -8,6 +8,7 @@ from numba import njit
 import logging
 import sounddevice
 import soundfile as sf
+import libf0
 from rtswipe import RTSwipe
 from scipy.ndimage import median_filter
 from datetime import datetime
@@ -75,7 +76,8 @@ def check_fs(device_index, fs):
         logger.debug(e)
         valid = False
 
-    return valid
+    finally:
+        return valid
 
 
 @njit
@@ -210,6 +212,7 @@ class AudioProcessor:
         fft_len=512,
         channels=None,
         device_no=None,
+        f0_algorithm="YIN",
         out_path="",
     ):
         """Initialize audio processing.
@@ -220,6 +223,7 @@ class AudioProcessor:
             fft_len: FFT length in bins.
             channels: List of channels to record.
             device_no: Index of device to record from.
+            f0_algorithm: F0 algorithm to use.
             out_path: Output directory for F0 trajectories.
         """
         self.fs = fs
@@ -230,6 +234,7 @@ class AudioProcessor:
         self.fft_win = np.hanning(self.fft_len).reshape(-1, 1)
         self.channels = [0] if channels is None else channels
         self.device_no = device_no
+        self.f0_algorithm = f0_algorithm
         self.out_path = out_path
         self.f0_lvl_threshold = -70  # minimum level in dB to compute f0 estimates
         self.frame_rate = self.fs / self.hop_len
@@ -402,10 +407,34 @@ class AudioProcessor:
             conf: Confidence.
 
         """
-        if np.all(lvl > self.f0_lvl_threshold):
-            f0, conf = self.rtswipe(audio)
-        else:
-            f0 = conf = np.zeros((1, len(self.channels)))
+        f0 = np.zeros((1, audio.shape[1]))
+        conf = np.zeros((1, audio.shape[1]))
+
+        if self.f0_algorithm == "YIN":
+            for c in range(audio.shape[1]):
+                if lvl[0, c] < self.f0_lvl_threshold:
+                    continue
+
+                audio_tmp = np.concatenate(
+                    (audio[:, c][::-1], audio[:, c], audio[:, c][::-1])
+                )
+                f0_tmp, _, conf_tmp = libf0.yin(
+                    audio_tmp,
+                    Fs=self.fs,
+                    N=self.fft_len,
+                    H=self.fft_len,
+                    F_min=80.0,
+                    F_max=640.0,
+                    threshold=0.15,
+                    verbose=False,
+                )
+                f0[:, c] = np.mean(f0_tmp)  # take the center frame
+                conf[:, c] = 1 - np.mean(conf_tmp)
+        elif self.f0_algorithm == "SWIPE":
+            if np.all(lvl > self.f0_lvl_threshold):
+                f0, conf = self.rtswipe(audio)
+                f0 = f0.reshape(1, -1)
+                conf = conf.reshape(1, -1)
 
         return f0, conf
 

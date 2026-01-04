@@ -221,6 +221,7 @@ class MainWindow(qw.QMainWindow):
         self.fs = fs
         self.fft_size = fft_size
         self.out_path = out_path
+        self.f0_algorithms = ["SWIPE", "YIN"]
         self.buf_len_sec = 30.0  # sec
         self.spec_scale_types = ["log", "linear"]
         self.ref_freq_modes = ["fixed", "highest", "lowest"]
@@ -243,7 +244,7 @@ class MainWindow(qw.QMainWindow):
         self.cur_spec_scale_type = self.spec_scale_types[0]
         self.cur_ref_freq_mode = self.ref_freq_modes[0]
         self.cur_ref_freq = 220  # Hz
-        self.cur_conf_threshold = 0.5
+        self.cur_conf_threshold = 0.2
         self.cur_gradient_tol = 600  # Cents
         self.cur_smoothing_len = 3  # bins
         self.gui_refresh_ms = int(np.round(1000 / 60))  # 60 fps
@@ -270,6 +271,7 @@ class MainWindow(qw.QMainWindow):
             fft_len=self.fft_size,
             channels=self.channels,
             device_no=self.sounddevice_idx,
+            f0_algorithm=self.f0_algorithms[0],
             out_path=out_path,
         )
 
@@ -473,6 +475,13 @@ class ProcessingMenu(qw.QFrame):
         )
         layout.addWidget(self.box_show_tv, 10, 1, 1, 1)
 
+        layout.addWidget(qw.QLabel("F0 Algorithm"), 11, 0)
+        self.select_algorithm = qw.QComboBox(self)
+        self.select_algorithm.addItems(main_window.f0_algorithms)
+        self.select_algorithm.setCurrentIndex(0)
+        self.select_algorithm.currentTextChanged.connect(self.on_algorithm_select)
+        layout.addWidget(self.select_algorithm, 11, 1, 1, 1)
+
         layout.addWidget(qw.QLabel("Confidence Threshold"), 12, 0)
         self.noise_thresh_slider = qw.QSlider()
         self.noise_thresh_slider.setRange(0, 10)
@@ -551,6 +560,10 @@ class ProcessingMenu(qw.QFrame):
         self.main_window.channel_views.on_disp_freq_lims_changed(
             self.main_window.cur_disp_freq_lims
         )
+
+    def on_algorithm_select(self, algorithm):
+        """Update function for F0 algorithm on user interaction."""
+        self.main_window.audio_processor.f0_algorithm = algorithm
 
     def on_conf_threshold_changed(self, val):
         """Update function for confidence threshold on user interaction."""
