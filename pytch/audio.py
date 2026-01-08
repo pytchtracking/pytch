@@ -76,8 +76,7 @@ def check_fs(device_index, fs):
         logger.debug(e)
         valid = False
 
-    finally:
-        return valid
+    return valid
 
 
 @njit

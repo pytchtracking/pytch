@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pytch"
-version = "2.3.0"
+version = "2.3.0rc"
 description = "A Real-Time Pitch Analysis Tool For Polyphonic Music"
 authors = [
   {name = "Pytch Contributors"}
@@ -16,7 +16,8 @@ dependencies = [
     "pyqt6>=6.7.0",
     "sounddevice>=0.4.7",
     "pyqtgraph>=0.13.1",
-    "rtswipe@git+https://github.com/groupmm/real_time_swipe.git"
+    "rtswipe@git+https://github.com/groupmm/real_time_swipe.git",
+    "libf0@git+https://github.com/sebastianrosenzweig/libf0.git"
 ]
 requires-python = ">=3.11"
 
