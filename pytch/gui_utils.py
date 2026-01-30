@@ -26,25 +26,29 @@ class FloatQLineEdit(qw.QLineEdit):
     accepted_value = qc.pyqtSignal(float)
 
     def __init__(self, default=None):
-        """Initialization.
+        super().__init__()
 
-        Args:
-            default: Default value.
+        validator = qg.QDoubleValidator(self)
+        validator.setNotation(qg.QDoubleValidator.Notation.StandardNotation)
+        validator.setLocale(qc.QLocale.c())  # force "." as decimal separator
+        self.setValidator(validator)
 
-        """
-        qw.QLineEdit.__init__(self)
-        self.setValidator(qg.QDoubleValidator())
         self.setFocusPolicy(qc.Qt.FocusPolicy.ClickFocus | qc.Qt.FocusPolicy.TabFocus)
-        self.returnPressed.connect(self.do_check)
-        p = self.parent()
-        if p:
-            self.returnPressed.connect(p.setFocus)
-        if default:
-            self.setText(str(default))
+
+        self.editingFinished.connect(self.do_check)
+
+        if default is not None:
+            self.setText(f"{float(default)}")
 
     def do_check(self):
-        text = self.text()
-        val = float(text)
+        text = self.text().replace(",", "")
+        try:
+            val = float(text)
+        except ValueError:
+            return
+
+        # Normalize display (no scientific notation)
+        self.setText(f"{val}")
         self.accepted_value.emit(val)
 
 
