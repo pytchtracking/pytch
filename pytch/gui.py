@@ -221,7 +221,7 @@ class MainWindow(qw.QMainWindow):
         self.fs = fs
         self.fft_size = fft_size
         self.out_path = out_path
-        self.f0_algorithms = ["YIN"]
+        self.f0_algorithms = ["SWIPE", "YIN"]
         self.buf_len_sec = 30.0  # sec
         self.spec_scale_types = ["log", "linear"]
         self.ref_freq_modes = ["fixed", "highest", "lowest"]
@@ -244,7 +244,7 @@ class MainWindow(qw.QMainWindow):
         self.cur_spec_scale_type = self.spec_scale_types[0]
         self.cur_ref_freq_mode = self.ref_freq_modes[0]
         self.cur_ref_freq = 220  # Hz
-        self.cur_conf_threshold = 0.5
+        self.cur_conf_threshold = 0.2
         self.cur_gradient_tol = 600  # Cents
         self.cur_smoothing_len = 3  # bins
         self.gui_refresh_ms = int(np.round(1000 / 60))  # 60 fps
