@@ -103,6 +103,6 @@ The right section, referred to as the "trajectory view," provides time-based vis
 The authors used the AI tool ChatGPT to assist with grammar, spelling, and language refinement in this article. In addition, ChatGPT was used to generate example code for PyQt6 functions and classes. No code was copied verbatim from ChatGPT; all generated examples were reviewed, adapted, and integrated by the authors.
 
 # Acknowledgements
-We would like to thank Lukas Dietz for his help with the implementation, Peter Meier, Sebastian Strahl, and Meinard Müller for the collaboration on the real-time SWIPE implementation, and all the singers who contributed to testing `pytch` during its development.
+We would like to thank Lukas Dietz for his help with the implementation, Peter Meier, Sebastian Strahl, Simon Schwär, and Meinard Müller for the collaboration on the real-time SWIPE implementation, and all the singers who contributed to testing `pytch` during its development.
 
 # References
