@@ -430,10 +430,18 @@ class AudioProcessor:
                 f0[:, c] = np.mean(f0_tmp)  # take the center frame
                 conf[:, c] = 1 - np.mean(conf_tmp)
         elif self.f0_algorithm == "SWIPE":
-            if np.all(lvl > self.f0_lvl_threshold):
-                f0, conf = self.rtswipe(audio)
-                f0 = f0.reshape(1, -1)
-                conf = conf.reshape(1, -1)
+            # set silent channels to a low value to avoid NaN output of SWIPE
+            discard_chs = np.argwhere(lvl.flatten() <= self.f0_lvl_threshold)
+            audio[:, discard_chs] = 0.1
+
+            f0, conf = self.rtswipe(audio)
+
+            # fix invalid SWIPE output for silent channels
+            f0[discard_chs] = 0.0
+            conf[discard_chs] = 0.0
+
+            f0 = f0.reshape(1, -1)
+            conf = conf.reshape(1, -1)
 
         return f0, conf
 
