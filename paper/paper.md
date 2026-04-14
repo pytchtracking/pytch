@@ -30,7 +30,7 @@ affiliations:
    index: 2
  - name: University of Potsdam, Potsdam, Germany
    index: 3
-date: 1 February 2026
+date: 14 April 2026
 bibliography: paper.bib
 ---
 
@@ -39,16 +39,17 @@ Polyphonic singing is one of the most widespread forms of music-making. During a
 To support the monitoring of polyphonic singing performances, we developed `pytch`, an interactive Python tool with a graphical user interface (GUI) designed to record, process, and visualize multiple voices in real time. The GUI displays vocal spectra and estimated F0 trajectories for all singers, as well as the harmonic intervals between them. Additionally, users can adjust visual and algorithmic parameters interactively to accommodate different input devices, microphone signals, singing styles, and use cases.
 Our tool builds upon a late-breaking demo in [@KriegerowskiS_Pytch_2017], which we refer to as version 1. Since its initial release, the tool has been significantly extended with a new real-time graphics engine, a modular audio processing backend that facilitates the integration of additional algorithms, and improved support for a wider range of platforms and recording hardware, which we refer to as version 2. The applications of `pytch` range from research in the field of computational musicology to pedagogical contexts focused on intonation and harmonic listening.
 
-
-# Statement of Need
+# State of the Field
 Software that assesses the pitch of a singing voice in real time is best known from Karaoke singing applications, such as Let's Sing[^1], Rock Band[^2], or Cantamus[^3]. These tools typically compare the singer’s pitch to a score reference to judge whether notes are ‘correct’ or ‘incorrect’. However, such applications face several limitations when applied to polyphonic or group singing contexts. Most notably, many Karaoke systems can only process one or two singing voices at a time, which is problematic for monitoring group performances. Additionally, software that relies on a score as a reference poses challenges for a cappella performances, where singers may drift together in pitch over time while maintaining relative harmony, or in orally-transmitted traditions that may lack a formal score altogether. Finally, existing open-source research software for singing voice processing, like Praat [@Boersma01_Praat_GI], Sonic Visualiser [@CannamLS10_SonicVisualizer_ICMC], and Tarsos [@SixCL13_Tarsos_JNMR], lack real-time feedback, preventing an effective feedback loop between singers and their tool.
 
-To address these challenges, we developed `pytch`. Our tool is currently the only software that enables singers and conductors to monitor and train harmonic interval singing in real time — a skill that is essential in many vocal traditions. This includes not only polyphonic genres such as traditional Georgian vocal music [@ScherbaumMRM19_MultimediaRecordings_FMA] or Barbershop singing [@HagermanS80_Barbershop_CITESEER], where precise tuning between voices is stylistically central, but also the practice of non-tempered tuning systems found in various oral traditions. Unlike many existing tools, `pytch` does not require a musical score. The vocal spectra can help singers fine-tune the expression of formant frequencies, while melodic and harmonic issues become visible through F0 trajectories and harmonic intervals.
+Taken together, these limitations highlight a gap in current approaches: there is no tool that supports real-time pitch monitoring for multiple voices in a way that reflects the needs of ensemble singing practices.
 
 [^1]: <https://en.wikipedia.org/wiki/Let%27s_Sing>
 [^2]: <https://en.wikipedia.org/wiki/Rock_Band_4>
 [^3]: <https://cantamus.app>
 
+# Statement of Need
+To address the lack of available software, we developed `pytch`. Our tool enables singers and conductors to monitor and train harmonic interval singing in real time — a skill that is essential in many vocal traditions. This includes not only polyphonic genres such as traditional Georgian vocal music [@ScherbaumMRM19_MultimediaRecordings_FMA] or Barbershop singing [@HagermanS80_Barbershop_CITESEER], where precise tuning between voices is stylistically central, but also the practice of non-tempered tuning systems found in various oral traditions. Unlike many existing tools, `pytch` neither requires a musical score nor is it tied to a specific musical tuning system. The vocal spectra can help singers fine-tune the expression of formant frequencies, while melodic and harmonic issues become visible through F0 trajectories and harmonic intervals.
 
 # Research Impact Statement
 Over its seven years of development to now, `pytch` has been tested and iterated through use in ensemble rehearsals, singing workshops, and ethnomusicological field research. For example, the tool was used to analyze the Sardinian singing style of the "Quintina" in which four singers manage to fuse the high frequency partials of their voices in such a way that an apparent fifth voice appears (see demo video[^4]). Furthermore, `pytch` has been used during a field expedition to Georgia, where ethnomusicologists recorded and analyzed traditional vocal music which belongs to the UNESCO intangible world cultural heritage (see demo video[^5]).
@@ -61,9 +62,7 @@ In addition to its use in musicological research, `pytch` also provides a platfo
 
 # Multitrack Singing Recordings
 
-To fully leverage the capabilities of `pytch`, it is essential to record each singer with an individual microphone. While there is no hard limit on the number of input channels, we recommend recording up to four individual singers to ensure visibility of the charts and responsiveness of the GUI. Stereo recordings—-such as those captured by a room microphone placed in front of the ensemble--are not suitable for the analysis with `pytch`, because contributions of individual voices are difficult to identify from polyphonic mixtures [@Cuesta22_Multipitch_PhD]. Suitable multitrack recordings can be obtained using handheld dynamic microphones or headset microphones. However, these setups are prone to cross-talk, especially when singers are positioned close together.
-
-One way to reduce cross-talk is to increase the physical distance between singers or to record them in isolation. However, this is not always feasible, as singers need to hear one another to maintain accurate tuning. An effective workaround is the use of contact microphones, such as throat microphones, which capture vocal fold vibrations directly from the skin of the throat. This method offers a significant advantage: the recorded signals are largely immune to interference from other singers, resulting in much cleaner, more isolated recordings. Throat microphones have successfully been used to record vocal ensembles in several past studies [@Scherbaum16_LarynxMicrophones_IWFMA].
+To obtain accurate monitoring results with `pytch`, each singer should be recorded with an individual microphone. We recommend using handheld dynamic or headset microphones and positioning singers with sufficient distance to reduce cross-talk. A practical alternative is the use of contact microphones (e.g., throat microphones), which capture vocal fold vibrations directly from the skin, are largely immune to interference from other singers, and have been successfully used in prior ensemble recordings [@Scherbaum16_LarynxMicrophones_IWFMA]. While there is no strict limit on the number of input channels, we recommend up to four singers to maintain chart readability.
 
 In addition to live monitoring, `pytch` can also be used to analyze pre-recorded multitrack singing performances. By playing back individual vocal tracks in a digital audio workstation (DAW) and using virtual audio routing tools such as Loopback[^6] (macOS) or BlackHole[^7], these tracks can be streamed into `pytch` as if they were live microphone inputs. This setup, which was also used in the demo video[^5], allows users to benefit from `pytch`’s real-time visualization and analysis features during evaluation of rehearsals, performances, or field recordings.
 
